@@ -1,3 +1,9 @@
+// Notes:
+// Trifold detection is currently off
+
+// Changes since test: slow MVV LVA
+// Quicence search
+
 // TODO:
 // Incremental zobrist updates
 
@@ -39,8 +45,6 @@ using std::endl;
 constexpr u64 INF = std::numeric_limits<uint64_t>::max();
 
 constexpr int INF_INT = std::numeric_limits<int>::max();
-
-constexpr double INF_DBL = std::numeric_limits<double>::max();
 
 enum Color : int {
     WHITE = 1, BLACK = 0
@@ -755,7 +759,7 @@ public:
     bool doubleCheck = false;
     u64 checkMask = 0;
     u64 pinned = 0;
-    
+
     std::vector<u64> positionHistory;
     u64 zobrist;
     u64 posZobrist;
@@ -811,8 +815,29 @@ public:
 
         emptySquares = ~(whitePieces | blackPieces);
 
-        updateZobrist();
-        positionHistory.push_back(posZobrist);
+        //updateZobrist();
+        //positionHistory.push_back(posZobrist);
+    }
+
+    PieceType getPiece(int index) {
+        u64 indexBB = 1ULL << index;
+        if ((white[0] | black[0]) & indexBB) return PAWN;
+        else if ((white[1] | black[1]) & indexBB) return KNIGHT;
+        else if ((white[2] | black[2]) & indexBB) return BISHOP;
+        else if ((white[3] | black[3]) & indexBB) return ROOK;
+        else if ((white[4] | black[4]) & indexBB) return QUEEN;
+        else return KING;
+    }
+
+    int getPieceValue(PieceType pt) {
+        switch (pt) {
+        case PAWN: return 100;
+        case KNIGHT: return 300;
+        case BISHOP: return 300;
+        case ROOK: return 500;
+        case QUEEN: return 800;
+        default: return 0;
+        }
     }
 
     void generatePawnMoves(MoveList& moves) {
@@ -939,7 +964,7 @@ public:
     void generateBishopMoves(MoveList& moves) {
         int currentIndex;
 
-        u64 bishopBitboard = side ? white[2] : black[2];
+        u64 bishopBitboard = side ? (white[2] | white[4]) : (black[2] | black[4]);
         u64 ourBitboard = side ? whitePieces : blackPieces;
 
         u64 occupancy = whitePieces | blackPieces;
@@ -975,7 +1000,7 @@ public:
     void generateRookMoves(MoveList& moves) {
         int currentIndex;
 
-        u64 rookBitboard = side ? white[3] : black[3];
+        u64 rookBitboard = side ? (white[3] | white[4]) : (black[3] | black[4]);
         u64 ourBitboard = side ? whitePieces : blackPieces;
 
         u64 occupancy = whitePieces | blackPieces;
@@ -1005,43 +1030,6 @@ public:
             }
 
             rookBitboard &= rookBitboard - 1; // Clear least significant bit
-        }
-    }
-
-    void generateQueenMoves(MoveList& moves) {
-        int currentIndex;
-
-        u64 queenBitboard = side ? white[4] : black[4];
-        u64 ourBitboard = side ? whitePieces : blackPieces;
-
-        u64 occupancy = whitePieces | blackPieces;
-
-        u64 moveMask;
-
-        while (queenBitboard > 0) {
-            currentIndex = ctzll(queenBitboard);
-
-            moveMask = getBishopAttacks(Square(currentIndex), occupancy);
-            moveMask |= getRookAttacks(Square(currentIndex), occupancy);
-
-            moveMask &= ~ourBitboard;
-
-            u64 emptyMoves = moveMask & emptySquares;
-            u64 captures = moveMask & ~(emptySquares | ourBitboard);
-
-            // Make move with each legal move in mask
-            while (emptyMoves > 0) {
-                int maskIndex = ctzll(emptyMoves);
-                moves.add(Move(currentIndex, maskIndex));
-                emptyMoves &= emptyMoves - 1;
-            }
-            while (captures > 0) {
-                int maskIndex = ctzll(captures);
-                moves.add(Move(currentIndex, maskIndex, CAPTURE));
-                captures &= captures - 1;
-            }
-
-            queenBitboard &= queenBitboard - 1; // Clear least significant bit
         }
     }
 
@@ -1081,27 +1069,43 @@ public:
         }
     }
 
-    MoveList generateMoves() {
+    int evaluateMVVLVA(Move& a) {
+        int victim = getPieceValue(getPiece(a.endSquare()));
+        int attacker = getPieceValue(getPiece(a.startSquare()));
+
+        // Higher victim value and lower attacker value are prioritized
+        return (victim * 100) - attacker;
+    }
+
+    MoveList generateMoves(bool capturesOnly = false) {
         MoveList allMoves;
+        generateKingMoves(allMoves);
+
+        if (doubleCheck) { // Returns early when double checks
+            return allMoves;
+        }
+
         MoveList captures, quietMoves;
         generatePawnMoves(allMoves);
         generateKnightMoves(allMoves);
         generateBishopMoves(allMoves);
         generateRookMoves(allMoves);
-        generateQueenMoves(allMoves);
-        generateKingMoves(allMoves);
+        // Queen moves are part of bishop/rook moves
 
         // Classify moves
         for (int i = 0; i < allMoves.count; ++i) {
             Move& move = allMoves.moves[i];
 
             if (move.typeOf() & CAPTURE) {
-                captures.moves[captures.count++] = move;
+                captures.add(move);
             }
-            else {
-                quietMoves.moves[quietMoves.count++] = move;
+            else if (!capturesOnly) {
+                quietMoves.add(move);
             }
         }
+
+        std::sort(captures.moves.begin(), captures.moves.begin() + captures.count, [this](Move& a) { return evaluateMVVLVA(a); });
+
 
         // Combine moves in the prioritized order
         MoveList prioritizedMoves;
@@ -1144,10 +1148,6 @@ public:
         u64 kingBit = checkWhite ? white[5] : black[5];
         if (!kingBit) return false;
         return isUnderAttack(checkWhite, ctzll(kingBit));
-    }
-
-    bool isGameOver() {
-        return !generateLegalMoves().count;
     }
 
     bool isUnderAttack(bool checkWhite, int square) {
@@ -1301,10 +1301,6 @@ public:
             return ans;
         }
 
-        if (doubleCheck) { // Returns false because more than 1 checker requires a king move, and those are already handled
-            return false;
-        }
-
         // En passant check
         if (m.typeOf() == EN_PASSANT) {
             Board testBoard = *this;
@@ -1321,7 +1317,6 @@ public:
         // If we reach here, the move is legal
         return true;
     }
-
 
     MoveList generateLegalMoves() {
         auto moves = generateMoves();
@@ -1468,7 +1463,7 @@ public:
         recompute();
         updateCheckPin();
 
-        }
+    }
 
     void loadFromFEN(const std::deque<string>& inputFEN) {
         // Reset
@@ -1630,7 +1625,7 @@ public:
         return (side) ? eval : -eval;
     }
 
-    uint64_t updateZobrist() {
+    void updateZobrist() {
         uint64_t hash = 0;
         // Pieces
         for (int table = 0; table < 6; table++) {
@@ -1654,7 +1649,7 @@ public:
 
         // Turn
         if (castlingRights) hash ^= Precomputed::zobrist[5][2] / (side + 1);
-        
+
         zobrist = hash;
     }
 };
@@ -1898,7 +1893,70 @@ void perftSuite(const string& filePath) {
 int nodes = 0;
 int movesToGo = 20;
 
-MoveEvaluationList searchOrder;
+static int _qs(Board& board,
+    int depth,
+    std::atomic<bool>& breakFlag,
+    std::chrono::steady_clock::time_point& timerStart,
+    int timeToSpend,
+    int alpha,
+    int beta,
+    int maxNodes) {
+
+    ++nodes;
+
+    if (depth == 0) {
+        int eval = board.evaluate();
+        return eval;
+    }
+    else if (board.isDraw()) {
+        return 0;
+    }
+
+    // Only make captures
+    MoveList moves = board.generateMoves(true);
+    int bestEval = -INF_INT;
+
+    bool hasMoved = false;
+
+    for (int i = 0; i < moves.count; ++i) {
+        const Move& m = moves.moves[i];
+
+        if (!board.isLegalMove(m)) continue; // Validate legal moves
+        hasMoved = true;
+
+        // Break checks
+        if (breakFlag.load()) return bestEval;
+        if (timeToSpend != 0) {
+            auto now = std::chrono::steady_clock::now();
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - timerStart).count() >= timeToSpend) {
+                return bestEval;
+            }
+        }
+        if (maxNodes > 0 && nodes >= maxNodes) return bestEval;
+
+        // Recursive call with a copied board
+        Board testBoard = board;
+        testBoard.move(m);
+
+        int eval = -_qs(testBoard, depth - 1, breakFlag, timerStart, timeToSpend, -beta, -alpha, maxNodes);
+
+        // Update best move and alpha-beta values
+        if (eval > bestEval) {
+            bestEval = eval;
+            alpha = std::max(bestEval, alpha);
+        }
+        if (alpha >= beta) break; // Alpha-beta pruning
+    }
+
+    if (!hasMoved) {
+        if (board.isInCheck(board.side)) {
+            return -999999;
+        }
+        return board.evaluate();
+    }
+
+    return bestEval;
+}
 
 static int _go(Board& board,
     int depth,
@@ -1912,6 +1970,7 @@ static int _go(Board& board,
     ++nodes;
 
     if (depth == 0) {
+        //int eval = _qs(board, 128, breakFlag, timerStart, timeToSpend, alpha, beta, maxNodes);
         int eval = board.evaluate();
         return eval;
     }
@@ -2043,6 +2102,7 @@ void iterativeDeepening(
     }
 
     // timeToSpend is a hard limit
+    if (timeToSpend > 100) timeToSpend -= 100;
 
     MoveEvaluation bestMove = { Move(), -INF_INT };
 
