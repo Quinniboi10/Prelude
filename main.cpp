@@ -1,3 +1,6 @@
+// TODO:
+// Incremental zobrist updates
+
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -9,6 +12,8 @@
 #include <cassert>
 #include <optional>
 #include <thread>
+#include <memory>
+#include <random>
 
 #define ctzll(x) ((x) ? _tzcnt_u64(x) : 64)
 #define clzll(x) ((x) ? __lzcnt64(x) : 64)
@@ -27,16 +32,15 @@ typedef uint32_t u32;
 typedef uint8_t u8;
 
 using std::string;
+using std::array;
 using std::cout;
 using std::endl;
 
+constexpr u64 INF = std::numeric_limits<uint64_t>::max();
 
-constexpr u64 POS_INF = std::numeric_limits<uint64_t>::max();
+constexpr int INF_INT = std::numeric_limits<int>::max();
 
-
-constexpr int POS_INF_INT = std::numeric_limits<int>::max();
-constexpr int NEG_INF_INT = std::numeric_limits<int>::min();
-
+constexpr double INF_DBL = std::numeric_limits<double>::max();
 
 enum Color : int {
     WHITE = 1, BLACK = 0
@@ -76,8 +80,8 @@ enum File : int {
 enum Rank : int {
     RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8
 };
-
 Square& operator++(Square& s) { return s = Square(int(s) + 1); }
+Square& operator--(Square& s) { return s = Square(int(s) - 1); }
 constexpr Square operator+(Square s, Direction d) { return Square(int(s) + int(d)); }
 constexpr Square operator-(Square s, Direction d) { return Square(int(s) - int(d)); }
 Square& operator+=(Square& s, Direction d) { return s = s + d; }
@@ -98,9 +102,9 @@ struct shifts {
     static inline int WEST = -1;
     static inline int NORTH_WEST = 7;
 
-    static inline std::array<int, 8> dirs = { NORTH, NORTH_EAST, EAST, SOUTH_EAST, SOUTH, SOUTH_WEST, WEST, NORTH_WEST };
-    static inline std::array<int, 4> straightDirs = { NORTH, EAST, SOUTH, WEST };
-    static inline std::array<int, 4> diagonalDirs = { NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST };
+    static inline array<int, 8> dirs = { NORTH, NORTH_EAST, EAST, SOUTH_EAST, SOUTH, SOUTH_WEST, WEST, NORTH_WEST };
+    static inline array<int, 4> straightDirs = { NORTH, EAST, SOUTH, WEST };
+    static inline array<int, 4> diagonalDirs = { NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST };
 };
 
 struct indexes {
@@ -114,9 +118,9 @@ struct indexes {
     static inline int NORTH_WEST = 7;
     static inline int all = 8;
 
-    static inline std::array<int, 8> dirs = { NORTH, NORTH_EAST, EAST, SOUTH_EAST, SOUTH, SOUTH_WEST, WEST, NORTH_WEST };
-    static inline std::array<int, 4> straightDirs = { NORTH, EAST, SOUTH, WEST };
-    static inline std::array<int, 4> diagonalDirs = { NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST };
+    static inline array<int, 8> dirs = { NORTH, NORTH_EAST, EAST, SOUTH_EAST, SOUTH, SOUTH_WEST, WEST, NORTH_WEST };
+    static inline array<int, 4> straightDirs = { NORTH, EAST, SOUTH, WEST };
+    static inline array<int, 4> diagonalDirs = { NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST };
 };
 
 static int parseSquare(const string& square) {
@@ -219,8 +223,9 @@ string formatNum(u64 v) {
 
 class Precomputed {
 public:
-    static std::array<u64, 64> knightMoves;
-    static std::array<u64, 64> kingMoves;
+    static array<u64, 64> knightMoves;
+    static array<u64, 64> kingMoves;
+    static array<array<u64, 64>, 12> zobrist;
     static u64 isOnA;
     static u64 isOnB;
     static u64 isOnC;
@@ -337,11 +342,25 @@ public:
 
             kingMoves[i] = positions;
         }
+
+        // *** MAKE RANDOM ZOBRIST TABLE ****
+        std::random_device rd;
+
+        std::mt19937_64 engine(rd());
+
+        std::uniform_int_distribution<uint64_t> dist(0, std::numeric_limits<uint64_t>::max());
+
+        for (auto& pieceTable : zobrist) {
+            for (int i = 0; i < 64; i++) {
+                pieceTable[i] = dist(engine);
+            }
+        }
     }
 };
 
-std::array<u64, 64> Precomputed::knightMoves;
-std::array<u64, 64> Precomputed::kingMoves;
+array<u64, 64> Precomputed::knightMoves;
+array<u64, 64> Precomputed::kingMoves;
+array<array<u64, 64>, 12> Precomputed::zobrist;
 u64 Precomputed::isOnA;
 u64 Precomputed::isOnB;
 u64 Precomputed::isOnC;
@@ -636,10 +655,49 @@ void initializeAllDatabases() {
 struct MoveEvaluation {
     Move move;
     int eval;
+
+    MoveEvaluation() {
+        move = Move();
+        eval = -INF_INT;
+    }
+    MoveEvaluation(Move m, int eval) {
+        move = m;
+        this->eval = eval;
+    }
+
+    bool operator>(const MoveEvaluation& other) const { return eval > other.eval; }
+    bool operator<(const MoveEvaluation& other) const { return eval < other.eval; }
+    bool operator>=(const MoveEvaluation& other) const { return eval >= other.eval; }
+    bool operator<=(const MoveEvaluation& other) const { return eval <= other.eval; }
+};
+
+struct MoveEvaluationList {
+    array<MoveEvaluation, 218> moves;
+    int count;
+
+    MoveEvaluationList() {
+        count = 0;
+    }
+
+    void add(MoveEvaluation m) {
+        moves[count++] = m;
+    }
+
+    MoveEvaluation get(int index) {
+        return moves[index];
+    }
+
+    MoveEvaluation back() {
+        return moves[count];
+    }
+
+    void sortByEval() {
+        std::sort(moves.begin(), moves.end());
+    }
 };
 
 struct MoveList {
-    std::array<Move, 218> moves;
+    array<Move, 218> moves;
     int count;
 
     MoveList() {
@@ -650,8 +708,16 @@ struct MoveList {
         moves[count++] = m;
     }
 
+    Move get(int index) {
+        return moves[index];
+    }
+
+    Move back() {
+        return moves[count];
+    }
+
     void sortByString(Board& board) {
-        std::array<string, 218> movesStr;
+        array<string, 218> movesStr;
         movesStr.fill("zzzz"); // Fill with values to be sorted to back.
         for (int i = 0; i < count; ++i) {
             movesStr[i] = moves[i].toString();
@@ -671,8 +737,8 @@ struct MoveList {
 
 class Board {
 public:
-    std::array<u64, 6> white; // Goes pawns, knights, bishops, rooks, queens, king
-    std::array<u64, 6> black; // Goes pawns, knights, bishops, rooks, queens, king
+    array<u64, 6> white; // Goes pawns, knights, bishops, rooks, queens, king
+    array<u64, 6> black; // Goes pawns, knights, bishops, rooks, queens, king
 
     u64 blackPieces;
     u64 whitePieces;
@@ -684,10 +750,15 @@ public:
     Color side = WHITE;
 
     int halfMoveClock;
+    int fullMoveClock;
 
     bool doubleCheck = false;
     u64 checkMask = 0;
     u64 pinned = 0;
+    
+    std::vector<u64> positionHistory;
+    u64 zobrist;
+    u64 posZobrist;
 
     void reset() {
         // Reset position
@@ -711,6 +782,7 @@ public:
         side = WHITE;
 
         halfMoveClock = 0;
+        fullMoveClock = 1;
 
         recompute();
         updateCheckPin();
@@ -738,6 +810,9 @@ public:
         blackPieces = black[0] | black[1] | black[2] | black[3] | black[4] | black[5];
 
         emptySquares = ~(whitePieces | blackPieces);
+
+        updateZobrist();
+        positionHistory.push_back(posZobrist);
     }
 
     void generatePawnMoves(MoveList& moves) {
@@ -1007,15 +1082,37 @@ public:
     }
 
     MoveList generateMoves() {
-        MoveList moves;
-        generatePawnMoves(moves);
-        generateKnightMoves(moves);
-        generateBishopMoves(moves);
-        generateRookMoves(moves);
-        generateQueenMoves(moves);
-        generateKingMoves(moves);
+        MoveList allMoves;
+        MoveList captures, quietMoves;
+        generatePawnMoves(allMoves);
+        generateKnightMoves(allMoves);
+        generateBishopMoves(allMoves);
+        generateRookMoves(allMoves);
+        generateQueenMoves(allMoves);
+        generateKingMoves(allMoves);
 
-        return moves;
+        // Classify moves
+        for (int i = 0; i < allMoves.count; ++i) {
+            Move& move = allMoves.moves[i];
+
+            if (move.typeOf() & CAPTURE) {
+                captures.moves[captures.count++] = move;
+            }
+            else {
+                quietMoves.moves[quietMoves.count++] = move;
+            }
+        }
+
+        // Combine moves in the prioritized order
+        MoveList prioritizedMoves;
+        for (int i = 0; i < captures.count; ++i) {
+            prioritizedMoves.add(captures.moves[i]);
+        }
+        for (int i = 0; i < quietMoves.count; ++i) {
+            prioritizedMoves.add(quietMoves.moves[i]);
+        }
+
+        return prioritizedMoves;
     }
 
     template<PieceType pt>
@@ -1035,10 +1132,22 @@ public:
         return (c * whitePieces + ~c * blackPieces);
     }
 
+    bool isDraw() {
+        if (halfMoveClock > 100) return true;
+        if (std::count(positionHistory.begin(), positionHistory.end(), zobrist) >= 3) {
+            return true;
+        }
+        return false;
+    }
+
     bool isInCheck(bool checkWhite) {
         u64 kingBit = checkWhite ? white[5] : black[5];
         if (!kingBit) return false;
         return isUnderAttack(checkWhite, ctzll(kingBit));
+    }
+
+    bool isGameOver() {
+        return !generateLegalMoves().count;
     }
 
     bool isUnderAttack(bool checkWhite, int square) {
@@ -1122,7 +1231,7 @@ public:
             checks &= checks - 1;
         }
 
-        if (!checkMask) checkMask = POS_INF; // If no checks, set to all ones
+        if (!checkMask) checkMask = INF; // If no checks, set to all ones
 
         // ****** PIN STUFF HERE ******
         u64 rookXrays = getXrayRookAttacks(Square(kingIndex), occ, ourPieces) & enemyRooksQueens;
@@ -1263,6 +1372,8 @@ public:
             cout << "|" << endl;
         }
         cout << "+---+---+---+---+---+---+---+---+" << endl;
+        cout << endl;
+        cout << "Current FEN: " << exportToFEN() << endl;
     }
 
     void move(string& moveIn) {
@@ -1327,7 +1438,7 @@ public:
                 }
 
                 // Halfmove clock, promo and set en passant
-                if (i == 0 || readBit((side) ? blackPieces : whitePieces, to)) halfMoveClock = -1; // Reset halfmove clock on capture or pawn move
+                if (i == 0 || readBit(blackPieces | whitePieces, to)) halfMoveClock = -1; // Reset halfmove clock on capture or pawn move
             }
         }
 
@@ -1349,13 +1460,15 @@ public:
             }
         }
 
-        side = ~side;
-
         halfMoveClock++;
+        fullMoveClock += side;
+
+        side = ~side;
 
         recompute();
         updateCheckPin();
-    }
+
+        }
 
     void loadFromFEN(const std::deque<string>& inputFEN) {
         // Reset
@@ -1431,7 +1544,7 @@ public:
 
         int blankSquares = 0;
 
-        for (Square sq = a1; sq <= h8; ++sq) {
+        for (Square sq = h8; sq >= a1; --sq) {
             if ((1ULL << (int)sq) & Precomputed::isOnA && sq != a1) {
                 if (blankSquares / 12) ans += std::to_string(blankSquares / 12);
                 blankSquares = 0;
@@ -1514,7 +1627,35 @@ public:
         //transPos[zobrist] = eval;
 
         // Adjust evaluation for the side to move
-        return (side) ? eval : -eval;;
+        return (side) ? eval : -eval;
+    }
+
+    uint64_t updateZobrist() {
+        uint64_t hash = 0;
+        // Pieces
+        for (int table = 0; table < 6; table++) {
+            for (int i = 0; i < 64; i++) {
+                if (readBit(white[table], i)) hash ^= Precomputed::zobrist[table][i];
+            }
+        }
+        for (int table = 0; table < 6; table++) {
+            for (int i = 0; i < 64; i++) {
+                if (readBit(black[table], i)) hash ^= Precomputed::zobrist[table][i];
+            }
+        }
+
+        posZobrist = hash;
+
+        // Castling
+        if (castlingRights) hash ^= Precomputed::zobrist[5][0] / castlingRights;
+
+        // En Passant
+        if (castlingRights) hash ^= Precomputed::zobrist[5][1] / (enPassant + 1);
+
+        // Turn
+        if (castlingRights) hash ^= Precomputed::zobrist[5][2] / (side + 1);
+        
+        zobrist = hash;
     }
 };
 
@@ -1616,7 +1757,7 @@ void perft(Board& board, int depth, bool bulk) {
     auto start = std::chrono::high_resolution_clock::now();
 
     if (depth < 1) return;
-    if (depth == 1 && bulk) return;
+    if (depth == 1 && bulk) bulk = false;
 
     MoveList moves = board.generateLegalMoves();
     moves.sortByString(board);
@@ -1755,79 +1896,124 @@ void perftSuite(const string& filePath) {
 
 // ****** SEARCH FUNCTIONS ******
 int nodes = 0;
+int movesToGo = 20;
+
+MoveEvaluationList searchOrder;
+
+static int _go(Board& board,
+    int depth,
+    std::atomic<bool>& breakFlag,
+    std::chrono::steady_clock::time_point& timerStart,
+    int timeToSpend,
+    int alpha,
+    int beta,
+    int maxNodes) {
+
+    ++nodes;
+
+    if (depth == 0) {
+        int eval = board.evaluate();
+        return eval;
+    }
+    else if (board.isDraw()) {
+        return 0;
+    }
+
+    MoveList moves = board.generateMoves();
+    int bestEval = -INF_INT;
+
+    bool hasMoved = false;
+
+    for (int i = 0; i < moves.count; ++i) {
+        const Move& m = moves.moves[i];
+
+        if (!board.isLegalMove(m)) continue; // Validate legal moves
+        hasMoved = true;
+
+        // Break checks
+        if (breakFlag.load()) return bestEval;
+        if (timeToSpend != 0) {
+            auto now = std::chrono::steady_clock::now();
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - timerStart).count() >= timeToSpend) {
+                return bestEval;
+            }
+        }
+        if (maxNodes > 0 && nodes >= maxNodes) return bestEval;
+
+        // Recursive call with a copied board
+        Board testBoard = board;
+        testBoard.move(m);
+
+        int eval = -_go(testBoard, depth - 1, breakFlag, timerStart, timeToSpend, -beta, -alpha, maxNodes);
+
+        // Update best move and alpha-beta values
+        if (eval > bestEval) {
+            bestEval = eval;
+            alpha = std::max(bestEval, alpha);
+        }
+        if (alpha >= beta) break; // Alpha-beta pruning
+    }
+
+    if (!hasMoved) {
+        if (board.isInCheck(board.side)) {
+            return -999999;
+        }
+        return 0;
+    }
+
+    return bestEval;
+}
 
 static MoveEvaluation go(Board& board,
     int depth,
     std::atomic<bool>& breakFlag,
     std::chrono::steady_clock::time_point& timerStart,
-    int timeToSpend = 0,
-    int alpha = NEG_INF_INT,
-    int beta = POS_INF_INT,
-    int maxNodes = -1) {
+    int timeToSpend,
+    int alpha,
+    int beta,
+    int maxNodes) {
 
-    if (depth == 0) {
-        nodes++;
-        int eval = board.evaluate();
-        return { Move(), eval };
-    }
+    ++nodes;
 
     MoveList moves = board.generateMoves();
-    int maxEval = NEG_INF_INT;
     Move bestMove;
+    int bestEval = -INF_INT;
 
-    bool hasMoved = false;
     for (int i = 0; i < moves.count; ++i) {
         const Move& m = moves.moves[i];
 
-        if (!board.isLegalMove(m)) continue;
-        hasMoved = true;
-
-        // Time/node/break checks
-        if (breakFlag.load()) {
-            return { bestMove, maxEval };
+        if (!board.isLegalMove(m)) {
+            continue; // Validate legal moves
         }
+
+        // Break checks
+        if (breakFlag.load()) return { bestMove, bestEval };
         if (timeToSpend != 0) {
             auto now = std::chrono::steady_clock::now();
             if (std::chrono::duration_cast<std::chrono::milliseconds>(now - timerStart).count() >= timeToSpend) {
-                return { bestMove, maxEval };
+                return { bestMove, bestEval };
             }
         }
-        if (maxNodes > 0 && nodes >= maxNodes) {
-            return { bestMove, maxEval };
-        }
+        if (maxNodes > 0 && nodes >= maxNodes) return { bestMove, bestEval };
 
+        // Recursive call with a copied board
         Board testBoard = board;
         testBoard.move(m);
 
-        MoveEvaluation evalMove = go(testBoard, depth - 1, breakFlag, timerStart, timeToSpend, -beta, -alpha, maxNodes);
-        int eval = -evalMove.eval;
+        int eval = -(_go(testBoard, depth - 1, breakFlag, timerStart, timeToSpend, -beta, -alpha, maxNodes));
 
-        if (eval > maxEval) {
-            maxEval = eval;
+        // Update best move and alpha-beta values
+        if (eval > bestEval) {
+            bestEval = eval;
             bestMove = m;
+            alpha = std::max(bestEval, alpha);
         }
-        if (eval > alpha) {
-            alpha = eval;
-        }
-        if (alpha >= beta) {
-            break; // Alpha-beta pruning
-        }
+        if (alpha >= beta) break; // Alpha-beta pruning
     }
 
-    if (!hasMoved) {
-        nodes++;
-        if (board.isInCheck(board.side)) {
-            // Checkmate
-            return { Move(), NEG_INF_INT };
-        }
-        else {
-            // Stalemate
-            return { Move(), 0 };
-        }
-    }
-
-    return { bestMove, maxEval };
+    return { bestMove, bestEval };
 }
+
 
 void iterativeDeepening(
     Board& board,
@@ -1836,32 +2022,41 @@ void iterativeDeepening(
     int wtime = 0,
     int btime = 0,
     int mtime = 0,
+    int winc = 0,
+    int binc = 0,
     int maxNodes = -1
 ) {
     breakFlag.store(false);
     nodes = 0;
     int timeToSpend = 0;
+    int softLimit = 0;
     auto start = std::chrono::steady_clock::now();
     std::string bestMoveAlgebra = "";
     if (wtime || btime) {
-        // Simple heuristic: spend 1/20 of the available time
-        timeToSpend = board.side ? wtime / 20 : btime / 20;
+        timeToSpend = board.side ? wtime / 2 : btime / 2;
+        int inc = board.side ? winc : binc;
+        softLimit = 0.6 * ((timeToSpend * 2) / movesToGo + inc * 3 / 4);
     }
-    else if (mtime) timeToSpend = mtime;
+    else if (mtime) {
+        timeToSpend = mtime;
+        softLimit = mtime;
+    }
 
-    MoveEvaluation bestMove = { Move(), NEG_INF_INT };
+    // timeToSpend is a hard limit
+
+    MoveEvaluation bestMove = { Move(), -INF_INT };
 
     for (int depth = 1; depth <= maxDepth; depth++) {
-        bestMove = go(board, depth, breakFlag, start, timeToSpend, NEG_INF_INT, POS_INF_INT, maxNodes);
+        bestMove = go(board, depth, breakFlag, start, timeToSpend, -INF_INT, INF_INT, maxNodes);
 
         if (breakFlag.load()) {
             IFDBG cout << "Stopping search because of break flag" << endl;
             break;
         }
 
-        if (timeToSpend != 0) {
+        if (softLimit != 0) {
             auto now = std::chrono::steady_clock::now();
-            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count() >= timeToSpend) {
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count() >= softLimit) {
                 IFDBG cout << "Stopping search because of time limit" << endl;
                 break;
             }
@@ -1877,10 +2072,10 @@ void iterativeDeepening(
         int nps = (int)((double)nodes / (elapsedNs / 1e9));
 
         bestMoveAlgebra = bestMove.move.toString();
-        if (bestMove.eval > 90000) {
+        if (std::abs(bestMove.eval) > 90000) {
             // Assume large positive value is mate
             std::cout << "info depth " << depth << " nodes " << nodes << " nps " << nps
-                << " score mate " << depth / 2 << " pv " << bestMoveAlgebra << std::endl;
+                << " score mate " << ((bestMove.eval > 0) ? (depth / 2) : -(depth / 2)) << " pv " << bestMoveAlgebra << std::endl;
             break;
         }
         else {
@@ -1904,10 +2099,29 @@ int main() {
     std::atomic<bool> breakFlag(false);
     std::optional<std::thread> searchThreadOpt;
     cout << "Prelude ready and awaiting commands" << endl;
-
     while (true) {
         std::getline(std::cin, command);
         parsedcommand = split(command, ' ');
+        if (command == "uci") {
+            std::cout << "id name Prelude" << std::endl;
+            std::cout << "id author Quinniboi10" << std::endl;
+            std::cout << "uciok" << std::endl;
+        }
+        else if (command == "isready") {
+            std::cout << "readyok" << std::endl;
+        }
+        else if (command == "ucinewgame") {
+            breakFlag.store(false);
+            movesToGo = 20;
+            if (searchThreadOpt.has_value()) {
+                if (searchThreadOpt->joinable()) {
+                    breakFlag.store(true);
+                    searchThreadOpt->join();
+                    breakFlag.store(false);
+                }
+                searchThreadOpt.reset();
+            }
+        }
         if (!parsedcommand.empty() && parsedcommand.at(0) == "position") { // Handle "position" command
             currentPos.reset();
             if (parsedcommand.size() > 3 && parsedcommand.at(2) == "moves") { // "position startpos moves ..."
@@ -1947,66 +2161,55 @@ int main() {
             }
 
             int maxNodes = -1;
+            int depth = INF_INT;
+
+            int wtime = 0;
+            int btime = 0;
+
+            int mtime = 0;
+
+            int winc = 0;
+            int binc = 0;
 
             if (findIndexOf(parsedcommand, "nodes") > 0) {
                 IFDBG cout << "Starting search with max nodes limit" << endl;
                 maxNodes = stoi(parsedcommand.at(findIndexOf(parsedcommand, "nodes") + 1));
             }
 
-            if (parsedcommand.size() > 2 && parsedcommand.at(1) == "depth") {
-                IFDBG cout << "Starting search with depth limit" << endl;
-                int depth = stoi(parsedcommand.at(2));
-                // Start a new search thread with depth
-                searchThreadOpt.emplace(iterativeDeepening,
-                    std::ref(currentPos),
-                    depth,
-                    std::ref(breakFlag),
-                    0,
-                    0,
-                    0,
-                    maxNodes); // Ensure all six arguments are passed
+            if (findIndexOf(parsedcommand, "depth") > 0) {
+                depth = stoi(parsedcommand.at(findIndexOf(parsedcommand, "depth") + 1));
             }
-            else if (parsedcommand.size() > 4 && parsedcommand.at(1) == "wtime") {
-                IFDBG cout << "Starting search with game time limit" << endl;
-                int wtime = stoi(parsedcommand.at(2));
-                int btime = stoi(parsedcommand.at(4));
-                // Start a new search thread with wtime and btime
-                searchThreadOpt.emplace(iterativeDeepening,
-                    std::ref(currentPos),
-                    POS_INF_INT,
-                    std::ref(breakFlag),
-                    wtime,
-                    btime,
-                    0,
-                    maxNodes); // Explicitly provide maxNodes
+
+            if (findIndexOf(parsedcommand, "wtime") > 0) {
+                wtime = stoi(parsedcommand.at(findIndexOf(parsedcommand, "wtime") + 1));
             }
-            else if (parsedcommand.size() > 2 && parsedcommand.at(1) == "movetime") {
-                IFDBG cout << "Starting search with movetime limit" << endl;
-                int wtime = stoi(parsedcommand.at(2)) * 20;
-                if (wtime > 200) wtime -= 100; // Margin
-                else wtime *= 0.9;
-                // Start a new search thread with movetime and provide maxNodes
-                searchThreadOpt.emplace(iterativeDeepening,
-                    std::ref(currentPos),
-                    POS_INF_INT,
-                    std::ref(breakFlag),
-                    0,
-                    0,
-                    stoi(parsedcommand.at(2)),
-                    maxNodes); // Explicitly provide maxNodes
+
+            if (findIndexOf(parsedcommand, "btime") > 0) {
+                btime = stoi(parsedcommand.at(findIndexOf(parsedcommand, "btime") + 1));
             }
-            else {
-                IFDBG cout << "Starting search with NO limit" << endl;
-                // Start a new search thread with default time parameters
-                searchThreadOpt.emplace(iterativeDeepening,
-                    std::ref(currentPos),
-                    POS_INF_INT,
-                    std::ref(breakFlag),
-                    0,
-                    0,
-                    0,
-                    maxNodes); // Ensure all six arguments are passed
+
+            if (findIndexOf(parsedcommand, "movetime") > 0) {
+                mtime = stoi(parsedcommand.at(findIndexOf(parsedcommand, "movetime") + 1));
             }
+
+            if (findIndexOf(parsedcommand, "winc") > 0) {
+                winc = stoi(parsedcommand.at(findIndexOf(parsedcommand, "winc") + 1));
+            }
+
+            if (findIndexOf(parsedcommand, "binc") > 0) {
+                binc = stoi(parsedcommand.at(findIndexOf(parsedcommand, "binc") + 1));
+            }
+
+            searchThreadOpt.emplace(iterativeDeepening,
+                std::ref(currentPos),
+                depth,
+                std::ref(breakFlag),
+                wtime,
+                btime,
+                mtime,
+                winc,
+                binc,
+                maxNodes);
         }
         else if (command == "stop") {
             breakFlag.store(true);
@@ -2026,10 +2229,6 @@ int main() {
                     searchThreadOpt->join();
                 }
             }
-            return 0;
-        }
-        else if (command == "quit") {
-            breakFlag.store(true);
             return 0;
         }
         else if (command == "debug.gamestate") {
