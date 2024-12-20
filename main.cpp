@@ -1,11 +1,7 @@
-// Notes:
-// Trifold detection is currently off
-
-// Changes since test: slow MVV LVA
-// Quicence search
+// Changes since test: Partial incremental zobrist
 
 // TODO:
-// Incremental zobrist updates
+// Incremental zobrist updates when castling or en passant
 
 #include <iostream>
 #include <string>
@@ -36,6 +32,8 @@ typedef uint64_t u64;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint8_t u8;
+
+typedef int64_t i64;
 
 using std::string;
 using std::array;
@@ -157,10 +155,9 @@ class Move {
     // CAPTURE = 14
     // SPECIAL 1 = 13
     // SPECIAL 0 = 12
-private:
+public:
     uint16_t move;
 
-public:
     Move() {
         move = 0;
     }
@@ -675,31 +672,6 @@ struct MoveEvaluation {
     bool operator<=(const MoveEvaluation& other) const { return eval <= other.eval; }
 };
 
-struct MoveEvaluationList {
-    array<MoveEvaluation, 218> moves;
-    int count;
-
-    MoveEvaluationList() {
-        count = 0;
-    }
-
-    void add(MoveEvaluation m) {
-        moves[count++] = m;
-    }
-
-    MoveEvaluation get(int index) {
-        return moves[index];
-    }
-
-    MoveEvaluation back() {
-        return moves[count];
-    }
-
-    void sortByEval() {
-        std::sort(moves.begin(), moves.end());
-    }
-};
-
 struct MoveList {
     array<Move, 218> moves;
     int count;
@@ -762,7 +734,6 @@ public:
 
     std::vector<u64> positionHistory;
     u64 zobrist;
-    u64 posZobrist;
 
     void reset() {
         // Reset position
@@ -790,6 +761,7 @@ public:
 
         recompute();
         updateCheckPin();
+        updateZobrist();
     }
 
     void clearIndex(int index) {
@@ -815,8 +787,7 @@ public:
 
         emptySquares = ~(whitePieces | blackPieces);
 
-        //updateZobrist();
-        //positionHistory.push_back(posZobrist);
+        positionHistory.push_back(zobrist);
     }
 
     PieceType getPiece(int index) {
@@ -1069,7 +1040,7 @@ public:
         }
     }
 
-    int evaluateMVVLVA(Move& a) {
+    int evaluateMVVLVA(Move a) {
         int victim = getPieceValue(getPiece(a.endSquare()));
         int attacker = getPieceValue(getPiece(a.startSquare()));
 
@@ -1105,7 +1076,6 @@ public:
         }
 
         std::sort(captures.moves.begin(), captures.moves.begin() + captures.count, [this](Move& a) { return evaluateMVVLVA(a); });
-
 
         // Combine moves in the prioritized order
         MoveList prioritizedMoves;
@@ -1369,6 +1339,7 @@ public:
         cout << "+---+---+---+---+---+---+---+---+" << endl;
         cout << endl;
         cout << "Current FEN: " << exportToFEN() << endl;
+        cout << "Current key: 0x" << std::hex << std::uppercase << zobrist << std::dec << endl;
     }
 
     void move(string& moveIn) {
@@ -1378,12 +1349,31 @@ public:
     void move(Move moveIn, bool updateMoveHistory = true) {
         auto& ourSide = side ? white : black;
 
+        // Take out old zobrist stuff that changes
+        
+        // Castling
+        zobrist ^= Precomputed::zobrist[5][0] / (castlingRights + 1);
+
+        // En Passant
+        zobrist ^= Precomputed::zobrist[5][1] / (enPassant + 1);
+
+        // Turn
+        zobrist ^= Precomputed::zobrist[5][2] / (side + 1);
+
+        // Add new turn
+        zobrist ^= Precomputed::zobrist[5][2] / (~side + 1);
+
         for (int i = 0; i < 6; ++i) {
             if (readBit(ourSide[i], moveIn.startSquare())) {
                 auto from = moveIn.startSquare();
                 auto to = moveIn.endSquare();
 
+                zobrist ^= Precomputed::zobrist[i][from];
+
                 MoveType mt = moveIn.typeOf();
+
+                // Increment endbit only if the move is not a promo, otherwise it is handled in the big switch
+                if (!(mt & KNIGHT_PROMO)) zobrist ^= Precomputed::zobrist[i][to];
 
                 setBit(ourSide[i], from, 0);
 
@@ -1405,6 +1395,7 @@ public:
 
                         setBit(ourSide[3], f8, 1); // Set rook
                     }
+                    updateZobrist();
                     break;
                 case CASTLE_Q:
                     if (to == c1 && readBit(castlingRights, 2)) {
@@ -1419,17 +1410,18 @@ public:
 
                         setBit(ourSide[3], d8, 1); // Set rook
                     }
+                    updateZobrist();
                     break;
-                case CAPTURE: clearIndex(to); setBit(ourSide[i], to, 1); break;
-                case QUEEN_PROMO_CAPTURE: clearIndex(to); setBit(ourSide[4], to, 1); break;
-                case ROOK_PROMO_CAPTURE: clearIndex(to); setBit(ourSide[3], to, 1); break;
-                case BISHOP_PROMO_CAPTURE: clearIndex(to); setBit(ourSide[2], to, 1); break;
-                case KNIGHT_PROMO_CAPTURE: clearIndex(to); setBit(ourSide[1], to, 1); break;
-                case EN_PASSANT: if (side) setBit(black[0], to + shifts::SOUTH, 0); else setBit(white[0], to + shifts::NORTH, 0); setBit(ourSide[i], to, 1); break;
-                case QUEEN_PROMO: setBit(ourSide[4], to, 1); break;
-                case ROOK_PROMO: setBit(ourSide[3], to, 1); break;
-                case BISHOP_PROMO: setBit(ourSide[2], to, 1); break;
-                case KNIGHT_PROMO: setBit(ourSide[1], to, 1); break;
+                case CAPTURE: clearIndex(to); setBit(ourSide[i], to, 1); zobrist ^= Precomputed::zobrist[getPiece(to)][to]; break;
+                case QUEEN_PROMO_CAPTURE: clearIndex(to); setBit(ourSide[4], to, 1); zobrist ^= Precomputed::zobrist[getPiece(to)][to]; zobrist ^= Precomputed::zobrist[4][to]; break;
+                case ROOK_PROMO_CAPTURE: clearIndex(to); setBit(ourSide[3], to, 1); zobrist ^= Precomputed::zobrist[getPiece(to)][to]; zobrist ^= Precomputed::zobrist[3][to]; break;
+                case BISHOP_PROMO_CAPTURE: clearIndex(to); setBit(ourSide[2], to, 1); zobrist ^= Precomputed::zobrist[getPiece(to)][to]; zobrist ^= Precomputed::zobrist[2][to]; break;
+                case KNIGHT_PROMO_CAPTURE: clearIndex(to); setBit(ourSide[1], to, 1); zobrist ^= Precomputed::zobrist[getPiece(to)][to]; zobrist ^= Precomputed::zobrist[1][to]; break;
+                case EN_PASSANT: if (side) setBit(black[0], to + shifts::SOUTH, 0); else setBit(white[0], to + shifts::NORTH, 0); setBit(ourSide[i], to, 1); updateZobrist(); break;
+                case QUEEN_PROMO: setBit(ourSide[4], to, 1); zobrist ^= Precomputed::zobrist[4][to]; break;
+                case ROOK_PROMO: setBit(ourSide[3], to, 1); zobrist ^= Precomputed::zobrist[3][to]; break;
+                case BISHOP_PROMO: setBit(ourSide[2], to, 1); zobrist ^= Precomputed::zobrist[2][to]; break;
+                case KNIGHT_PROMO: setBit(ourSide[1], to, 1); zobrist ^= Precomputed::zobrist[1][to]; break;
                 }
 
                 // Halfmove clock, promo and set en passant
@@ -1454,6 +1446,14 @@ public:
                 setBit(castlingRights, 1, 0);
             }
         }
+
+
+        // Castling
+        zobrist ^= Precomputed::zobrist[5][0] / (castlingRights + 1);
+
+        // En Passant
+        zobrist ^= Precomputed::zobrist[5][1] / (enPassant + 1);
+
 
         halfMoveClock++;
         fullMoveClock += side;
@@ -1529,6 +1529,7 @@ public:
         else enPassant = 0;
 
         halfMoveClock = std::stoi(inputFEN.at(4));
+        fullMoveClock = std::stoi(inputFEN.at(5));
 
         recompute();
         updateCheckPin();
@@ -1593,6 +1594,11 @@ public:
         if (enPassant) ans += squareToAlgebraic(ctzll(enPassant));
         else ans += "-";
 
+        ans += " ";
+        ans += halfMoveClock;
+        ans += " ";
+        ans += fullMoveClock;
+
         return ans;
     }
 
@@ -1629,26 +1635,22 @@ public:
         uint64_t hash = 0;
         // Pieces
         for (int table = 0; table < 6; table++) {
-            for (int i = 0; i < 64; i++) {
-                if (readBit(white[table], i)) hash ^= Precomputed::zobrist[table][i];
+            u64 tableBB = white[table] | black[table];
+            while (tableBB) {
+                int currentIndex = ctzll(tableBB);
+                hash ^= Precomputed::zobrist[table][currentIndex];
+                tableBB &= tableBB - 1;
             }
         }
-        for (int table = 0; table < 6; table++) {
-            for (int i = 0; i < 64; i++) {
-                if (readBit(black[table], i)) hash ^= Precomputed::zobrist[table][i];
-            }
-        }
-
-        posZobrist = hash;
 
         // Castling
-        if (castlingRights) hash ^= Precomputed::zobrist[5][0] / castlingRights;
+        hash ^= Precomputed::zobrist[5][0] / (castlingRights + 1);
 
         // En Passant
-        if (castlingRights) hash ^= Precomputed::zobrist[5][1] / (enPassant + 1);
+        hash ^= Precomputed::zobrist[5][1] / (enPassant + 1);
 
         // Turn
-        if (castlingRights) hash ^= Precomputed::zobrist[5][2] / (side + 1);
+        hash ^= Precomputed::zobrist[5][2] / (side + 1);
 
         zobrist = hash;
     }
