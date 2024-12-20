@@ -1,7 +1,4 @@
-// Changes since test: Partial incremental zobrist
-
-// TODO:
-// Incremental zobrist updates when castling or en passant
+// Changes since test: Incremental zobrist
 
 #include <iostream>
 #include <string>
@@ -698,7 +695,7 @@ struct MoveList {
         for (int i = 0; i < count; ++i) {
             movesStr[i] = moves[i].toString();
         }
-        std::sort(movesStr.begin(), movesStr.end());
+        std::stable_sort(movesStr.begin(), movesStr.end());
 
         for (auto& str : movesStr) {
             if (str == "zzzz") {
@@ -1040,7 +1037,7 @@ public:
         }
     }
 
-    int evaluateMVVLVA(Move a) {
+    int evaluateMVVLVA(Move& a) {
         int victim = getPieceValue(getPiece(a.endSquare()));
         int attacker = getPieceValue(getPiece(a.startSquare()));
 
@@ -1075,7 +1072,8 @@ public:
             }
         }
 
-        std::sort(captures.moves.begin(), captures.moves.begin() + captures.count, [this](Move& a) { return evaluateMVVLVA(a); });
+        std::sort(captures.moves.begin(), captures.moves.begin() + captures.count, [this](Move& a, Move& b) { return evaluateMVVLVA(a) > evaluateMVVLVA(b); });
+
 
         // Combine moves in the prioritized order
         MoveList prioritizedMoves;
@@ -1388,14 +1386,19 @@ public:
                         setBit(ourSide[3], h1, 0); // Remove rook
 
                         setBit(ourSide[3], f1, 1); // Set rook
+
+                        zobrist ^= Precomputed::zobrist[3][h1];
+                        zobrist ^= Precomputed::zobrist[3][f1];
                     }
                     else if (from == e8 && to == g8 && readBit(castlingRights, 1)) {
                         setBit(ourSide[i], to, 1);
                         setBit(ourSide[3], h8, 0); // Remove rook
 
                         setBit(ourSide[3], f8, 1); // Set rook
+
+                        zobrist ^= Precomputed::zobrist[3][h8];
+                        zobrist ^= Precomputed::zobrist[3][f8];
                     }
-                    updateZobrist();
                     break;
                 case CASTLE_Q:
                     if (to == c1 && readBit(castlingRights, 2)) {
@@ -1403,21 +1406,39 @@ public:
                         setBit(ourSide[3], a1, 0); // Remove rook
 
                         setBit(ourSide[3], d1, 1); // Set rook
+
+                        zobrist ^= Precomputed::zobrist[3][a1];
+                        zobrist ^= Precomputed::zobrist[3][d1];
                     }
                     else if (to == c8 && readBit(castlingRights, 0)) {
                         setBit(ourSide[i], to, 1);
                         setBit(ourSide[3], a8, 0); // Remove rook
 
                         setBit(ourSide[3], d8, 1); // Set rook
+
+                        zobrist ^= Precomputed::zobrist[3][a8];
+                        zobrist ^= Precomputed::zobrist[3][d8];
                     }
+                    cout << "Thingie" << zobrist << endl;
                     updateZobrist();
+                    cout << "Thingie 2" << zobrist << endl;
                     break;
                 case CAPTURE: clearIndex(to); setBit(ourSide[i], to, 1); zobrist ^= Precomputed::zobrist[getPiece(to)][to]; break;
                 case QUEEN_PROMO_CAPTURE: clearIndex(to); setBit(ourSide[4], to, 1); zobrist ^= Precomputed::zobrist[getPiece(to)][to]; zobrist ^= Precomputed::zobrist[4][to]; break;
                 case ROOK_PROMO_CAPTURE: clearIndex(to); setBit(ourSide[3], to, 1); zobrist ^= Precomputed::zobrist[getPiece(to)][to]; zobrist ^= Precomputed::zobrist[3][to]; break;
                 case BISHOP_PROMO_CAPTURE: clearIndex(to); setBit(ourSide[2], to, 1); zobrist ^= Precomputed::zobrist[getPiece(to)][to]; zobrist ^= Precomputed::zobrist[2][to]; break;
                 case KNIGHT_PROMO_CAPTURE: clearIndex(to); setBit(ourSide[1], to, 1); zobrist ^= Precomputed::zobrist[getPiece(to)][to]; zobrist ^= Precomputed::zobrist[1][to]; break;
-                case EN_PASSANT: if (side) setBit(black[0], to + shifts::SOUTH, 0); else setBit(white[0], to + shifts::NORTH, 0); setBit(ourSide[i], to, 1); updateZobrist(); break;
+                case EN_PASSANT:
+                    if (side) {
+                        setBit(black[0], to + shifts::SOUTH, 0);
+                        zobrist ^= Precomputed::zobrist[0][to + shifts::SOUTH];
+                    }
+                    else {
+                        setBit(white[0], to + shifts::NORTH, 0);
+                        zobrist ^= Precomputed::zobrist[0][to + shifts::NORTH];
+                    }
+                    setBit(ourSide[i], to, 1);
+                    break;
                 case QUEEN_PROMO: setBit(ourSide[4], to, 1); zobrist ^= Precomputed::zobrist[4][to]; break;
                 case ROOK_PROMO: setBit(ourSide[3], to, 1); zobrist ^= Precomputed::zobrist[3][to]; break;
                 case BISHOP_PROMO: setBit(ourSide[2], to, 1); zobrist ^= Precomputed::zobrist[2][to]; break;
@@ -1533,6 +1554,7 @@ public:
 
         recompute();
         updateCheckPin();
+        updateZobrist();
     }
 
     string exportToFEN() {
