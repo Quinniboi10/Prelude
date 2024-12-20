@@ -1,4 +1,5 @@
-// Changes since test: Incremental zobrist
+// Incremental zobrist/trifold test FEN: rnbq1r1k/p2pp3/5p1Q/8/8/8/2PPPPPP/nqqNKBNR b Kq - 1 1
+// Draw 8 ply deep
 
 #include <iostream>
 #include <string>
@@ -24,6 +25,8 @@
 
 #define DEBUG true
 #define IFDBG if constexpr (DEBUG)
+
+#define m_assert(expr, msg) assert(( (void)(msg), (expr) ))
 
 typedef uint64_t u64;
 typedef uint16_t u16;
@@ -173,6 +176,8 @@ public:
     int endSquare() { return (move >> 6) & 0b111111; }
 
     MoveType typeOf() { return MoveType(move >> 12); } // Return the flag bits
+
+    bool isNull() { return startSquare() == endSquare(); }
 };
 
 std::deque<string> split(const string& s, char delim) {
@@ -223,7 +228,11 @@ class Precomputed {
 public:
     static array<u64, 64> knightMoves;
     static array<u64, 64> kingMoves;
-    static array<array<u64, 64>, 12> zobrist;
+    static array<array<array<u64, 64>, 12>, 2> zobrist;
+    // EP zobrist is 65 because ctzll of 0 returns 64
+    static array<u64, 65> zobristEP;
+    static array<u64, 16> zobristCastling;
+    static array<u64, 2> zobristSide;
     static u64 isOnA;
     static u64 isOnB;
     static u64 isOnC;
@@ -240,6 +249,72 @@ public:
     static u64 isOn6;
     static u64 isOn7;
     static u64 isOn8;
+
+    static constexpr inline const std::array<int, 64> white_pawn_table = {
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 5, 10, 10, 5, 0, 0,
+        0, 0, 10, 20, 20, 10, 0, 0,
+        0, 0, 10, 20, 20, 10, 0, 0,
+        0, 0, 5, 10, 10, 5, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0
+    };
+
+    static constexpr inline const std::array<int, 64> white_knight_table = {
+        -50, -40, -40, -40, -40, -40, -40, -50,
+        -40, 20, 0, 0, 0, 0, -20, -40,
+        -40, 0, 10, 20, 20, 10, 0, -40,
+        -40, 0, 0, 25, 25, 0, 0, -40,
+        -40, 0, 0, 25, 25, 0, 0, -40,
+        -40, 0, 10, 20, 20, 10, 0, -40,
+        -40, -20, 0, 0, 0, 0, -20, -40,
+        -50, -40, -40, -40, -40, -40, -40, -50
+    };
+
+    static constexpr inline const std::array<int, 64> white_bishop_table = {
+        -20,-10,-10,-10,-10,-10,-10,-20,
+        -10,  5,  0,  0,  0,  0,  5,-10,
+        -10, 10, 10, 10, 10, 10, 10,-10,
+        -10,  0, 10, 10, 10, 10,  0,-10,
+        -10,  5,  5, 10, 10,  5,  5,-10,
+        -10,  0,  5, 10, 10,  5,  0,-10,
+        -10,  0,  0,  0,  0,  0,  0,-10,
+        -20,-10,-10,-10,-10,-10,-10,-20
+    };
+
+    static constexpr inline const std::array<int, 64> white_rook_table = {
+         0,  0,  0,  0,  0,  0,  0,  0,
+         5, 10, 10, 10, 10, 10, 10,  5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+         0,  0,  0,  5,  5,  0,  0,  0
+    };
+
+    static constexpr inline const std::array<int, 64> white_queen_table = {
+        -20,-10,-10, -5, -5,-10,-10,-20,
+        -10,  0,  5,  0,  0,  0,  0,-10,
+        -10,  5,  5,  5,  5,  5,  0,-10,
+          0,  0,  5,  5,  5,  5,  0, -5,
+         -5,  0,  5,  5,  5,  5,  0, -5,
+        -10,  0,  5,  5,  5,  5,  0,-10,
+        -10,  0,  0,  0,  0,  0,  0,-10,
+        -20,-10,-10, -5, -5,-10,-10,-20
+    };
+
+    static constexpr inline const std::array<int, 64> white_king_table = {
+        -30,-40,-40,-50,-50,-40,-40,-30,
+        -30,-40,-40,-50,-50,-40,-40,-30,
+        -30,-40,-40,-50,-50,-40,-40,-30,
+        -30,-40,-40,-50,-50,-40,-40,-30,
+        -20,-30,-30,-40,-40,-30,-30,-20,
+        -10,-20,-20,-20,-20,-20,-20,-10,
+         20, 20,  0,  0,  0,  0, 20, 20,
+         20, 30, 10,  0,  0, 10, 30, 20
+    };
 
     static void compute() {
         // *** FILE AND COL ARRAYS ***
@@ -348,17 +423,37 @@ public:
 
         std::uniform_int_distribution<uint64_t> dist(0, std::numeric_limits<uint64_t>::max());
 
-        for (auto& pieceTable : zobrist) {
-            for (int i = 0; i < 64; i++) {
-                pieceTable[i] = dist(engine);
+        for (auto& side : zobrist) {
+            for (auto& pieceTable : side) {
+                for (auto& square : pieceTable) {
+                    square = dist(engine);
+                }
             }
+        }
+
+        for (auto& square : zobristEP) {
+            square = dist(engine);
+        }
+
+        // If no EP square, set it to 0
+        zobristEP[64] = 0;
+
+        for (auto& castlingValue : zobristCastling) {
+            castlingValue = dist(engine);
+        }
+
+        for (auto& sideValue : zobristSide) {
+            sideValue = dist(engine);
         }
     }
 };
 
 array<u64, 64> Precomputed::knightMoves;
 array<u64, 64> Precomputed::kingMoves;
-array<array<u64, 64>, 12> Precomputed::zobrist;
+array<array<array<u64, 64>, 12>, 2> Precomputed::zobrist;
+array<u64, 65> Precomputed::zobristEP;
+array<u64, 16> Precomputed::zobristCastling;
+array<u64, 2> Precomputed::zobristSide;
 u64 Precomputed::isOnA;
 u64 Precomputed::isOnB;
 u64 Precomputed::isOnC;
@@ -1003,7 +1098,7 @@ public:
 
     void generateKingMoves(MoveList& moves) {
         u64 kingBitboard = side ? white[5] : black[5];
-        IFDBG assert(("King bitboard is 0", !kingBitboard));
+        IFDBG m_assert(kingBitboard, "King bitboard is 0");
         u64 ourBitboard = side ? whitePieces : blackPieces;
         int currentIndex = ctzll(kingBitboard);
 
@@ -1072,7 +1167,7 @@ public:
             }
         }
 
-        std::sort(captures.moves.begin(), captures.moves.begin() + captures.count, [this](Move& a, Move& b) { return evaluateMVVLVA(a) > evaluateMVVLVA(b); });
+        std::sort(captures.moves.begin(), captures.moves.begin() + captures.count, [this](Move& a, Move& b) { return evaluateMVVLVA(a) < evaluateMVVLVA(b); });
 
 
         // Combine moves in the prioritized order
@@ -1104,9 +1199,10 @@ public:
         return (c * whitePieces + ~c * blackPieces);
     }
 
+    // Uses 2fold check
     bool isDraw() {
-        if (halfMoveClock > 100) return true;
-        if (std::count(positionHistory.begin(), positionHistory.end(), zobrist) >= 3) {
+        if (halfMoveClock >= 100) return true;
+        if (std::count(positionHistory.begin(), positionHistory.end(), zobrist) >= 2) {
             return true;
         }
         return false;
@@ -1347,31 +1443,29 @@ public:
     void move(Move moveIn, bool updateMoveHistory = true) {
         auto& ourSide = side ? white : black;
 
-        // Take out old zobrist stuff that changes
-        
+        // Take out old zobrist stuff that will be re-added at the end of the turn
         // Castling
-        zobrist ^= Precomputed::zobrist[5][0] / (castlingRights + 1);
+        zobrist ^= Precomputed::zobristCastling[castlingRights];
 
         // En Passant
-        zobrist ^= Precomputed::zobrist[5][1] / (enPassant + 1);
+        zobrist ^= Precomputed::zobristEP[ctzll(enPassant)];
 
         // Turn
-        zobrist ^= Precomputed::zobrist[5][2] / (side + 1);
-
-        // Add new turn
-        zobrist ^= Precomputed::zobrist[5][2] / (~side + 1);
+        zobrist ^= Precomputed::zobristSide[side];
 
         for (int i = 0; i < 6; ++i) {
             if (readBit(ourSide[i], moveIn.startSquare())) {
                 auto from = moveIn.startSquare();
                 auto to = moveIn.endSquare();
 
-                zobrist ^= Precomputed::zobrist[i][from];
+                zobrist ^= Precomputed::zobrist[side][i][from];
 
                 MoveType mt = moveIn.typeOf();
 
                 // Increment endbit only if the move is not a promo, otherwise it is handled in the big switch
-                if (!(mt & KNIGHT_PROMO)) zobrist ^= Precomputed::zobrist[i][to];
+                if ((mt & 0x1000) == 0) {
+                    zobrist ^= Precomputed::zobrist[side][i][to];
+                }
 
                 setBit(ourSide[i], from, 0);
 
@@ -1387,8 +1481,8 @@ public:
 
                         setBit(ourSide[3], f1, 1); // Set rook
 
-                        zobrist ^= Precomputed::zobrist[3][h1];
-                        zobrist ^= Precomputed::zobrist[3][f1];
+                        zobrist ^= Precomputed::zobrist[side][3][h1];
+                        zobrist ^= Precomputed::zobrist[side][3][f1];
                     }
                     else if (from == e8 && to == g8 && readBit(castlingRights, 1)) {
                         setBit(ourSide[i], to, 1);
@@ -1396,8 +1490,8 @@ public:
 
                         setBit(ourSide[3], f8, 1); // Set rook
 
-                        zobrist ^= Precomputed::zobrist[3][h8];
-                        zobrist ^= Precomputed::zobrist[3][f8];
+                        zobrist ^= Precomputed::zobrist[side][3][h8];
+                        zobrist ^= Precomputed::zobrist[side][3][f8];
                     }
                     break;
                 case CASTLE_Q:
@@ -1407,8 +1501,8 @@ public:
 
                         setBit(ourSide[3], d1, 1); // Set rook
 
-                        zobrist ^= Precomputed::zobrist[3][a1];
-                        zobrist ^= Precomputed::zobrist[3][d1];
+                        zobrist ^= Precomputed::zobrist[side][3][a1];
+                        zobrist ^= Precomputed::zobrist[side][3][d1];
                     }
                     else if (to == c8 && readBit(castlingRights, 0)) {
                         setBit(ourSide[i], to, 1);
@@ -1416,37 +1510,37 @@ public:
 
                         setBit(ourSide[3], d8, 1); // Set rook
 
-                        zobrist ^= Precomputed::zobrist[3][a8];
-                        zobrist ^= Precomputed::zobrist[3][d8];
+                        zobrist ^= Precomputed::zobrist[side][3][a8];
+                        zobrist ^= Precomputed::zobrist[side][3][d8];
                     }
-                    cout << "Thingie" << zobrist << endl;
-                    updateZobrist();
-                    cout << "Thingie 2" << zobrist << endl;
                     break;
-                case CAPTURE: clearIndex(to); setBit(ourSide[i], to, 1); zobrist ^= Precomputed::zobrist[getPiece(to)][to]; break;
-                case QUEEN_PROMO_CAPTURE: clearIndex(to); setBit(ourSide[4], to, 1); zobrist ^= Precomputed::zobrist[getPiece(to)][to]; zobrist ^= Precomputed::zobrist[4][to]; break;
-                case ROOK_PROMO_CAPTURE: clearIndex(to); setBit(ourSide[3], to, 1); zobrist ^= Precomputed::zobrist[getPiece(to)][to]; zobrist ^= Precomputed::zobrist[3][to]; break;
-                case BISHOP_PROMO_CAPTURE: clearIndex(to); setBit(ourSide[2], to, 1); zobrist ^= Precomputed::zobrist[getPiece(to)][to]; zobrist ^= Precomputed::zobrist[2][to]; break;
-                case KNIGHT_PROMO_CAPTURE: clearIndex(to); setBit(ourSide[1], to, 1); zobrist ^= Precomputed::zobrist[getPiece(to)][to]; zobrist ^= Precomputed::zobrist[1][to]; break;
+                case CAPTURE: zobrist ^= Precomputed::zobrist[~side][getPiece(to)][to]; clearIndex(to); setBit(ourSide[i], to, 1); break;
+                case QUEEN_PROMO_CAPTURE: zobrist ^= Precomputed::zobrist[~side][getPiece(to)][to]; zobrist ^= Precomputed::zobrist[side][4][to]; clearIndex(to); setBit(ourSide[4], to, 1); break;
+                case ROOK_PROMO_CAPTURE: zobrist ^= Precomputed::zobrist[~side][getPiece(to)][to]; zobrist ^= Precomputed::zobrist[side][3][to]; clearIndex(to); setBit(ourSide[3], to, 1); break;
+                case BISHOP_PROMO_CAPTURE: zobrist ^= Precomputed::zobrist[~side][getPiece(to)][to]; zobrist ^= Precomputed::zobrist[side][2][to]; clearIndex(to); setBit(ourSide[2], to, 1); break;
+                case KNIGHT_PROMO_CAPTURE: zobrist ^= Precomputed::zobrist[~side][getPiece(to)][to]; zobrist ^= Precomputed::zobrist[side][1][to]; clearIndex(to); setBit(ourSide[1], to, 1); break;
                 case EN_PASSANT:
                     if (side) {
                         setBit(black[0], to + shifts::SOUTH, 0);
-                        zobrist ^= Precomputed::zobrist[0][to + shifts::SOUTH];
+                        zobrist ^= Precomputed::zobrist[~side][0][to + shifts::SOUTH];
                     }
                     else {
                         setBit(white[0], to + shifts::NORTH, 0);
-                        zobrist ^= Precomputed::zobrist[0][to + shifts::NORTH];
+                        zobrist ^= Precomputed::zobrist[~side][0][to + shifts::NORTH];
                     }
                     setBit(ourSide[i], to, 1);
                     break;
-                case QUEEN_PROMO: setBit(ourSide[4], to, 1); zobrist ^= Precomputed::zobrist[4][to]; break;
-                case ROOK_PROMO: setBit(ourSide[3], to, 1); zobrist ^= Precomputed::zobrist[3][to]; break;
-                case BISHOP_PROMO: setBit(ourSide[2], to, 1); zobrist ^= Precomputed::zobrist[2][to]; break;
-                case KNIGHT_PROMO: setBit(ourSide[1], to, 1); zobrist ^= Precomputed::zobrist[1][to]; break;
+                case QUEEN_PROMO: setBit(ourSide[4], to, 1); zobrist ^= Precomputed::zobrist[side][4][to]; break;
+                case ROOK_PROMO: setBit(ourSide[3], to, 1); zobrist ^= Precomputed::zobrist[side][3][to]; break;
+                case BISHOP_PROMO: setBit(ourSide[2], to, 1); zobrist ^= Precomputed::zobrist[side][2][to]; break;
+                case KNIGHT_PROMO: setBit(ourSide[1], to, 1); zobrist ^= Precomputed::zobrist[side][1][to]; break;
                 }
 
                 // Halfmove clock, promo and set en passant
-                if (i == 0 || readBit(blackPieces | whitePieces, to)) halfMoveClock = -1; // Reset halfmove clock on capture or pawn move
+                if (i == 0 || readBit(blackPieces | whitePieces, to)) halfMoveClock = 0; // Reset halfmove clock on capture or pawn move
+                else halfMoveClock++;
+
+                break;
             }
         }
 
@@ -1470,20 +1564,21 @@ public:
 
 
         // Castling
-        zobrist ^= Precomputed::zobrist[5][0] / (castlingRights + 1);
+        zobrist ^= Precomputed::zobristCastling[castlingRights];
 
         // En Passant
-        zobrist ^= Precomputed::zobrist[5][1] / (enPassant + 1);
+        zobrist ^= Precomputed::zobristEP[ctzll(enPassant)];
 
+        // Turn
+        zobrist ^= Precomputed::zobristSide[~side];
 
-        halfMoveClock++;
-        fullMoveClock += side;
+        // Only add 1 to full move clock if move was made as black
+        fullMoveClock += ~side;
 
         side = ~side;
 
         recompute();
         updateCheckPin();
-
     }
 
     void loadFromFEN(const std::deque<string>& inputFEN) {
@@ -1617,11 +1712,20 @@ public:
         else ans += "-";
 
         ans += " ";
-        ans += halfMoveClock;
+        ans += std::to_string(halfMoveClock);
         ans += " ";
-        ans += fullMoveClock;
+        ans += std::to_string(fullMoveClock);
 
         return ans;
+    }
+
+    inline int black_to_white(int index) {
+        // Ensure the index is within [0, 63]
+        IFDBG m_assert(index < 0 || index > 63, std::cerr << "Invalid index: " << index << ". Must be between 0 and 63." << endl);
+        int rank = index / 8;
+        int file = index % 8;
+        int mirrored_rank = 7 - rank;
+        return mirrored_rank * 8 + file;
     }
 
     int evaluate() { // Returns evaluation in centipawns as side to move
@@ -1647,6 +1751,41 @@ public:
 
         eval = whitePieces - blackPieces;
 
+        // Piece value adjustment
+        if (std::abs(eval) < 950) { // Ignore if the eval is already very very high
+            for (int i = 0; i < 6; i++) {
+                u64 currentBitboard = white[i];
+                while (currentBitboard > 0) {
+                    int currentIndex = ctzll(currentBitboard);
+
+                    if (i == 0) eval += Precomputed::white_pawn_table[currentIndex];
+                    if (i == 1) eval += Precomputed::white_knight_table[currentIndex];
+                    if (i == 2) eval += Precomputed::white_bishop_table[currentIndex];
+                    if (i == 3) eval += Precomputed::white_rook_table[currentIndex];
+                    if (i == 4) eval += Precomputed::white_queen_table[currentIndex];
+                    if (i == 5) eval += Precomputed::white_king_table[currentIndex];
+
+                    currentBitboard &= currentBitboard - 1;
+                }
+            }
+
+            for (int i = 0; i < 6; i++) {
+                u64 currentBitboard = black[i];
+                while (currentBitboard > 0) {
+                    int currentIndex = ctzll(currentBitboard);
+
+                    if (i == 0) eval -= Precomputed::white_pawn_table[black_to_white(currentIndex)];
+                    if (i == 1) eval -= Precomputed::white_knight_table[black_to_white(currentIndex)];
+                    if (i == 2) eval -= Precomputed::white_bishop_table[black_to_white(currentIndex)];
+                    if (i == 3) eval -= Precomputed::white_rook_table[black_to_white(currentIndex)];
+                    if (i == 4) eval -= Precomputed::white_queen_table[black_to_white(currentIndex)];
+                    if (i == 5) eval -= Precomputed::white_king_table[black_to_white(currentIndex)];
+
+                    currentBitboard &= currentBitboard - 1;
+                }
+            }
+        }
+
         //transPos[zobrist] = eval;
 
         // Adjust evaluation for the side to move
@@ -1654,27 +1793,33 @@ public:
     }
 
     void updateZobrist() {
-        uint64_t hash = 0;
+        zobrist = 0;
         // Pieces
         for (int table = 0; table < 6; table++) {
-            u64 tableBB = white[table] | black[table];
+            u64 tableBB = white[table];
             while (tableBB) {
                 int currentIndex = ctzll(tableBB);
-                hash ^= Precomputed::zobrist[table][currentIndex];
+                zobrist ^= Precomputed::zobrist[WHITE][table][currentIndex];
+                tableBB &= tableBB - 1;
+            }
+        }
+        for (int table = 0; table < 6; table++) {
+            u64 tableBB = black[table];
+            while (tableBB) {
+                int currentIndex = ctzll(tableBB);
+                zobrist ^= Precomputed::zobrist[BLACK][table][currentIndex];
                 tableBB &= tableBB - 1;
             }
         }
 
         // Castling
-        hash ^= Precomputed::zobrist[5][0] / (castlingRights + 1);
+        zobrist ^= Precomputed::zobristCastling[castlingRights];
 
         // En Passant
-        hash ^= Precomputed::zobrist[5][1] / (enPassant + 1);
+        zobrist ^= Precomputed::zobristEP[ctzll(enPassant)];
 
         // Turn
-        hash ^= Precomputed::zobrist[5][2] / (side + 1);
-
-        zobrist = hash;
+        zobrist ^= Precomputed::zobristSide[side];
     }
 };
 
@@ -1918,68 +2063,59 @@ int nodes = 0;
 int movesToGo = 20;
 
 static int _qs(Board& board,
-    int depth,
     std::atomic<bool>& breakFlag,
     std::chrono::steady_clock::time_point& timerStart,
     int timeToSpend,
+    int maxNodes,
     int alpha,
-    int beta,
-    int maxNodes) {
+    int beta) {
 
-    ++nodes;
+    nodes++;
 
-    if (depth == 0) {
-        int eval = board.evaluate();
-        return eval;
+    int stand_pat = board.evaluate();
+    if (stand_pat >= beta) {
+        return beta;
     }
-    else if (board.isDraw()) {
+    if (alpha < stand_pat) {
+        alpha = stand_pat;
+    }
+
+    if (board.isDraw()) {
+        if (board.isInCheck(board.side)) {
+            return -999999;
+        }
         return 0;
     }
 
-    // Only make captures
     MoveList moves = board.generateMoves(true);
-    int bestEval = -INF_INT;
-
-    bool hasMoved = false;
 
     for (int i = 0; i < moves.count; ++i) {
         const Move& m = moves.moves[i];
 
-        if (!board.isLegalMove(m)) continue; // Validate legal moves
-        hasMoved = true;
+        if (!board.isLegalMove(m)) continue;
 
-        // Break checks
-        if (breakFlag.load()) return bestEval;
-        if (timeToSpend != 0) {
-            auto now = std::chrono::steady_clock::now();
-            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - timerStart).count() >= timeToSpend) {
-                return bestEval;
-            }
-        }
-        if (maxNodes > 0 && nodes >= maxNodes) return bestEval;
-
-        // Recursive call with a copied board
         Board testBoard = board;
         testBoard.move(m);
 
-        int eval = -_qs(testBoard, depth - 1, breakFlag, timerStart, timeToSpend, -beta, -alpha, maxNodes);
+        int score = -(_qs(testBoard, breakFlag, timerStart, timeToSpend, maxNodes, -beta, -alpha));
 
-        // Update best move and alpha-beta values
-        if (eval > bestEval) {
-            bestEval = eval;
-            alpha = std::max(bestEval, alpha);
+        if (breakFlag.load()) return alpha;
+        if (timeToSpend != 0) {
+            auto now = std::chrono::steady_clock::now();
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - timerStart).count() >= timeToSpend) {
+                return alpha;
+            }
         }
-        if (alpha >= beta) break; // Alpha-beta pruning
-    }
+        if (maxNodes > 0 && nodes >= maxNodes) return alpha;
 
-    if (!hasMoved) {
-        if (board.isInCheck(board.side)) {
-            return -999999;
+        if (score >= beta) {
+            return beta;
         }
-        return board.evaluate();
+        if (score > alpha) {
+            alpha = score;
+        }
     }
-
-    return bestEval;
+    return alpha;
 }
 
 static int _go(Board& board,
@@ -1994,11 +2130,13 @@ static int _go(Board& board,
     ++nodes;
 
     if (depth == 0) {
-        //int eval = _qs(board, 128, breakFlag, timerStart, timeToSpend, alpha, beta, maxNodes);
-        int eval = board.evaluate();
+        int eval = _qs(board, breakFlag, timerStart, timeToSpend, maxNodes, alpha, beta);
         return eval;
     }
     else if (board.isDraw()) {
+        if (board.isInCheck(board.side)) {
+            return -999999;
+        }
         return 0;
     }
 
@@ -2126,30 +2264,36 @@ void iterativeDeepening(
     }
 
     // timeToSpend is a hard limit
-    if (timeToSpend > 100) timeToSpend -= 100;
+    if (timeToSpend) {
+        if (timeToSpend > 100) timeToSpend -= 100;
+        // If there is less than 100 ms left, just search 2 ply ahead
+        else maxDepth = 1;
+    }
 
     MoveEvaluation bestMove = { Move(), -INF_INT };
 
     for (int depth = 1; depth <= maxDepth; depth++) {
         bestMove = go(board, depth, breakFlag, start, timeToSpend, -INF_INT, INF_INT, maxNodes);
 
-        if (breakFlag.load()) {
+        if (breakFlag.load() && depth > 1) {
             IFDBG cout << "Stopping search because of break flag" << endl;
             break;
         }
 
-        if (softLimit != 0) {
+        if (softLimit != 0 && depth > 1) {
             auto now = std::chrono::steady_clock::now();
-            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count() >= softLimit) {
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count() + 100 >= softLimit) {
                 IFDBG cout << "Stopping search because of time limit" << endl;
                 break;
             }
         }
 
-        if (maxNodes > 0 && maxNodes <= nodes) {
+        if (maxNodes > 0 && maxNodes <= nodes && depth > 1) {
             IFDBG cout << "Stopping search because of node limit" << endl;
             break;
         }
+
+        IFDBG m_assert(bestMove.move.isNull(), cerr << "Returned null move in search" << endl);
 
         auto now = std::chrono::steady_clock::now();
         double elapsedNs = (double)std::chrono::duration_cast<std::chrono::nanoseconds>(now - start).count();
