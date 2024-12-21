@@ -92,6 +92,10 @@ enum MoveType {
     STANDARD_MOVE = 0, DOUBLE_PUSH = 0b1, CASTLE_K = 0b10, CASTLE_Q = 0b11, CAPTURE = 0b100, EN_PASSANT = 0b101, KNIGHT_PROMO = 0b1000, BISHOP_PROMO = 0b1001, ROOK_PROMO = 0b1010, QUEEN_PROMO = 0b1011, KNIGHT_PROMO_CAPTURE = 0b1100, BISHOP_PROMO_CAPTURE = 0b1101, ROOK_PROMO_CAPTURE = 0b1110, QUEEN_PROMO_CAPTURE = 0b1111
 };
 
+enum flags {
+    UNDEFINED, FAILLOW, BETACUTOFF, FAILHIGH
+};
+
 struct shifts {
     static inline int NORTH = 8;
     static inline int NORTH_EAST = 9;
@@ -923,6 +927,8 @@ public:
 
         halfMoveClock = 0;
         fullMoveClock = 1;
+
+        positionHistory.clear();
 
         recompute();
         updateCheckPin();
@@ -2194,6 +2200,7 @@ static int _qs(Board& board,
             alpha = score;
         }
     }
+
     return alpha;
 }
 
@@ -2229,16 +2236,6 @@ static MoveEvaluation go(Board& board,
             continue; // Validate legal moves
         }
 
-        // Break checks
-        if (breakFlag.load()) return { bestMove, bestEval };
-        if (timeToSpend != 0) {
-            auto now = std::chrono::steady_clock::now();
-            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - timerStart).count() >= timeToSpend) {
-                return { bestMove, bestEval };
-            }
-        }
-        if (maxNodes > 0 && nodes >= maxNodes) return { bestMove, bestEval };
-
         // Recursive call with a copied board
         Board testBoard = board;
         testBoard.move(m);
@@ -2253,6 +2250,17 @@ static MoveEvaluation go(Board& board,
             bestMove = m;
             alpha = std::max(bestEval, alpha);
         }
+
+        // Break checks
+        if (breakFlag.load()) return { bestMove, bestEval };
+        if (timeToSpend != 0) {
+            auto now = std::chrono::steady_clock::now();
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - timerStart).count() >= timeToSpend) {
+                return { bestMove, bestEval };
+            }
+        }
+        if (maxNodes > 0 && nodes >= maxNodes) return { bestMove, bestEval };
+
         if (alpha >= beta) break; // Alpha-beta pruning
     }
 
@@ -2337,7 +2345,14 @@ void iterativeDeepening(
         bestMoveAlgebra = bestMove.move.toString();
 
         bool isMate = false;
-        string ans = "info depth " + std::to_string(depth) + " nodes " + std::to_string(nodes) + " nps " + std::to_string(nps);
+
+        int TTused = 0;
+        for (int i = 0; i < TT.size; i++) {
+            if (TT.getEntry(i)->zobristKey != 0) TTused++;
+        }
+        
+
+        string ans = "info depth " + std::to_string(depth) + " nodes " + std::to_string(nodes) + " nps " + std::to_string(nps) + " hashfull " + std::to_string((int)(TTused / (double)TT.size * 1000));
 
         if (std::abs(bestMove.eval) > 90000) {
             // Assume large positive value is mate
@@ -2348,12 +2363,7 @@ void iterativeDeepening(
             ans += " score cp " + std::to_string(bestMove.eval);
         }
 
-        int TTused = 0;
-        for (int i = 0; i < TT.size; i++) {
-            if (TT.getEntry(i)->zobristKey != 0) TTused++;
-        }
-
-        ans += " pv " + bestMoveAlgebra + " hashfull " + std::to_string((int) (TTused / (double) TT.size * 1000));
+        ans += " pv " + bestMoveAlgebra;
 
         cout << ans << endl;
 
