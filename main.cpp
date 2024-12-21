@@ -1,6 +1,3 @@
-// Incremental zobrist/trifold test FEN: rnbq1r1k/p2pp3/5p1Q/8/8/8/2PPPPPP/nqqNKBNR b Kq - 1 1
-// Draw 8 ply deep
-
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -23,7 +20,7 @@
 //#define clzll(x) ((x) ? __builtin_clzll(x) : 64)
 #define popcountll(x) __builtin_popcountll(x)
 
-#define DEBUG true
+#define DEBUG false
 #define IFDBG if constexpr (DEBUG)
 
 #define m_assert(expr, msg) assert(( (void)(msg), (expr) ))
@@ -33,7 +30,8 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint8_t u8;
 
-typedef int64_t i64;
+typedef int32_t i32;
+typedef int16_t i16;
 
 using std::string;
 using std::array;
@@ -41,8 +39,8 @@ using std::cout;
 using std::endl;
 
 constexpr u64 INF = std::numeric_limits<uint64_t>::max();
-
 constexpr int INF_INT = std::numeric_limits<int>::max();
+
 
 enum Color : int {
     WHITE = 1, BLACK = 0
@@ -177,7 +175,7 @@ public:
 
     MoveType typeOf() { return MoveType(move >> 12); } // Return the flag bits
 
-    bool isNull() { return startSquare() == endSquare(); }
+    bool isNull() { return !move; }
 };
 
 std::deque<string> split(const string& s, char delim) {
@@ -191,10 +189,11 @@ std::deque<string> split(const string& s, char delim) {
     return result;
 }
 
-int findIndexOf(const std::deque<string>& deque, string entry) {
-    auto it = std::find(deque.begin(), deque.end(), entry);
-    if (it != deque.end()) {
-        return std::distance(deque.begin(), it); // Calculate the index
+template<typename arrType>
+int findIndexOf(const arrType arr, string entry) {
+    auto it = std::find(arr.begin(), arr.end(), entry);
+    if (it != arr.end()) {
+        return std::distance(arr.begin(), it); // Calculate the index
     }
     return -1; // Not found
 }
@@ -475,7 +474,7 @@ u64 Precomputed::isOn8;
 constexpr Rank rankOf(Square s) { return Rank(s >> 3); }
 constexpr File fileOf(Square s) { return File(s & 0b111); }
 
-// *** MANY A PROGRAMMER HAS "BORROWED" CODE. I AM NO EXCEPTION ***
+// ****** MANY A PROGRAMMER HAS "BORROWED" CODE. I AM NO EXCEPTION ******
 // Original code from https://github.com/nkarve/surge/blob/master/src/tables.cpp
 
 constexpr int diagonalOf(Square s) { return 7 + rankOf(s) - fileOf(s); }
@@ -802,6 +801,80 @@ struct MoveList {
         }
     }
 };
+
+struct Transposition {
+    i16 score;
+    Move bestMove;
+    u64 zobristKey;
+    i16 staticEval;
+    u8 flag;
+    u8 depth;
+
+    Transposition() {
+        zobristKey = 0;
+        bestMove = Move();
+        flag = 0;
+        score = 0;
+        depth = 0;
+        staticEval = 0;
+    }
+    Transposition(u64 zobristKey, Move bestMove, u8 flag, i16 score, u8 depth, i16 staticEval) {
+        this->zobristKey = zobristKey;
+        this->bestMove = bestMove;
+        this->flag = flag;
+        this->score = score;
+        this->depth = depth;
+        this->staticEval = staticEval;
+    }
+};
+
+struct TranspositionTable {
+private:
+    std::vector<Transposition> table;
+public:
+    size_t size;
+
+    TranspositionTable(size_t sizeInMB = 16) {
+        resize(sizeInMB);
+    }
+
+    bool isValidEntry(u64 zobristKey) {
+        return (*getEntry(zobristKey)).zobristKey == zobristKey;
+    }
+
+    void clear() {
+        table.clear();
+    }
+
+    void resize(size_t newSizeMB) {
+        // Find number of bytes allowed
+        size = newSizeMB * 1000 * 1000;
+        // Divide by size of transposition entry
+        size /= sizeof(Transposition);
+        // Add one just to make sure to avoid div by 0
+        size += 1;
+        table.resize(size);
+    }
+
+    int index(u64 key, int size) {
+        return key % size;
+    }
+
+    void setEntry(u64 key, Transposition& entry) {
+        auto& loc = table[index(key, size)];
+        loc = entry;
+    }
+
+    Transposition* getEntry(u64 key) {
+        return &table[index(key, size)];
+    }
+};
+
+
+int nodes = 0;
+int movesToGo = 20;
+TranspositionTable TT;
+
 
 class Board {
 public:
@@ -1167,11 +1240,21 @@ public:
             }
         }
 
-        std::sort(captures.moves.begin(), captures.moves.begin() + captures.count, [this](Move& a, Move& b) { return evaluateMVVLVA(a) < evaluateMVVLVA(b); });
+        Move bestMove = Move();
+        Transposition& TTEntry = *TT.getEntry(zobrist);
+        if (TTEntry.zobristKey == zobrist) {
+            bestMove = TTEntry.bestMove;
+        }
 
+        // Initialize the prioritizedMoves list
+        MoveList prioritizedMoves;
+
+        // Add bestMove first, it will be removed as it is null
+        prioritizedMoves.add(bestMove);
+
+        std::sort(captures.moves.begin(), captures.moves.begin() + captures.count, [this](Move& a, Move& b) { return evaluateMVVLVA(a) > evaluateMVVLVA(b); });
 
         // Combine moves in the prioritized order
-        MoveList prioritizedMoves;
         for (int i = 0; i < captures.count; ++i) {
             prioritizedMoves.add(captures.moves[i]);
         }
@@ -1728,7 +1811,7 @@ public:
         return mirrored_rank * 8 + file;
     }
 
-    int evaluate() { // Returns evaluation in centipawns as side to move
+    int evaluate(bool materialOnly = false) { // Returns evaluation in centipawns as side to move
         int eval = 0;
         int whitePieces = 0;
         int blackPieces = 0;
@@ -1752,7 +1835,7 @@ public:
         eval = whitePieces - blackPieces;
 
         // Piece value adjustment
-        if (std::abs(eval) < 950) { // Ignore if the eval is already very very high
+        if (!materialOnly && std::abs(eval) < 950) { // Ignore if the eval is already very very high
             for (int i = 0; i < 6; i++) {
                 u64 currentBitboard = white[i];
                 while (currentBitboard > 0) {
@@ -2059,9 +2142,6 @@ void perftSuite(const string& filePath) {
 
 
 // ****** SEARCH FUNCTIONS ******
-int nodes = 0;
-int movesToGo = 20;
-
 static int _qs(Board& board,
     std::atomic<bool>& breakFlag,
     std::chrono::steady_clock::time_point& timerStart,
@@ -2069,9 +2149,6 @@ static int _qs(Board& board,
     int maxNodes,
     int alpha,
     int beta) {
-
-    nodes++;
-
     int stand_pat = board.evaluate();
     if (stand_pat >= beta) {
         return beta;
@@ -2097,10 +2174,12 @@ static int _qs(Board& board,
         Board testBoard = board;
         testBoard.move(m);
 
+        nodes++;
+
         int score = -(_qs(testBoard, breakFlag, timerStart, timeToSpend, maxNodes, -beta, -alpha));
 
         if (breakFlag.load()) return alpha;
-        if (timeToSpend != 0) {
+        if (nodes % 2048 == 0 && timeToSpend != 0) {
             auto now = std::chrono::steady_clock::now();
             if (std::chrono::duration_cast<std::chrono::milliseconds>(now - timerStart).count() >= timeToSpend) {
                 return alpha;
@@ -2118,73 +2197,6 @@ static int _qs(Board& board,
     return alpha;
 }
 
-static int _go(Board& board,
-    int depth,
-    std::atomic<bool>& breakFlag,
-    std::chrono::steady_clock::time_point& timerStart,
-    int timeToSpend,
-    int alpha,
-    int beta,
-    int maxNodes) {
-
-    ++nodes;
-
-    if (depth == 0) {
-        int eval = _qs(board, breakFlag, timerStart, timeToSpend, maxNodes, alpha, beta);
-        return eval;
-    }
-    else if (board.isDraw()) {
-        if (board.isInCheck(board.side)) {
-            return -999999;
-        }
-        return 0;
-    }
-
-    MoveList moves = board.generateMoves();
-    int bestEval = -INF_INT;
-
-    bool hasMoved = false;
-
-    for (int i = 0; i < moves.count; ++i) {
-        const Move& m = moves.moves[i];
-
-        if (!board.isLegalMove(m)) continue; // Validate legal moves
-        hasMoved = true;
-
-        // Break checks
-        if (breakFlag.load()) return bestEval;
-        if (timeToSpend != 0) {
-            auto now = std::chrono::steady_clock::now();
-            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - timerStart).count() >= timeToSpend) {
-                return bestEval;
-            }
-        }
-        if (maxNodes > 0 && nodes >= maxNodes) return bestEval;
-
-        // Recursive call with a copied board
-        Board testBoard = board;
-        testBoard.move(m);
-
-        int eval = -_go(testBoard, depth - 1, breakFlag, timerStart, timeToSpend, -beta, -alpha, maxNodes);
-
-        // Update best move and alpha-beta values
-        if (eval > bestEval) {
-            bestEval = eval;
-            alpha = std::max(bestEval, alpha);
-        }
-        if (alpha >= beta) break; // Alpha-beta pruning
-    }
-
-    if (!hasMoved) {
-        if (board.isInCheck(board.side)) {
-            return -999999;
-        }
-        return 0;
-    }
-
-    return bestEval;
-}
-
 static MoveEvaluation go(Board& board,
     int depth,
     std::atomic<bool>& breakFlag,
@@ -2192,9 +2204,19 @@ static MoveEvaluation go(Board& board,
     int timeToSpend,
     int alpha,
     int beta,
-    int maxNodes) {
-
-    ++nodes;
+    int maxNodes, const bool isParent = false) {
+    if (!isParent) {
+        if (depth == 0) {
+            int eval = _qs(board, breakFlag, timerStart, timeToSpend, maxNodes, alpha, beta);
+            return { Move(), eval };
+        }
+        else if (board.isDraw()) {
+            if (board.isInCheck(board.side)) {
+                return { Move(), -999999 };
+            }
+            return { Move(), 0 };
+        }
+    }
 
     MoveList moves = board.generateMoves();
     Move bestMove;
@@ -2221,7 +2243,9 @@ static MoveEvaluation go(Board& board,
         Board testBoard = board;
         testBoard.move(m);
 
-        int eval = -(_go(testBoard, depth - 1, breakFlag, timerStart, timeToSpend, -beta, -alpha, maxNodes));
+        nodes++;
+
+        int eval = -(go(testBoard, depth - 1, breakFlag, timerStart, timeToSpend, -beta, -alpha, maxNodes).eval);
 
         // Update best move and alpha-beta values
         if (eval > bestEval) {
@@ -2230,6 +2254,13 @@ static MoveEvaluation go(Board& board,
             alpha = std::max(bestEval, alpha);
         }
         if (alpha >= beta) break; // Alpha-beta pruning
+    }
+
+    // Push to TT
+    if (depth > 1) {
+        u8 flag = 0;
+        Transposition entry = Transposition(board.zobrist, bestMove, flag, bestEval, depth, board.evaluate(true));
+        TT.setEntry(board.zobrist, entry);
     }
 
     return { bestMove, bestEval };
@@ -2265,15 +2296,19 @@ void iterativeDeepening(
 
     // timeToSpend is a hard limit
     if (timeToSpend) {
-        if (timeToSpend > 100) timeToSpend -= 100;
-        // If there is less than 100 ms left, just search 2 ply ahead
+        if (timeToSpend > 150) timeToSpend -= 100;
+        // If there is less than 100 ms left, just search 1 ply ahead with quiescence search
         else maxDepth = 1;
     }
 
+    softLimit = std::min(softLimit, timeToSpend);
+
     MoveEvaluation bestMove = { Move(), -INF_INT };
 
+    IFDBG m_assert(maxDepth >= 1, "Depth is less than 1 in ID search");
+    
     for (int depth = 1; depth <= maxDepth; depth++) {
-        bestMove = go(board, depth, breakFlag, start, timeToSpend, -INF_INT, INF_INT, maxNodes);
+        bestMove = go(board, depth, breakFlag, start, timeToSpend, -INF_INT, INF_INT, maxNodes, true);
 
         if (breakFlag.load() && depth > 1) {
             IFDBG cout << "Stopping search because of break flag" << endl;
@@ -2282,7 +2317,7 @@ void iterativeDeepening(
 
         if (softLimit != 0 && depth > 1) {
             auto now = std::chrono::steady_clock::now();
-            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count() + 100 >= softLimit) {
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count() >= softLimit) {
                 IFDBG cout << "Stopping search because of time limit" << endl;
                 break;
             }
@@ -2300,16 +2335,29 @@ void iterativeDeepening(
         int nps = (int)((double)nodes / (elapsedNs / 1e9));
 
         bestMoveAlgebra = bestMove.move.toString();
+
+        bool isMate = false;
+        string ans = "info depth " + std::to_string(depth) + " nodes " + std::to_string(nodes) + " nps " + std::to_string(nps);
+
         if (std::abs(bestMove.eval) > 90000) {
             // Assume large positive value is mate
-            std::cout << "info depth " << depth << " nodes " << nodes << " nps " << nps
-                << " score mate " << ((bestMove.eval > 0) ? (depth / 2) : -(depth / 2)) << " pv " << bestMoveAlgebra << std::endl;
-            break;
+            ans += " score mate " + std::to_string((bestMove.eval > 0) ? (depth / 2) : -(depth / 2));
+            isMate = true;
         }
         else {
-            std::cout << "info depth " << depth << " nodes " << nodes << " nps " << nps
-                << " score cp " << bestMove.eval << " pv " << bestMoveAlgebra << std::endl;
+            ans += " score cp " + std::to_string(bestMove.eval);
         }
+
+        int TTused = 0;
+        for (int i = 0; i < TT.size; i++) {
+            if (TT.getEntry(i)->zobristKey != 0) TTused++;
+        }
+
+        ans += " pv " + bestMoveAlgebra + " hashfull " + std::to_string((int) (TTused / (double) TT.size * 1000));
+
+        cout << ans << endl;
+
+        if (isMate) break;
     }
 
     std::cout << "bestmove " << bestMoveAlgebra << std::endl;
