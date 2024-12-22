@@ -18,7 +18,7 @@
 
 
 // TODO (Ordered): 
-// Nothing yet
+// Nothing
 
 #include <iostream>
 #include <string>
@@ -833,6 +833,7 @@ struct Transposition {
     i16 score;
     Move bestMove;
     u64 zobristKey;
+    i16 staticEval;
     u8 flag;
     u8 depth;
 
@@ -842,13 +843,15 @@ struct Transposition {
         flag = 0;
         score = 0;
         depth = 0;
+        staticEval = 0;
     }
-    Transposition(u64 zobristKey, Move bestMove, u8 flag, i16 score, u8 depth) {
+    Transposition(u64 zobristKey, Move bestMove, u8 flag, i16 score, u8 depth, i16 staticEval) {
         this->zobristKey = zobristKey;
         this->bestMove = bestMove;
         this->flag = flag;
         this->score = score;
         this->depth = depth;
+        this->staticEval = staticEval;
     }
 };
 
@@ -895,9 +898,9 @@ public:
 };
 
 
-u64 nodes = 0;
+int nodes = 0;
 int moveOverhead = 20;
-int movesToGo = 50;
+int movesToGo = 20;
 TranspositionTable TT;
 int msInfoInterval = 1000;
 std::chrono::high_resolution_clock::time_point lastInfo;
@@ -1225,12 +1228,12 @@ public:
 
         // Castling moves
         if (side && currentIndex == e1) {
-            if (~emptySquares & ((1ULL << f1) | (1ULL << g1))) moves.add(Move(e1, g1, CASTLE_K));
-            if (~emptySquares & ((1ULL << d1) | (1ULL << e1) | (1ULL << f1))) moves.add(Move(e1, c1, CASTLE_Q));
+            moves.add(Move(e1, g1, CASTLE_K));
+            moves.add(Move(e1, c1, CASTLE_Q));
         }
         else if (!side && currentIndex == e8) {
-            if (~emptySquares & ((1ULL << f8) | (1ULL << g8))) moves.add(Move(e8, g8, CASTLE_K));
-            if (~emptySquares & ((1ULL << d8) | (1ULL << e8) | (1ULL << f8))) moves.add(Move(e8, c8, CASTLE_Q));
+            moves.add(Move(e8, g8, CASTLE_K));
+            moves.add(Move(e8, c8, CASTLE_Q));
         }
     }
 
@@ -1251,10 +1254,10 @@ public:
         }
 
         MoveList captures, quietMoves;
-        generateRookMoves(allMoves);
-        generateBishopMoves(allMoves);
         generatePawnMoves(allMoves);
         generateKnightMoves(allMoves);
+        generateBishopMoves(allMoves);
+        generateRookMoves(allMoves);
         // Queen moves are part of bishop/rook moves
 
         // Classify moves
@@ -1428,28 +1431,30 @@ public:
         // Delete null moves
         if (from == to) return false;
 
-        // Delete invalid (king) captures
-        if ((1ULL << to) & (white[5] | black[5])) return false;
-
         // Castling checks
         if (m.typeOf() == CASTLE_K || m.typeOf() == CASTLE_Q) {
             bool kingside = (m.typeOf() == CASTLE_K);
             int rightsIndex = side ? (kingside ? 3 : 2) : (kingside ? 1 : 0);
             if (!readBit(castlingRights, rightsIndex)) return false;
             if (isInCheck(side)) return false;
+            u64 occupied = whitePieces | blackPieces;
             if (side) {
                 if (kingside) {
+                    if ((occupied & ((1ULL << f1) | (1ULL << g1))) != 0) return false;
                     if (isUnderAttack(true, f1) || isUnderAttack(true, g1)) return false;
                 }
                 else {
+                    if ((occupied & ((1ULL << b1) | (1ULL << c1) | (1ULL << d1))) != 0) return false;
                     if (isUnderAttack(true, d1) || isUnderAttack(true, c1)) return false;
                 }
             }
             else {
                 if (kingside) {
+                    if ((occupied & ((1ULL << f8) | (1ULL << g8))) != 0) return false;
                     if (isUnderAttack(false, f8) || isUnderAttack(false, g8)) return false;
                 }
                 else {
+                    if ((occupied & ((1ULL << b8) | (1ULL << c8) | (1ULL << d8))) != 0) return false;
                     if (isUnderAttack(false, d8) || isUnderAttack(false, c8)) return false;
                 }
             }
@@ -1457,6 +1462,8 @@ public:
 
         u64& king = side ? white[5] : black[5];
         int kingIndex = ctzll(king);
+
+        u64 ourPieces = side ? whitePieces : blackPieces;
 
         // King moves
         if (king & (1ULL << from)) {
@@ -1587,7 +1594,7 @@ public:
                 case STANDARD_MOVE: setBit(us[i], to, 1); break;
                 case DOUBLE_PUSH:
                     setBit(us[0], to, 1);
-                    if (readBit(them[0], to + 1) || readBit(them[0], to - 1)) enPassant = 1ULL << ((side) * (from + 8) + (!side) * (from - 8));
+                    enPassant = 1ULL << ((side) * (from + 8) + (!side) * (from - 8));
                     break;
                 case CASTLE_K:
                     if (from == e1 && to == g1 && readBit(castlingRights, 3)) {
@@ -2181,14 +2188,11 @@ void perftSuite(const string& filePath) {
 
 
 // ****** SEARCH FUNCTIONS ******
-
-// Flag to signal search should exit
-std::chrono::steady_clock::time_point timerStart;
-std::atomic<bool> breakFlag(false);
-int timeToSpend = 0;
-int maxNodes = 0;
-
 static int _qs(Board& board,
+    std::atomic<bool>& breakFlag,
+    std::chrono::steady_clock::time_point& timerStart,
+    int timeToSpend,
+    int maxNodes,
     int alpha,
     int beta) {
     int stand_pat = board.evaluate();
@@ -2218,7 +2222,7 @@ static int _qs(Board& board,
 
         nodes++;
 
-        int score = -(_qs(testBoard, -beta, -alpha));
+        int score = -(_qs(testBoard, breakFlag, timerStart, timeToSpend, maxNodes, -beta, -alpha));
 
         if (score >= beta) {
             return beta;
@@ -2227,13 +2231,10 @@ static int _qs(Board& board,
             alpha = score;
         }
 
-        // Break checks
-        if (alpha >= beta) break; // Alpha-beta pruning
         if (breakFlag.load()) break;
-        if (nodes % 4096 == 0 && timeToSpend != 0) {
+        if (nodes % 2048 == 0 && timeToSpend != 0) {
             auto now = std::chrono::steady_clock::now();
             if (std::chrono::duration_cast<std::chrono::milliseconds>(now - timerStart).count() >= timeToSpend) {
-                breakFlag.store(true);
                 break;
             }
         }
@@ -2243,17 +2244,20 @@ static int _qs(Board& board,
     return alpha;
 }
 
-// Full search functions
+// Full search function
 static MoveEvaluation go(Board& board,
     int depth,
+    std::atomic<bool>& breakFlag,
+    std::chrono::steady_clock::time_point& timerStart,
+    int timeToSpend,
     int alpha,
     int beta,
-    const bool isParent = false) {
+    int maxNodes, const bool isParent = false) {
     // Only worry about draws and such if the node is a child, otherwise game would be over
     // More expensive to check isDraw() than to check !isParent because isDraw() needs to search an array
     if (!isParent) {
         if (depth == 0) {
-            int eval = _qs(board, alpha, beta);
+            int eval = _qs(board, breakFlag, timerStart, timeToSpend, maxNodes, alpha, beta);
             return { Move(), eval };
         }
         else if (board.isDraw()) {
@@ -2283,6 +2287,18 @@ static MoveEvaluation go(Board& board,
     int movesMade = 0;
 
     for (int i = 0; i < moves.count; ++i) {
+        // Break checks
+        if (alpha >= beta) break; // Alpha-beta pruning
+        if (nodes % 2048 == 0 && breakFlag.load()) break;
+        if (nodes % 2048 == 0 && timeToSpend != 0) {
+            auto now = std::chrono::steady_clock::now();
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - timerStart).count() >= timeToSpend) {
+                break;
+            }
+        }
+        if (maxNodes > 0 && nodes >= maxNodes) break;
+
+
         Move& m = moves.moves[i];
 
         if (!board.isLegalMove(m)) {
@@ -2292,23 +2308,11 @@ static MoveEvaluation go(Board& board,
         // Recursive call with a copied board
         Board testBoard = board;
         testBoard.move(m);
-
-        // Uses the SF definition of "node"
-        nodes++;
         movesMade++;
 
-        int eval;
-        // PVS IS BAD BAD BAD
-        // Unidentified bug in code causes it to search to very high depth from equal positions
-        // ALWAYS loses SPRT tests
-        /*// This is PVS stuff, searching with a reduced margin
-        eval = -(go(board, depth - 1, -alpha - 1, -alpha).eval);
-        // If it fails high or low we search again with the original bounds
-        if (eval > alpha || eval < beta) {
-            eval = -(go(board, depth - 1, -beta, -alpha).eval);
-        }*/
+        nodes++;
 
-        eval = -(go(testBoard, depth - 1, -beta, -alpha).eval);
+        int eval = -(go(testBoard, depth - 1, breakFlag, timerStart, timeToSpend, -beta, -alpha, maxNodes).eval);
 
         // Update best move and alpha-beta values
         if (eval > bestEval) {
@@ -2334,18 +2338,6 @@ static MoveEvaluation go(Board& board,
                 cout << "info depth " << depth << " nodes " << nodes << " nps " << nps << " hashfull " << (int)(TTused / (double)TT.size * 1000) << " currmove " << m.toString() << " currmovenumber " << movesMade << endl;
             }
         }
-
-        // Break checks
-        if (alpha >= beta) break; // Alpha-beta pruning
-        if (breakFlag.load()) break;
-        if (nodes % 4096 == 0 && timeToSpend != 0) {
-            auto now = std::chrono::steady_clock::now();
-            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - timerStart).count() >= timeToSpend) {
-                breakFlag.store(true);
-                break;
-            }
-        }
-        if (maxNodes > 0 && nodes >= maxNodes) break;
     }
 
     if (!movesMade) {
@@ -2357,9 +2349,9 @@ static MoveEvaluation go(Board& board,
 
     // Push to TT
     if (depth > 1) {
-        // Only push if search was to higher depth or the zobrist is different
+        // Only push if search was to higher depth or the zobrist should be removed
         if ((TT.getEntry(board.zobrist)->zobristKey != board.zobrist) || (depth > (*TT.getEntry(board.zobrist)).depth)) {
-            Transposition entry = Transposition(board.zobrist, bestMove, flag, bestEval, depth);
+            Transposition entry = Transposition(board.zobrist, bestMove, flag, bestEval, depth, board.evaluate());
             TT.setEntry(board.zobrist, entry);
         }
     }
@@ -2371,6 +2363,7 @@ static MoveEvaluation go(Board& board,
 void iterativeDeepening(
     Board& board,
     int maxDepth,
+    std::atomic<bool>& breakFlag,
     int wtime = 0,
     int btime = 0,
     int mtime = 0,
@@ -2378,14 +2371,12 @@ void iterativeDeepening(
     int binc = 0,
     int maxNodes = -1
 ) {
-    // Reset break
     breakFlag.store(false);
-    // Stores last point in time when an update on search was given
     lastInfo = std::chrono::high_resolution_clock::now();
     nodes = 0;
-    // Set search start time
-    timerStart = std::chrono::steady_clock::now();
+    int timeToSpend = 0;
     int softLimit = 0;
+    auto start = std::chrono::steady_clock::now();
     std::string bestMoveAlgebra = "";
     if (wtime || btime) {
         timeToSpend = board.side ? wtime / 2 : btime / 2;
@@ -2399,9 +2390,9 @@ void iterativeDeepening(
 
     // timeToSpend is a hard limit
     if (timeToSpend) {
-        // Margin for GUI stuff, etc.
+        // 100ms margin for GUI stuff, etc.
         if (timeToSpend > 150) timeToSpend -= moveOverhead;
-        // If there is less than 150 ms left, just search 1 ply ahead with quiescence search
+        // If there is less than 100 ms left, just search 1 ply ahead with quiescence search
         else maxDepth = 1;
     }
 
@@ -2413,12 +2404,12 @@ void iterativeDeepening(
     IFDBG m_assert(maxDepth >= 1, "Depth is less than 1 in ID search");
 
     for (int depth = 1; depth <= maxDepth; depth++) {
-        move = go(board, depth, -INF_INT, INF_INT, true);
+        move = go(board, depth, breakFlag, start, timeToSpend, -INF_INT, INF_INT, maxNodes, true);
 
         IFDBG m_assert(!move.move.isNull(), "Returned null move in search");
 
         auto now = std::chrono::steady_clock::now();
-        double elapsedNs = (double)std::chrono::duration_cast<std::chrono::nanoseconds>(now - timerStart).count();
+        double elapsedNs = (double)std::chrono::duration_cast<std::chrono::nanoseconds>(now - start).count();
         int nps = (int)((double)nodes / (elapsedNs / 1e9));
 
         // Discard searches that return null or illegal moves, usually caused by TT corruption or exiting search early before any search cycle has fisnished
@@ -2436,8 +2427,9 @@ void iterativeDeepening(
         string ans = "info depth " + std::to_string(depth) + " nodes " + std::to_string(nodes) + " nps " + std::to_string(nps) + " hashfull " + std::to_string((int)(TTused / (double)TT.size * 1000));
 
         if (std::abs(bestMove.eval) >= 90000) {
+            // Assume large positive value is mate
             ans += " score mate " + std::to_string((bestMove.eval > 0) ? (depth / 2) : -(depth / 2));
-            if (!breakFlag.load() && !softLimit) isMate = true;
+            isMate = true;
         }
         else {
             ans += " score cp " + std::to_string(bestMove.eval);
@@ -2448,7 +2440,6 @@ void iterativeDeepening(
         cout << ans << endl;
         lastInfo = std::chrono::high_resolution_clock::now();
 
-        // Break conditions
         if (breakFlag.load() && depth > 1) {
             IFDBG cout << "Stopping search because of break flag" << endl;
             break;
@@ -2456,13 +2447,13 @@ void iterativeDeepening(
 
         if (softLimit != 0 && depth > 1) {
             auto now = std::chrono::steady_clock::now();
-            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - timerStart).count() >= softLimit) {
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count() >= softLimit) {
                 IFDBG cout << "Stopping search because of time limit" << endl;
                 break;
             }
         }
 
-        if (maxNodes > 0 && nodes >= maxNodes) {
+        if (maxNodes > 0 && maxNodes <= nodes && depth > 1) {
             IFDBG cout << "Stopping search because of node limit" << endl;
             break;
         }
@@ -2482,6 +2473,7 @@ int main() {
     std::deque<string> parsedcommand;
     Board currentPos;
     currentPos.reset();
+    std::atomic<bool> breakFlag(false);
     std::optional<std::thread> searchThreadOpt;
     cout << "Prelude ready and awaiting commands" << endl;
     while (true) {
@@ -2599,6 +2591,7 @@ int main() {
             searchThreadOpt.emplace(iterativeDeepening,
                 std::ref(currentPos),
                 depth,
+                std::ref(breakFlag),
                 wtime,
                 btime,
                 mtime,
@@ -2648,18 +2641,9 @@ int main() {
         else if (parsedcommand.at(0) == "perftsuite") {
             perftSuite(parsedcommand.at(1));
         }
-        else if (command == "debug.allmoves") {
-            auto moves = currentPos.generateMoves();
-            cout << "All moves (" << moves.count << "):" << endl;
-            moves.sortByString(currentPos);
-            for (int i = 0; i < moves.count; ++i) {
-                cout << moves.moves[i].toString() << endl;
-            }
-        }
         else if (command == "debug.moves") {
-            auto moves = currentPos.generateLegalMoves();
-            cout << "Legal moves (" << moves.count << "):" << endl;
-            moves.sortByString(currentPos);
+            cout << "All moves (current side to move):" << endl;
+            auto moves = currentPos.generateMoves();
             for (int i = 0; i < moves.count; ++i) {
                 cout << moves.moves[i].toString() << endl;
             }
