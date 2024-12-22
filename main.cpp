@@ -1,5 +1,5 @@
 /*
-    Clarity
+    Prelude
     Copyright (C) 2024 Quinniboi10
 
     This program is free software: you can redistribute it and/or modify
