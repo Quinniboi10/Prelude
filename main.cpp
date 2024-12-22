@@ -53,13 +53,13 @@ using std::endl;
 
 #define m_assert(expr, msg) assert(( (void)(msg), (expr) ))
 
-typedef uint64_t u64;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint8_t u8;
+using u64 = uint64_t;
+using u32 = uint32_t;
+using u16 = uint16_t;
+using u8 = uint8_t;
 
-typedef int32_t i32;
-typedef int16_t i16;
+using i32 = int32_t;
+using i16 = int16_t;
 
 constexpr u64 INF = std::numeric_limits<uint64_t>::max();
 constexpr int INF_INT = std::numeric_limits<int>::max();
@@ -447,6 +447,8 @@ public:
 
         std::mt19937_64 engine(rd());
 
+        engine.seed(69420); // Nice
+
         std::uniform_int_distribution<uint64_t> dist(0, std::numeric_limits<uint64_t>::max());
 
         for (auto& side : zobrist) {
@@ -833,7 +835,6 @@ struct Transposition {
     i16 score;
     Move bestMove;
     u64 zobristKey;
-    i16 staticEval;
     u8 flag;
     u8 depth;
 
@@ -843,15 +844,13 @@ struct Transposition {
         flag = 0;
         score = 0;
         depth = 0;
-        staticEval = 0;
     }
-    Transposition(u64 zobristKey, Move bestMove, u8 flag, i16 score, u8 depth, i16 staticEval) {
+    Transposition(u64 zobristKey, Move bestMove, u8 flag, i16 score, u8 depth) {
         this->zobristKey = zobristKey;
         this->bestMove = bestMove;
         this->flag = flag;
         this->score = score;
         this->depth = depth;
-        this->staticEval = staticEval;
     }
 };
 
@@ -1463,8 +1462,6 @@ public:
         u64& king = side ? white[5] : black[5];
         int kingIndex = ctzll(king);
 
-        u64 ourPieces = side ? whitePieces : blackPieces;
-
         // King moves
         if (king & (1ULL << from)) {
             u64 lastKing = king;
@@ -1558,7 +1555,6 @@ public:
 
     void move(Move moveIn, bool updateMoveHistory = true) {
         auto& us = side ? white : black;
-        auto& them = side ? white : black;
 
         // Take out old zobrist stuff that will be re-added at the end of the turn
         // Castling
@@ -1911,8 +1907,6 @@ public:
             }
         }
 
-        //transPos[zobrist] = eval;
-
         // Adjust evaluation for the side to move
         return (side) ? eval : -eval;
     }
@@ -2190,7 +2184,7 @@ void perftSuite(const string& filePath) {
 // ****** SEARCH FUNCTIONS ******
 int aspirationWindow = 50;
 
-static int _qs(Board& board,
+static MoveEvaluation _qs(Board& board,
     std::atomic<bool>& breakFlag,
     std::chrono::steady_clock::time_point& timerStart,
     int timeToSpend,
@@ -2199,7 +2193,7 @@ static int _qs(Board& board,
     int beta) {
     int stand_pat = board.evaluate();
     if (stand_pat >= beta) {
-        return beta;
+        return { Move(), beta };
     }
     if (alpha < stand_pat) {
         alpha = stand_pat;
@@ -2207,12 +2201,15 @@ static int _qs(Board& board,
 
     if (board.isDraw()) {
         if (board.isInCheck(board.side)) {
-            return -999999;
+            return { Move(), -999999 };
         }
-        return 0;
+        return { Move(), 0 };
     }
 
     MoveList moves = board.generateMoves(true);
+    Move bestMove;
+
+    int flag = FAILLOW;
 
     for (int i = 0; i < moves.count; ++i) {
         const Move& m = moves.moves[i];
@@ -2227,17 +2224,18 @@ static int _qs(Board& board,
         int score;
 
         // Principal variation search stuff
-        score = -(_qs(testBoard, breakFlag, timerStart, timeToSpend, maxNodes, -alpha - 1, -alpha));
+        score = -(_qs(testBoard, breakFlag, timerStart, timeToSpend, maxNodes, -alpha - 1, -alpha).eval);
         // If it fails high or low we search again with the original bounds
         if (score > alpha && score < beta) {
-            score = -(_qs(testBoard, breakFlag, timerStart, timeToSpend, maxNodes, -beta, -alpha));
+            score = -(_qs(testBoard, breakFlag, timerStart, timeToSpend, maxNodes, -beta, -alpha).eval);
         }
 
         if (score >= beta) {
-            return beta;
+            return { Move(), beta };
         }
         if (score > alpha) {
             alpha = score;
+            bestMove = m;
         }
 
         if (breakFlag.load()) break;
@@ -2250,7 +2248,13 @@ static int _qs(Board& board,
         if (maxNodes > 0 && nodes >= maxNodes) break;
     }
 
-    return alpha;
+    if (TT.getEntry(board.zobrist)->zobristKey != board.zobrist) {
+        // Pushes with depth of 0 so best move is saved, just always deleted by main search
+        Transposition entry = Transposition(board.zobrist, bestMove, flag, alpha, 0);
+        TT.setEntry(board.zobrist, entry);
+    }
+
+    return { bestMove, alpha };
 }
 
 // Full search function
@@ -2267,7 +2271,7 @@ static MoveEvaluation go(Board& board,
     // More expensive to check isDraw() than to check !isRoot because isDraw() needs to search an array
     if (!isRoot) {
         if (depth == 0) {
-            int eval = _qs(board, breakFlag, timerStart, timeToSpend, maxNodes, alpha, beta);
+            int eval = _qs(board, breakFlag, timerStart, timeToSpend, maxNodes, alpha, beta).eval;
             return { Move(), eval };
         }
         else if (board.isDraw()) {
@@ -2369,7 +2373,7 @@ static MoveEvaluation go(Board& board,
     if (depth > 1) {
         // Only push if search was to higher depth or the zobrist should be removed
         if ((TT.getEntry(board.zobrist)->zobristKey != board.zobrist) || (depth > (*TT.getEntry(board.zobrist)).depth)) {
-            Transposition entry = Transposition(board.zobrist, bestMove, flag, bestEval, depth, board.evaluate());
+            Transposition entry = Transposition(board.zobrist, bestMove, flag, bestEval, depth);
             TT.setEntry(board.zobrist, entry);
         }
     }
