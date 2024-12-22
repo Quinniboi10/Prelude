@@ -898,7 +898,7 @@ public:
 };
 
 
-int nodes = 0;
+u64 nodes = 0;
 int moveOverhead = 20;
 int movesToGo = 20;
 TranspositionTable TT;
@@ -2188,6 +2188,8 @@ void perftSuite(const string& filePath) {
 
 
 // ****** SEARCH FUNCTIONS ******
+int aspirationWindow = 50;
+
 static int _qs(Board& board,
     std::atomic<bool>& breakFlag,
     std::chrono::steady_clock::time_point& timerStart,
@@ -2222,7 +2224,14 @@ static int _qs(Board& board,
 
         nodes++;
 
-        int score = -(_qs(testBoard, breakFlag, timerStart, timeToSpend, maxNodes, -beta, -alpha));
+        int score;
+
+        // Principal variation search stuff
+        score = -(_qs(testBoard, breakFlag, timerStart, timeToSpend, maxNodes, -alpha - 1, -alpha));
+        // If it fails high or low we search again with the original bounds
+        if (score > alpha && score < beta) {
+            score = -(_qs(testBoard, breakFlag, timerStart, timeToSpend, maxNodes, -beta, -alpha));
+        }
 
         if (score >= beta) {
             return beta;
@@ -2252,10 +2261,11 @@ static MoveEvaluation go(Board& board,
     int timeToSpend,
     int alpha,
     int beta,
-    int maxNodes, const bool isParent = false) {
+    int maxNodes,
+    const bool isRoot = false) {
     // Only worry about draws and such if the node is a child, otherwise game would be over
-    // More expensive to check isDraw() than to check !isParent because isDraw() needs to search an array
-    if (!isParent) {
+    // More expensive to check isDraw() than to check !isRoot because isDraw() needs to search an array
+    if (!isRoot) {
         if (depth == 0) {
             int eval = _qs(board, breakFlag, timerStart, timeToSpend, maxNodes, alpha, beta);
             return { Move(), eval };
@@ -2270,7 +2280,7 @@ static MoveEvaluation go(Board& board,
 
     Transposition* entry = TT.getEntry(board.zobrist);
 
-    if (!isParent && entry->zobristKey == board.zobrist && entry->depth >= depth && (
+    if (!isRoot && entry->zobristKey == board.zobrist && entry->depth >= depth && (
         entry->flag == EXACT // Exact score
         || (entry->flag == BETACUTOFF && entry->score >= beta) // Lower bound, fail high
         || (entry->flag == FAILLOW && entry->score <= alpha) // Upper bound, fail low
@@ -2312,7 +2322,15 @@ static MoveEvaluation go(Board& board,
 
         nodes++;
 
-        int eval = -(go(testBoard, depth - 1, breakFlag, timerStart, timeToSpend, -beta, -alpha, maxNodes).eval);
+        int eval;
+
+        // Principal variation search stuff
+        eval = -(go(testBoard, depth - 1, breakFlag, timerStart, timeToSpend, -alpha - 1, -alpha, maxNodes).eval);
+        // If it fails high or low we search again with the original bounds
+        if (eval > alpha && eval < beta) {
+            eval = -(go(testBoard, depth - 1, breakFlag, timerStart, timeToSpend, -beta, -alpha, maxNodes).eval);
+        }
+
 
         // Update best move and alpha-beta values
         if (eval > bestEval) {
@@ -2326,7 +2344,7 @@ static MoveEvaluation go(Board& board,
             flag = BETACUTOFF;
         }
 
-        if (isParent) {
+        if (isRoot) {
             auto now = std::chrono::steady_clock::now();
             if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastInfo).count() >= msInfoInterval) {
                 int TTused = 0;
