@@ -2453,7 +2453,7 @@ static MoveEvaluation go(Board& board,
                 }
                 double elapsedMs = (double)std::chrono::duration_cast<std::chrono::milliseconds>(now - timerStart).count();
                 int nps = (int)((double)nodes / (elapsedMs / 1000));
-                cout << "info depth " << depth << " nodes " << nodes << " nps " << nps << " hashfull " << (int)(TTused / (double)TT.size * 1000) << " currmove " << m.toString() << " currmovenumber " << movesMade << endl;
+                cout << "info depth " << depth << " nodes " << nodes << " nps " << nps << " time " << std::to_string((int)elapsedMs) << " hashfull " << (int)(TTused / (double)TT.size * 1000) << " currmove " << m.toString() << " currmovenumber " << movesMade << endl;
             }
         }
     }
@@ -2542,7 +2542,7 @@ void iterativeDeepening(
             if (TT.getEntry(i)->zobristKey != 0) TTused++;
         }
 
-        string ans = "info depth " + std::to_string(depth) + " nodes " + std::to_string(nodes) + " nps " + std::to_string(nps) + " hashfull " + std::to_string((int)(TTused / (double)TT.size * 1000));
+        string ans = "info depth " + std::to_string(depth) + " nodes " + std::to_string(nodes) + " nps " + std::to_string(nps) + " time " + std::to_string((int)(elapsedNs/1e6)) +  " hashfull " + std::to_string((int)(TTused / (double)TT.size * 1000));
 
         if (std::abs(bestMove.eval) >= 90000) {
             // Assume large positive value is mate
