@@ -110,6 +110,12 @@ constexpr Square operator-(Square s, Direction d) { return Square(int(s) - int(d
 Square& operator+=(Square& s, Direction d) { return s = s + d; }
 Square& operator-=(Square& s, Direction d) { return s = s - d; }
 
+static inline const union {
+    uint32_t i;
+    char     c[4];
+} Le = { 0x01020304 };
+static inline const bool IsLittleEndian = (Le.c[0] == 4);
+
 // Names binary encoding flags from Move class
 enum MoveType {
     STANDARD_MOVE = 0, DOUBLE_PUSH = 0b1, CASTLE_K = 0b10, CASTLE_Q = 0b11, CAPTURE = 0b100, EN_PASSANT = 0b101, KNIGHT_PROMO = 0b1000, BISHOP_PROMO = 0b1001, ROOK_PROMO = 0b1010, QUEEN_PROMO = 0b1011, KNIGHT_PROMO_CAPTURE = 0b1100, BISHOP_PROMO_CAPTURE = 0b1101, ROOK_PROMO_CAPTURE = 0b1110, QUEEN_PROMO_CAPTURE = 0b1111
@@ -275,73 +281,6 @@ public:
     static u64 isOn6;
     static u64 isOn7;
     static u64 isOn8;
-
-    static constexpr inline const std::array<int, 64> white_pawn_table = {
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 5, 10, 10, 5, 0, 0,
-        0, 0, 10, 20, 20, 10, 0, 0,
-        0, 0, 10, 20, 20, 10, 0, 0,
-        0, 0, 5, 10, 10, 5, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0
-    };
-
-    static constexpr inline const std::array<int, 64> white_knight_table = {
-        -50, -40, -40, -40, -40, -40, -40, -50,
-        -40, 20, 0, 0, 0, 0, -20, -40,
-        -40, 0, 10, 20, 20, 10, 0, -40,
-        -40, 0, 0, 25, 25, 0, 0, -40,
-        -40, 0, 0, 25, 25, 0, 0, -40,
-        -40, 0, 10, 20, 20, 10, 0, -40,
-        -40, -20, 0, 0, 0, 0, -20, -40,
-        -50, -40, -40, -40, -40, -40, -40, -50
-    };
-
-    static constexpr inline const std::array<int, 64> white_bishop_table = {
-        -20,-10,-10,-10,-10,-10,-10,-20,
-        -10,  5,  0,  0,  0,  0,  5,-10,
-        -10, 10, 10, 10, 10, 10, 10,-10,
-        -10,  0, 10, 10, 10, 10,  0,-10,
-        -10,  5,  5, 10, 10,  5,  5,-10,
-        -10,  0,  5, 10, 10,  5,  0,-10,
-        -10,  0,  0,  0,  0,  0,  0,-10,
-        -20,-10,-10,-10,-10,-10,-10,-20
-    };
-
-    static constexpr inline const std::array<int, 64> white_rook_table = {
-         0,  0,  0,  0,  0,  0,  0,  0,
-         5, 10, 10, 10, 10, 10, 10,  5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-         0,  0,  0,  5,  5,  0,  0,  0
-    };
-
-    static constexpr inline const std::array<int, 64> white_queen_table = {
-        -20,-10,-10, -5, -5,-10,-10,-20,
-        -10,  0,  5,  0,  0,  0,  0,-10,
-        -10,  5,  5,  5,  5,  5,  0,-10,
-          0,  0,  5,  5,  5,  5,  0, -5,
-         -5,  0,  5,  5,  5,  5,  0, -5,
-        -10,  0,  5,  5,  5,  5,  0,-10,
-        -10,  0,  0,  0,  0,  0,  0,-10,
-        -20,-10,-10, -5, -5,-10,-10,-20
-    };
-
-    static constexpr inline const std::array<int, 64> white_king_table = {
-        -30,-40,-40,-50,-50,-40,-40,-30,
-        -30,-40,-40,-50,-50,-40,-40,-30,
-        -30,-40,-40,-50,-50,-40,-40,-30,
-        -30,-40,-40,-50,-50,-40,-40,-30,
-        -20,-30,-30,-40,-40,-30,-30,-20,
-        -10,-20,-20,-20,-20,-20,-20,-10,
-         20, 20,  0,  0,  0,  0, 20, 20,
-         20, 30, 10,  0,  0, 10, 30, 20
-    };
-
     static void compute() {
         // *** FILE AND COL ARRAYS ***
         isOnA = 0;
@@ -502,6 +441,8 @@ u64 Precomputed::isOn8;
 
 constexpr Rank rankOf(Square s) { return Rank(s >> 3); }
 constexpr File fileOf(Square s) { return File(s & 0b111); }
+
+constexpr Rank flipRank(Square s) { return Rank(s ^ 0b111000); }
 
 // ****** MANY A PROGRAMMER HAS "BORROWED" CODE. I AM NO EXCEPTION ******
 // Original code from https://github.com/nkarve/surge/blob/master/src/tables.cpp
@@ -896,11 +837,109 @@ public:
     }
 };
 
+// ****** NNUE STUFF ******
+constexpr i16 inputQuantizationValue = 255;
+constexpr i16 hiddenQuantizationValue = 64;
+constexpr i16 evalScale = 400;
+constexpr size_t HL_SIZE = 32;
+
+
+using Accumulator = array<i16, HL_SIZE>;
+// NNUE is not UEd yet
+class NNUE {
+public:
+
+    array<i16, HL_SIZE * 768> weightsToHL;
+
+    array<i16, HL_SIZE> hiddenLayerBias;
+
+    array<i16, HL_SIZE * 2> weightsToOut;
+    i16 outputBias;
+
+    void CReLU(i16& x) {
+        if (x < 0) x = 0;
+        else if (x > inputQuantizationValue) x = inputQuantizationValue;
+    }
+
+    int feature(Color perspective, Color color, PieceType piece, Square square) {
+        // Constructs a feature from the given perspective for a piece
+        // of the given type and color on the given square
+
+        int colorIndex = (perspective == color) ? 0 : 1;
+        int pieceIndex = static_cast<int>(piece);
+        int squareIndex = (perspective == BLACK) ? flipRank(square) : static_cast<int>(square);
+
+        return colorIndex * 64 * 6 + pieceIndex * 64 + squareIndex;
+    }
+
+
+    // Function from stockfish
+    template<typename IntType>
+    inline IntType read_little_endian(std::istream& stream) {
+        IntType result;
+
+        if (IsLittleEndian)
+            stream.read(reinterpret_cast<char*>(&result), sizeof(IntType));
+        else
+        {
+            std::uint8_t u[sizeof(IntType)];
+            std::make_unsigned_t<IntType> v = 0;
+
+            stream.read(reinterpret_cast<char*>(u), sizeof(IntType));
+            for (std::size_t i = 0; i < sizeof(IntType); ++i)
+                v = (v << 8) | u[sizeof(IntType) - i - 1];
+
+            std::memcpy(&result, &v, sizeof(IntType));
+        }
+
+        return result;
+    }
+
+public:
+    NNUE() {
+        weightsToHL.fill(1);
+        weightsToOut.fill(1);
+
+        hiddenLayerBias.fill(0);
+        outputBias = 0;
+    }
+
+    void loadNet(const std::string& filepath) {
+        std::ifstream stream(filepath, std::ios::binary);
+        if (!stream.is_open()) {
+            throw std::runtime_error("Failed to open file: " + filepath);
+        }
+
+        // Load weightsToHL
+        for (size_t i = 0; i < weightsToHL.size(); ++i) {
+            weightsToHL[i] = read_little_endian<int16_t>(stream);
+        }
+
+        // Load hiddenLayerBias
+        for (size_t i = 0; i < hiddenLayerBias.size(); ++i) {
+            hiddenLayerBias[i] = read_little_endian<int16_t>(stream);
+        }
+
+        // Load weightsToOut
+        for (size_t i = 0; i < weightsToOut.size(); ++i) {
+            weightsToOut[i] = read_little_endian<int16_t>(stream);
+        }
+
+        // Load outputBias
+        outputBias = read_little_endian<int16_t>(stream);
+
+        cout << "Network loaded successfully from " << filepath << endl;
+    }
+
+    int forwardPass(Board* board);
+};
+
 
 u64 nodes = 0;
 int moveOverhead = 20;
 int movesToGo = 20;
 TranspositionTable TT;
+NNUE nn;
 int msInfoInterval = 1000;
 std::chrono::high_resolution_clock::time_point lastInfo;
 
@@ -1872,39 +1911,10 @@ public:
 
         eval = whitePieces - blackPieces;
 
-        // Piece value adjustment
-        if (std::abs(eval) < 950) { // Ignore if the eval is already very very high
-            for (int i = 0; i < 6; i++) {
-                u64 currentBitboard = white[i];
-                while (currentBitboard > 0) {
-                    int currentIndex = ctzll(currentBitboard);
-
-                    if (i == 0) eval += Precomputed::white_pawn_table[currentIndex];
-                    if (i == 1) eval += Precomputed::white_knight_table[currentIndex];
-                    if (i == 2) eval += Precomputed::white_bishop_table[currentIndex];
-                    if (i == 3) eval += Precomputed::white_rook_table[currentIndex];
-                    if (i == 4) eval += Precomputed::white_queen_table[currentIndex];
-                    if (i == 5) eval += Precomputed::white_king_table[currentIndex];
-
-                    currentBitboard &= currentBitboard - 1;
-                }
-            }
-
-            for (int i = 0; i < 6; i++) {
-                u64 currentBitboard = black[i];
-                while (currentBitboard > 0) {
-                    int currentIndex = ctzll(currentBitboard);
-
-                    if (i == 0) eval -= Precomputed::white_pawn_table[flipIndex(currentIndex)];
-                    if (i == 1) eval -= Precomputed::white_knight_table[flipIndex(currentIndex)];
-                    if (i == 2) eval -= Precomputed::white_bishop_table[flipIndex(currentIndex)];
-                    if (i == 3) eval -= Precomputed::white_rook_table[flipIndex(currentIndex)];
-                    if (i == 4) eval -= Precomputed::white_queen_table[flipIndex(currentIndex)];
-                    if (i == 5) eval -= Precomputed::white_king_table[flipIndex(currentIndex)];
-
-                    currentBitboard &= currentBitboard - 1;
-                }
-            }
+        // Only utilize the NNUE in situations when eval isn't very strong
+        // Concept from SF
+        if (std::abs(eval) < 950) {
+            eval = nn.forwardPass(this);
         }
 
         // Adjust evaluation for the side to move
@@ -1941,6 +1951,94 @@ public:
         zobrist ^= Precomputed::zobristSide[side];
     }
 };
+
+
+// Returns the output of the NN
+int NNUE::forwardPass(Board* board) {
+    // Temporary accumulators for hidden layer sums for STM and OPP perspectives
+    Accumulator accumulatorSTM;
+    Accumulator accumulatorOPP;
+    accumulatorSTM.fill(0);
+    accumulatorOPP.fill(0);
+
+    // Determine the side to move and the opposite side
+    Color stm = board->side;
+    Color opp = ~stm;
+
+    // Bitboards for STM and OPP pieces
+    u64 stmPieces = stm ? board->whitePieces : board->blackPieces;
+    u64 oppPieces = ~stm ? board->whitePieces : board->blackPieces;
+
+    // Accumulate contributions for STM pieces
+    while (stmPieces) {
+        Square currentSq = Square(ctzll(stmPieces)); // Find the least significant set bit
+
+        // Extract the feature for STM
+        int inputFeatureSTM = feature(stm, stm, board->getPiece(currentSq), currentSq);
+        int inputFeatureOPP = feature(opp, stm, board->getPiece(currentSq), currentSq);
+
+        // Accumulate weights for STM hidden layer
+        for (int i = 0; i < HL_SIZE; i++) {
+            accumulatorSTM[i] += weightsToHL[inputFeatureSTM * HL_SIZE + i];
+            accumulatorOPP[i] += weightsToHL[inputFeatureOPP * HL_SIZE + i];
+        }
+
+        stmPieces &= (stmPieces - 1); // Clear the least significant set bit
+    }
+
+    // Accumulate contributions for OPP pieces
+    while (oppPieces) {
+        Square currentSq = Square(ctzll(oppPieces)); // Find the least significant set bit
+
+        // Extract the feature for STM
+        int inputFeatureSTM = feature(stm, opp, board->getPiece(currentSq), currentSq);
+        int inputFeatureOPP = feature(opp, opp, board->getPiece(currentSq), currentSq);
+
+        // Accumulate weights for STM hidden layer
+        for (int i = 0; i < HL_SIZE; i++) {
+            accumulatorSTM[i] += weightsToHL[inputFeatureSTM * HL_SIZE + i];
+            accumulatorOPP[i] += weightsToHL[inputFeatureOPP * HL_SIZE + i];
+        }
+
+        oppPieces &= (oppPieces - 1); // Clear the least significant set bit
+    }
+
+    // Define hidden layers for STM and OPP
+    Accumulator hiddenLayerSTM;
+    Accumulator hiddenLayerOPP;
+
+    // Apply bias and activation (CReLU) to STM hidden layer
+    for (int i = 0; i < HL_SIZE; i++) {
+        hiddenLayerSTM[i] = accumulatorSTM[i] + hiddenLayerBias[i];
+        CReLU(hiddenLayerSTM[i]);
+    }
+
+    // Apply bias and activation (CReLU) to OPP hidden layer
+    for (int i = 0; i < HL_SIZE; i++) {
+        hiddenLayerOPP[i] = accumulatorOPP[i] + hiddenLayerBias[i];
+        CReLU(hiddenLayerOPP[i]);
+    }
+
+    // Accumulate output for STM and OPP using separate weight segments
+    int outputSTM = 0;
+    int outputOPP = 0;
+    for (int i = 0; i < HL_SIZE; i++) {
+        // First HL_SIZE weights are for STM
+        outputSTM += hiddenLayerSTM[i] * weightsToOut[i];
+
+        // Last HL_SIZE weights are for OPP
+        outputOPP += hiddenLayerOPP[i] * weightsToOut[HL_SIZE + i];
+    }
+
+    // Combine STM and OPP outputs
+    int combinedOutput = outputSTM + outputOPP;
+
+    combinedOutput += outputBias;
+
+    // Apply output bias and scale the result
+    return (combinedOutput * evalScale) / (inputQuantizationValue * hiddenQuantizationValue);
+}
+
 
 string Move::toString() {
     int start = startSquare();
@@ -2182,8 +2280,6 @@ void perftSuite(const string& filePath) {
 
 
 // ****** SEARCH FUNCTIONS ******
-int aspirationWindow = 50;
-
 static MoveEvaluation _qs(Board& board,
     std::atomic<bool>& breakFlag,
     std::chrono::steady_clock::time_point& timerStart,
@@ -2496,6 +2592,7 @@ int main() {
     Board currentPos;
     currentPos.reset();
     std::atomic<bool> breakFlag(false);
+    nn.loadNet("C:\\Users\\qitag\\Downloads\\32.nnue");
     std::optional<std::thread> searchThreadOpt;
     cout << "Prelude ready and awaiting commands" << endl;
     while (true) {
@@ -2526,7 +2623,7 @@ int main() {
         else if (parsedcommand.at(0) == "setoption") {
             // Assumes setoption name ...
             if (parsedcommand.at(2) == "Hash") {
-                TT = TranspositionTable(stoi(parsedcommand.at(3)));
+                TT = TranspositionTable(stoi(parsedcommand.at(4)));
             }
             else if (parsedcommand.at(2) == "Move Overhead") {
                 moveOverhead = (stoi(parsedcommand.at(3)));
@@ -2666,9 +2763,13 @@ int main() {
         else if (command == "debug.moves") {
             cout << "All moves (current side to move):" << endl;
             auto moves = currentPos.generateMoves();
+            moves.sortByString(currentPos);
             for (int i = 0; i < moves.count; ++i) {
                 cout << moves.moves[i].toString() << endl;
             }
+        }
+        else if (command == "debug.eval") {
+            cout << "Evaluation (centipawns as currenet side): " << currentPos.evaluate() << endl;
         }
         else if (command == "debug.popcnt") {
             cout << "White pawns: " << popcountll(currentPos.white[0]) << endl;
