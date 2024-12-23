@@ -2497,9 +2497,9 @@ void iterativeDeepening(
     auto start = std::chrono::steady_clock::now();
     std::string bestMoveAlgebra = "";
     if (wtime || btime) {
-        timeToSpend = board.side ? wtime / 2 : btime / 2;
+        timeToSpend = board.side ? wtime / movesToGo : btime / movesToGo;
         int inc = board.side ? winc : binc;
-        softLimit = 0.6 * ((timeToSpend * 2) / movesToGo + inc * 3 / 4);
+        softLimit = timeToSpend * 0.65;
     }
     else if (mtime) {
         timeToSpend = mtime;
