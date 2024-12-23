@@ -281,73 +281,6 @@ public:
     static u64 isOn6;
     static u64 isOn7;
     static u64 isOn8;
-
-    static constexpr inline const std::array<int, 64> white_pawn_table = {
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 5, 10, 10, 5, 0, 0,
-        0, 0, 10, 20, 20, 10, 0, 0,
-        0, 0, 10, 20, 20, 10, 0, 0,
-        0, 0, 5, 10, 10, 5, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0
-    };
-
-    static constexpr inline const std::array<int, 64> white_knight_table = {
-        -50, -40, -40, -40, -40, -40, -40, -50,
-        -40, 20, 0, 0, 0, 0, -20, -40,
-        -40, 0, 10, 20, 20, 10, 0, -40,
-        -40, 0, 0, 25, 25, 0, 0, -40,
-        -40, 0, 0, 25, 25, 0, 0, -40,
-        -40, 0, 10, 20, 20, 10, 0, -40,
-        -40, -20, 0, 0, 0, 0, -20, -40,
-        -50, -40, -40, -40, -40, -40, -40, -50
-    };
-
-    static constexpr inline const std::array<int, 64> white_bishop_table = {
-        -20,-10,-10,-10,-10,-10,-10,-20,
-        -10,  5,  0,  0,  0,  0,  5,-10,
-        -10, 10, 10, 10, 10, 10, 10,-10,
-        -10,  0, 10, 10, 10, 10,  0,-10,
-        -10,  5,  5, 10, 10,  5,  5,-10,
-        -10,  0,  5, 10, 10,  5,  0,-10,
-        -10,  0,  0,  0,  0,  0,  0,-10,
-        -20,-10,-10,-10,-10,-10,-10,-20
-    };
-
-    static constexpr inline const std::array<int, 64> white_rook_table = {
-         0,  0,  0,  0,  0,  0,  0,  0,
-         5, 10, 10, 10, 10, 10, 10,  5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-         0,  0,  0,  5,  5,  0,  0,  0
-    };
-
-    static constexpr inline const std::array<int, 64> white_queen_table = {
-        -20,-10,-10, -5, -5,-10,-10,-20,
-        -10,  0,  5,  0,  0,  0,  0,-10,
-        -10,  5,  5,  5,  5,  5,  0,-10,
-          0,  0,  5,  5,  5,  5,  0, -5,
-         -5,  0,  5,  5,  5,  5,  0, -5,
-        -10,  0,  5,  5,  5,  5,  0,-10,
-        -10,  0,  0,  0,  0,  0,  0,-10,
-        -20,-10,-10, -5, -5,-10,-10,-20
-    };
-
-    static constexpr inline const std::array<int, 64> white_king_table = {
-        -30,-40,-40,-50,-50,-40,-40,-30,
-        -30,-40,-40,-50,-50,-40,-40,-30,
-        -30,-40,-40,-50,-50,-40,-40,-30,
-        -30,-40,-40,-50,-50,-40,-40,-30,
-        -20,-30,-30,-40,-40,-30,-30,-20,
-        -10,-20,-20,-20,-20,-20,-20,-10,
-         20, 20,  0,  0,  0,  0, 20, 20,
-         20, 30, 10,  0,  0, 10, 30, 20
-    };
-
     static void compute() {
         // *** FILE AND COL ARRAYS ***
         isOnA = 0;
@@ -905,10 +838,10 @@ public:
 };
 
 // ****** NNUE STUFF ******
-constexpr int inputQuantizationValue = 255;
-constexpr int hiddenQuantizationValue = 64;
-constexpr int evalScale = 400;
-constexpr size_t HL_SIZE = 16;
+constexpr i16 inputQuantizationValue = 255;
+constexpr i16 hiddenQuantizationValue = 64;
+constexpr i16 evalScale = 400;
+constexpr size_t HL_SIZE = 32;
 
 
 using Accumulator = array<i16, HL_SIZE>;
@@ -916,15 +849,16 @@ using Accumulator = array<i16, HL_SIZE>;
 class NNUE {
 public:
 
-    array<int, 768 * HL_SIZE> weightsToHL;
+    array<i16, HL_SIZE * 768> weightsToHL;
 
-    array<int, 16> hiddenLayerBias;
+    array<i16, HL_SIZE> hiddenLayerBias;
 
-    array<int, 32> weightsToOut;
-    int outputBias;
+    array<i16, HL_SIZE * 2> weightsToOut;
+    i16 outputBias;
 
-    void CReLU(int& x) {
-        x = std::clamp(x, 0, inputQuantizationValue);
+    void CReLU(i16& x) {
+        if (x < 0) x = 0;
+        else if (x > inputQuantizationValue) x = inputQuantizationValue;
     }
 
     int feature(Color perspective, Color color, PieceType piece, Square square) {
@@ -939,7 +873,7 @@ public:
     }
 
 
-
+    // Function from stockfish
     template<typename IntType>
     inline IntType read_little_endian(std::istream& stream) {
         IntType result;
@@ -948,7 +882,7 @@ public:
             stream.read(reinterpret_cast<char*>(&result), sizeof(IntType));
         else
         {
-            std::uint8_t                  u[sizeof(IntType)];
+            std::uint8_t u[sizeof(IntType)];
             std::make_unsigned_t<IntType> v = 0;
 
             stream.read(reinterpret_cast<char*>(u), sizeof(IntType));
@@ -2021,9 +1955,6 @@ public:
 
 // Returns the output of the NN
 int NNUE::forwardPass(Board* board) {
-    // Define the size of the hidden layer
-    constexpr int HL_SIZE = 16;
-
     // Temporary accumulators for hidden layer sums for STM and OPP perspectives
     Accumulator accumulatorSTM;
     Accumulator accumulatorOPP;
@@ -2073,8 +2004,8 @@ int NNUE::forwardPass(Board* board) {
     }
 
     // Define hidden layers for STM and OPP
-    array<int, HL_SIZE> hiddenLayerSTM;
-    array<int, HL_SIZE> hiddenLayerOPP;
+    Accumulator hiddenLayerSTM;
+    Accumulator hiddenLayerOPP;
 
     // Apply bias and activation (CReLU) to STM hidden layer
     for (int i = 0; i < HL_SIZE; i++) {
@@ -2661,7 +2592,7 @@ int main() {
     Board currentPos;
     currentPos.reset();
     std::atomic<bool> breakFlag(false);
-    nn.loadNet("C:\\Users\\qitag\\Downloads\\simple.nnue");
+    nn.loadNet("C:\\Users\\qitag\\Downloads\\32.nnue");
     std::optional<std::thread> searchThreadOpt;
     cout << "Prelude ready and awaiting commands" << endl;
     while (true) {
