@@ -2690,7 +2690,7 @@ int main() {
         else if (parsedcommand.at(0) == "setoption") {
             // Assumes setoption name ...
             if (parsedcommand.at(2) == "Hash") {
-                TT = TranspositionTable(stoi(parsedcommand.at(3)));
+                TT = TranspositionTable(stoi(parsedcommand.at(4)));
             }
             else if (parsedcommand.at(2) == "Move Overhead") {
                 moveOverhead = (stoi(parsedcommand.at(3)));
@@ -2830,13 +2830,13 @@ int main() {
         else if (command == "debug.moves") {
             cout << "All moves (current side to move):" << endl;
             auto moves = currentPos.generateMoves();
+            moves.sortByString(currentPos);
             for (int i = 0; i < moves.count; ++i) {
                 cout << moves.moves[i].toString() << endl;
             }
         }
         else if (command == "debug.eval") {
             cout << "Evaluation (centipawns as currenet side): " << currentPos.evaluate() << endl;
-            //currentPos.evaluate();
         }
         else if (command == "debug.popcnt") {
             cout << "White pawns: " << popcountll(currentPos.white[0]) << endl;
@@ -2852,9 +2852,6 @@ int main() {
             cout << "Black rooks: " << popcountll(currentPos.black[3]) << endl;
             cout << "Black queens: " << popcountll(currentPos.black[4]) << endl;
             cout << "Black king: " << popcountll(currentPos.black[5]) << endl;
-        }
-        else {
-            cout << nn.feature(BLACK, BLACK, PAWN, h7);
         }
     }
     return 0;
