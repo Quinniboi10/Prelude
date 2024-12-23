@@ -509,7 +509,7 @@ u64 Precomputed::isOn8;
 constexpr Rank rankOf(Square s) { return Rank(s >> 3); }
 constexpr File fileOf(Square s) { return File(s & 0b111); }
 
-constexpr Rank flipRank(Rank r) { return Rank(r ^ 56); }
+constexpr Rank flipRank(Square s) { return Rank(s ^ 0b111000); }
 
 // ****** MANY A PROGRAMMER HAS "BORROWED" CODE. I AM NO EXCEPTION ******
 // Original code from https://github.com/nkarve/surge/blob/master/src/tables.cpp
@@ -907,18 +907,18 @@ public:
 
 // NNUE is not UEd yet
 class NNUE {
+public:
     constexpr static int inputQuantizationValue = 255;
     constexpr static int hiddenQuantizationValue = 64;
-    constexpr static int evalScale = 1;
+    constexpr static int evalScale = 400;
 
     constexpr static size_t HL_SIZE = 16;
 
     array<int, 768 * HL_SIZE> weightsToHL;
 
-    array<int, 16> hiddenLayer;
     array<int, 16> hiddenLayerBias;
 
-    array<int, 16> weightsToOut;
+    array<int, 32> weightsToOut;
     int outputBias;
 
     void CReLU(int& x) {
@@ -931,15 +931,12 @@ class NNUE {
 
         int colorIndex = (perspective == color) ? 0 : 1;
         int pieceIndex = static_cast<int>(piece);
-        int squareIndex = (perspective == WHITE) ? flipRank(rankOf(square)) : static_cast<int>(square);
+        int squareIndex = (perspective == BLACK) ? flipRank(square) : static_cast<int>(square);
 
-        int result = 0;
-        result = result * 2 + colorIndex;
-        result = result * 6 + pieceIndex;
-        result = result * 64 + squareIndex;
-
-        return result;
+        return colorIndex * 64 * 6 + pieceIndex * 64 + squareIndex;
     }
+
+
 
     template<typename IntType>
     inline IntType read_little_endian(std::istream& stream) {
@@ -995,10 +992,10 @@ public:
         // Load outputBias
         outputBias = read_little_endian<int16_t>(stream);
 
-        std::cout << "Network loaded successfully from " << filepath << std::endl;
+        cout << "Network loaded successfully from " << filepath << endl;
     }
 
-    int forwardPass(Board board);
+    int forwardPass(Board* board);
 };
 
 
@@ -1978,41 +1975,10 @@ public:
 
         eval = whitePieces - blackPieces;
 
-        // Piece value adjustment
-        if (std::abs(eval) < 950) { // Ignore if the eval is already very very high
-            eval = nn.forwardPass(*this);
-            /*
-            for (int i = 0; i < 6; i++) {
-                u64 currentBitboard = white[i];
-                while (currentBitboard > 0) {
-                    int currentIndex = ctzll(currentBitboard);
-
-                    if (i == 0) eval += Precomputed::white_pawn_table[currentIndex];
-                    if (i == 1) eval += Precomputed::white_knight_table[currentIndex];
-                    if (i == 2) eval += Precomputed::white_bishop_table[currentIndex];
-                    if (i == 3) eval += Precomputed::white_rook_table[currentIndex];
-                    if (i == 4) eval += Precomputed::white_queen_table[currentIndex];
-                    if (i == 5) eval += Precomputed::white_king_table[currentIndex];
-
-                    currentBitboard &= currentBitboard - 1;
-                }
-            }
-
-            for (int i = 0; i < 6; i++) {
-                u64 currentBitboard = black[i];
-                while (currentBitboard > 0) {
-                    int currentIndex = ctzll(currentBitboard);
-
-                    if (i == 0) eval -= Precomputed::white_pawn_table[flipIndex(currentIndex)];
-                    if (i == 1) eval -= Precomputed::white_knight_table[flipIndex(currentIndex)];
-                    if (i == 2) eval -= Precomputed::white_bishop_table[flipIndex(currentIndex)];
-                    if (i == 3) eval -= Precomputed::white_rook_table[flipIndex(currentIndex)];
-                    if (i == 4) eval -= Precomputed::white_queen_table[flipIndex(currentIndex)];
-                    if (i == 5) eval -= Precomputed::white_king_table[flipIndex(currentIndex)];
-
-                    currentBitboard &= currentBitboard - 1;
-                }
-            }*/
+        // Only utilize the NNUE in situations when eval isn't very strong
+        // Concept from SF
+        if (std::abs(eval) < 950) { 
+            eval = nn.forwardPass(this);
         }
 
         // Adjust evaluation for the side to move
@@ -2052,55 +2018,94 @@ public:
 
 
 // Returns the output of the NN
-int NNUE::forwardPass(Board board) {
-    // Temporary accumulators for hidden layer sums
-    array<int, HL_SIZE> accumulator;
-    accumulator.fill(0);
+int NNUE::forwardPass(Board* board) {
+    // Define the size of the hidden layer
+    constexpr int HL_SIZE = 16;
 
-    Color stm = board.side;
-    u64 stmPieces = ~board.emptySquares;
-    u64 nstmPieces = ~board.emptySquares;
+    // Temporary accumulators for hidden layer sums for STM and OPP perspectives
+    std::array<int, HL_SIZE> accumulatorSTM;
+    std::array<int, HL_SIZE> accumulatorOPP;
+    accumulatorSTM.fill(0);
+    accumulatorOPP.fill(0);
 
-    // Accumulate contributions for stm pieces
+    // Determine the side to move and the opposite side
+    Color stm = board->side;
+    Color opp = ~stm;
+
+    // Bitboards for STM and OPP pieces
+    u64 stmPieces = stm ? board->whitePieces : board->blackPieces;
+    u64 oppPieces = ~stm ? board->whitePieces : board->blackPieces;
+
+    // Accumulate contributions for STM pieces
     while (stmPieces) {
-        Square currentSq = Square(ctzll(stmPieces));
+        Square currentSq = Square(ctzll(stmPieces)); // Find the least significant set bit
 
-        int inputFeature = feature(stm, stm, board.getPiece(currentSq), currentSq);
+        // Extract the feature for STM
+        int inputFeatureSTM = feature(stm, stm, board->getPiece(currentSq), currentSq);
+        int inputFeatureOPP = feature(opp, stm, board->getPiece(currentSq), currentSq);
 
+        // Accumulate weights for STM hidden layer
         for (int i = 0; i < HL_SIZE; i++) {
-            accumulator[i] += weightsToHL[inputFeature * HL_SIZE + i];
+            accumulatorSTM[i] += weightsToHL[inputFeatureSTM * HL_SIZE + i];
+            accumulatorOPP[i] += weightsToHL[inputFeatureOPP * HL_SIZE + i];
         }
 
-        stmPieces &= (stmPieces - 1);
+        stmPieces &= (stmPieces - 1); // Clear the least significant set bit
     }
 
-    // Accumulate contributions for nstm pieces
-    while (nstmPieces) {
-        Square currentSq = Square(ctzll(nstmPieces));
+    // Accumulate contributions for OPP pieces
+    while (oppPieces) {
+        Square currentSq = Square(ctzll(oppPieces)); // Find the least significant set bit
 
-        int inputFeature = feature(stm, ~stm, board.getPiece(currentSq), currentSq);
+        // Extract the feature for STM
+        int inputFeatureSTM = feature(stm, opp, board->getPiece(currentSq), currentSq);
+        int inputFeatureOPP = feature(opp, opp, board->getPiece(currentSq), currentSq);
 
+        // Accumulate weights for STM hidden layer
         for (int i = 0; i < HL_SIZE; i++) {
-            accumulator[i] += weightsToHL[inputFeature * HL_SIZE + i];
+            accumulatorSTM[i] += weightsToHL[inputFeatureSTM * HL_SIZE + i];
+            accumulatorOPP[i] += weightsToHL[inputFeatureOPP * HL_SIZE + i];
         }
 
-        nstmPieces &= (nstmPieces - 1);
+        oppPieces &= (oppPieces - 1); // Clear the least significant set bit
     }
 
-    // Apply bias and activation
+    // Define hidden layers for STM and OPP
+    array<int, HL_SIZE> hiddenLayerSTM;
+    array<int, HL_SIZE> hiddenLayerOPP;
+
+    // Apply bias and activation (CReLU) to STM hidden layer
     for (int i = 0; i < HL_SIZE; i++) {
-        hiddenLayer[i] = accumulator[i] + hiddenLayerBias[i];
-        CReLU(hiddenLayer[i]);
+        hiddenLayerSTM[i] = accumulatorSTM[i] + hiddenLayerBias[i];
+        CReLU(hiddenLayerSTM[i]);
     }
 
-    // Accumulate output
-    int output = 0;
+    // Apply bias and activation (CReLU) to OPP hidden layer
     for (int i = 0; i < HL_SIZE; i++) {
-        output += hiddenLayer[i] * weightsToOut[i];
+        hiddenLayerOPP[i] = accumulatorOPP[i] + hiddenLayerBias[i];
+        CReLU(hiddenLayerOPP[i]);
     }
 
-    return (output + outputBias) / (inputQuantizationValue * hiddenQuantizationValue);
+    // Accumulate output for STM and OPP using separate weight segments
+    int outputSTM = 0;
+    int outputOPP = 0;
+    for (int i = 0; i < HL_SIZE; i++) {
+        // First HL_SIZE weights are for STM
+        outputSTM += hiddenLayerSTM[i] * weightsToOut[i];
+
+        // Last HL_SIZE weights are for OPP
+        outputOPP += hiddenLayerOPP[i] * weightsToOut[HL_SIZE + i];
+    }
+
+    // Combine STM and OPP outputs
+    int combinedOutput = outputSTM + outputOPP;
+
+    combinedOutput += outputBias;
+
+    // Apply output bias and scale the result
+    return (combinedOutput * evalScale) / (inputQuantizationValue * hiddenQuantizationValue);
 }
+
 
 string Move::toString() {
     int start = startSquare();
@@ -2831,6 +2836,7 @@ int main() {
         }
         else if (command == "debug.eval") {
             cout << "Evaluation (centipawns as currenet side): " << currentPos.evaluate() << endl;
+            //currentPos.evaluate();
         }
         else if (command == "debug.popcnt") {
             cout << "White pawns: " << popcountll(currentPos.white[0]) << endl;
@@ -2846,6 +2852,9 @@ int main() {
             cout << "Black rooks: " << popcountll(currentPos.black[3]) << endl;
             cout << "Black queens: " << popcountll(currentPos.black[4]) << endl;
             cout << "Black king: " << popcountll(currentPos.black[5]) << endl;
+        }
+        else {
+            cout << nn.feature(BLACK, BLACK, PAWN, h7);
         }
     }
     return 0;
