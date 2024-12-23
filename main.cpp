@@ -904,15 +904,17 @@ public:
     }
 };
 
+// ****** NNUE STUFF ******
+constexpr int inputQuantizationValue = 255;
+constexpr int hiddenQuantizationValue = 64;
+constexpr int evalScale = 400;
+constexpr size_t HL_SIZE = 16;
 
+
+using Accumulator = array<i16, HL_SIZE>;
 // NNUE is not UEd yet
 class NNUE {
 public:
-    constexpr static int inputQuantizationValue = 255;
-    constexpr static int hiddenQuantizationValue = 64;
-    constexpr static int evalScale = 400;
-
-    constexpr static size_t HL_SIZE = 16;
 
     array<int, 768 * HL_SIZE> weightsToHL;
 
@@ -1977,7 +1979,7 @@ public:
 
         // Only utilize the NNUE in situations when eval isn't very strong
         // Concept from SF
-        if (std::abs(eval) < 950) { 
+        if (std::abs(eval) < 950) {
             eval = nn.forwardPass(this);
         }
 
@@ -2023,8 +2025,8 @@ int NNUE::forwardPass(Board* board) {
     constexpr int HL_SIZE = 16;
 
     // Temporary accumulators for hidden layer sums for STM and OPP perspectives
-    std::array<int, HL_SIZE> accumulatorSTM;
-    std::array<int, HL_SIZE> accumulatorOPP;
+    Accumulator accumulatorSTM;
+    Accumulator accumulatorOPP;
     accumulatorSTM.fill(0);
     accumulatorOPP.fill(0);
 
