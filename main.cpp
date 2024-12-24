@@ -931,7 +931,6 @@ public:
         outputBias = read_little_endian<int16_t>(stream);
 
         cout << "Network loaded successfully from " << filepath << endl;
-        cout << outputBias << endl;
     }
 
     int forwardPass(Board* board);
@@ -1017,6 +1016,26 @@ public:
         black[3] &= mask;
         black[4] &= mask;
         black[5] &= mask;
+    }
+
+    void clearIndex(const Color c, int index) {
+        const u64 mask = ~(1ULL << index);
+        if (c) {
+            white[0] &= mask;
+            white[1] &= mask;
+            white[2] &= mask;
+            white[3] &= mask;
+            white[4] &= mask;
+            white[5] &= mask;
+        }
+        else {
+            black[0] &= mask;
+            black[1] &= mask;
+            black[2] &= mask;
+            black[3] &= mask;
+            black[4] &= mask;
+            black[5] &= mask;
+        }
     }
 
     void recompute() {
@@ -1591,6 +1610,25 @@ public:
         cout << "Current key: 0x" << std::hex << std::uppercase << zobrist << std::dec << endl;
     }
 
+    void placePiece(Color c, int pt, int square) {
+        auto& us = c ? white : black;
+        
+        setBit(us[pt], square, 1);
+        zobrist ^= Precomputed::zobrist[c][pt][square];
+    }
+
+    void removePiece(Color c, int pt, int square) {
+        auto& us = c ? white : black;
+
+        setBit(us[pt], square, 0);
+        zobrist ^= Precomputed::zobrist[c][pt][square];
+    }
+
+    void removePiece(Color c, int square) {
+        zobrist ^= Precomputed::zobrist[c][getPiece(square)][square];
+        clearIndex(c, square);
+    }
+
     void move(string& moveIn) {
         move(Move(moveIn, *this));
     }
@@ -1614,86 +1652,65 @@ public:
 
         for (int i = 0; i < 6; ++i) {
             if (readBit(us[i], from)) {
-                zobrist ^= Precomputed::zobrist[side][i][from];
-
                 MoveType mt = moveIn.typeOf();
 
-                // Increment endbit only if the move is not a promo, otherwise it is handled in the big switch
-                if ((mt & 0x1000) == 0) {
-                    zobrist ^= Precomputed::zobrist[side][i][to];
-                }
-
-                setBit(us[i], from, 0);
+                removePiece(side, i, from);
                 IFDBG m_assert(!readBit(us[i], from), "Position piece moved from was not cleared");
 
                 enPassant = 0;
 
                 switch (mt) {
-                case STANDARD_MOVE: setBit(us[i], to, 1); break;
+                case STANDARD_MOVE: placePiece(side, i, to); break;
                 case DOUBLE_PUSH:
-                    setBit(us[0], to, 1);
+                    placePiece(side, i, to);
                     enPassant = 1ULL << ((side) * (from + 8) + (!side) * (from - 8));
                     break;
                 case CASTLE_K:
                     if (from == e1 && to == g1 && readBit(castlingRights, 3)) {
-                        setBit(us[i], to, 1);
-                        setBit(us[3], h1, 0); // Remove rook
+                        placePiece(side, i, to);
 
-                        setBit(us[3], f1, 1); // Set rook
-
-                        zobrist ^= Precomputed::zobrist[side][3][h1];
-                        zobrist ^= Precomputed::zobrist[side][3][f1];
+                        removePiece(side, ROOK, h1);
+                        placePiece(side, ROOK, f1);
                     }
                     else if (from == e8 && to == g8 && readBit(castlingRights, 1)) {
-                        setBit(us[i], to, 1);
-                        setBit(us[3], h8, 0); // Remove rook
+                        placePiece(side, i, to);
 
-                        setBit(us[3], f8, 1); // Set rook
-
-                        zobrist ^= Precomputed::zobrist[side][3][h8];
-                        zobrist ^= Precomputed::zobrist[side][3][f8];
+                        removePiece(side, ROOK, h8);
+                        placePiece(side, ROOK, f8);
                     }
                     break;
                 case CASTLE_Q:
                     if (to == c1 && readBit(castlingRights, 2)) {
-                        setBit(us[i], to, 1);
-                        setBit(us[3], a1, 0); // Remove rook
+                        placePiece(side, i, to);
 
-                        setBit(us[3], d1, 1); // Set rook
-
-                        zobrist ^= Precomputed::zobrist[side][3][a1];
-                        zobrist ^= Precomputed::zobrist[side][3][d1];
+                        removePiece(side, ROOK, a1);
+                        placePiece(side, ROOK, d1);
                     }
                     else if (to == c8 && readBit(castlingRights, 0)) {
-                        setBit(us[i], to, 1);
-                        setBit(us[3], a8, 0); // Remove rook
+                        placePiece(side, i, to);
 
-                        setBit(us[3], d8, 1); // Set rook
-
-                        zobrist ^= Precomputed::zobrist[side][3][a8];
-                        zobrist ^= Precomputed::zobrist[side][3][d8];
+                        removePiece(side, ROOK, a8);
+                        placePiece(side, ROOK, d8);
                     }
                     break;
-                case CAPTURE: zobrist ^= Precomputed::zobrist[~side][getPiece(to)][to]; clearIndex(to); setBit(us[i], to, 1); break;
-                case QUEEN_PROMO_CAPTURE: zobrist ^= Precomputed::zobrist[~side][getPiece(to)][to]; zobrist ^= Precomputed::zobrist[side][4][to]; clearIndex(to); setBit(us[4], to, 1); break;
-                case ROOK_PROMO_CAPTURE: zobrist ^= Precomputed::zobrist[~side][getPiece(to)][to]; zobrist ^= Precomputed::zobrist[side][3][to]; clearIndex(to); setBit(us[3], to, 1); break;
-                case BISHOP_PROMO_CAPTURE: zobrist ^= Precomputed::zobrist[~side][getPiece(to)][to]; zobrist ^= Precomputed::zobrist[side][2][to]; clearIndex(to); setBit(us[2], to, 1); break;
-                case KNIGHT_PROMO_CAPTURE: zobrist ^= Precomputed::zobrist[~side][getPiece(to)][to]; zobrist ^= Precomputed::zobrist[side][1][to]; clearIndex(to); setBit(us[1], to, 1); break;
+                case CAPTURE: removePiece(~side, to); placePiece(side, i, to); break;
+                case QUEEN_PROMO_CAPTURE: removePiece(~side, to); placePiece(side, QUEEN, to); break;
+                case ROOK_PROMO_CAPTURE: removePiece(~side, to); placePiece(side, ROOK, to); break;
+                case BISHOP_PROMO_CAPTURE: removePiece(~side, to); placePiece(side, BISHOP, to); break;
+                case KNIGHT_PROMO_CAPTURE: removePiece(~side, to); placePiece(side, KNIGHT, to); break;
                 case EN_PASSANT:
                     if (side) {
-                        setBit(black[0], to + shifts::SOUTH, 0);
-                        zobrist ^= Precomputed::zobrist[~side][0][to + shifts::SOUTH];
+                        removePiece(BLACK, PAWN, to + shifts::SOUTH);
                     }
                     else {
-                        setBit(white[0], to + shifts::NORTH, 0);
-                        zobrist ^= Precomputed::zobrist[~side][0][to + shifts::NORTH];
+                        removePiece(WHITE, PAWN, to + shifts::NORTH);
                     }
-                    setBit(us[i], to, 1);
+                    placePiece(side, PAWN, to);
                     break;
-                case QUEEN_PROMO: setBit(us[4], to, 1); zobrist ^= Precomputed::zobrist[side][4][to]; break;
-                case ROOK_PROMO: setBit(us[3], to, 1); zobrist ^= Precomputed::zobrist[side][3][to]; break;
-                case BISHOP_PROMO: setBit(us[2], to, 1); zobrist ^= Precomputed::zobrist[side][2][to]; break;
-                case KNIGHT_PROMO: setBit(us[1], to, 1); zobrist ^= Precomputed::zobrist[side][1][to]; break;
+                case QUEEN_PROMO: placePiece(side, QUEEN, to); break;
+                case ROOK_PROMO: placePiece(side, ROOK, to); break;
+                case BISHOP_PROMO: placePiece(side, BISHOP, to); break;
+                case KNIGHT_PROMO: placePiece(side, KNIGHT, to); break;
                 }
 
                 // Halfmove clock, promo and set en passant
