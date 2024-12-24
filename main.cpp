@@ -842,7 +842,7 @@ public:
 constexpr i16 inputQuantizationValue = 255;
 constexpr i16 hiddenQuantizationValue = 64;
 constexpr i16 evalScale = 400;
-constexpr size_t HL_SIZE = 64;
+constexpr size_t HL_SIZE = 384;
 
 
 using Accumulator = array<i16, HL_SIZE>;
@@ -863,7 +863,7 @@ public:
         return x * x;
     }
 
-    int feature(Color perspective, Color color, PieceType piece, Square square) {
+    static int feature(Color perspective, Color color, PieceType piece, Square square) {
         // Constructs a feature from the given perspective for a piece
         // of the given type and color on the given square
 
@@ -970,6 +970,9 @@ public:
     std::vector<u64> positionHistory;
     u64 zobrist;
 
+    Accumulator whiteAccum;
+    Accumulator blackAccum;
+
     void reset() {
         // Reset position
         white[0] = 0xFF00ULL;
@@ -999,6 +1002,7 @@ public:
         recompute();
         updateCheckPin();
         updateZobrist();
+        updateAccum();
     }
 
     void clearIndex(int index) {
@@ -1615,17 +1619,48 @@ public:
         
         setBit(us[pt], square, 1);
         zobrist ^= Precomputed::zobrist[c][pt][square];
+
+        // Extract the feature
+        int inputFeatureWhite = NNUE::feature(WHITE, c, PieceType(pt), Square(square));
+        int inputFeatureBlack = NNUE::feature(BLACK, c, PieceType(pt), Square(square));
+
+        // Accumulate weights in the hidden layer
+        for (int i = 0; i < HL_SIZE; i++) {
+            whiteAccum[i] += nn.weightsToHL[inputFeatureWhite * HL_SIZE + i];
+            blackAccum[i] += nn.weightsToHL[inputFeatureBlack * HL_SIZE + i];
+        }
     }
 
     void removePiece(Color c, int pt, int square) {
         auto& us = c ? white : black;
+        zobrist ^= Precomputed::zobrist[c][pt][square];
+
+        // Extract the feature
+        int inputFeatureWhite = NNUE::feature(WHITE, c, getPiece(square), Square(square));
+        int inputFeatureBlack = NNUE::feature(BLACK, c, getPiece(square), Square(square));
+
+        // Accumulate weights in the hidden layer
+        for (int i = 0; i < HL_SIZE; i++) {
+            whiteAccum[i] -= nn.weightsToHL[inputFeatureWhite * HL_SIZE + i];
+            blackAccum[i] -= nn.weightsToHL[inputFeatureBlack * HL_SIZE + i];
+        }
 
         setBit(us[pt], square, 0);
-        zobrist ^= Precomputed::zobrist[c][pt][square];
     }
 
     void removePiece(Color c, int square) {
         zobrist ^= Precomputed::zobrist[c][getPiece(square)][square];
+
+        // Extract the feature
+        int inputFeatureWhite = NNUE::feature(WHITE, c, getPiece(square), Square(square));
+        int inputFeatureBlack = NNUE::feature(BLACK, c, getPiece(square), Square(square));
+
+        // Accumulate weights in the hidden layer
+        for (int i = 0; i < HL_SIZE; i++) {
+            whiteAccum[i] -= nn.weightsToHL[inputFeatureWhite * HL_SIZE + i];
+            blackAccum[i] -= nn.weightsToHL[inputFeatureBlack * HL_SIZE + i];
+        }
+
         clearIndex(c, square);
     }
 
@@ -1827,6 +1862,7 @@ public:
         recompute();
         updateCheckPin();
         updateZobrist();
+        updateAccum();
     }
 
     string exportToFEN() {
@@ -1941,6 +1977,49 @@ public:
         return (side) ? eval : -eval;
     }
 
+    void updateAccum() {
+        // This code assumes white is the STM
+        u64 whitePieces = this->whitePieces;
+        u64 blackPieces = this->blackPieces;
+
+        blackAccum = nn.hiddenLayerBias;
+        whiteAccum = nn.hiddenLayerBias;
+
+        // Accumulate contributions for STM pieces
+        while (whitePieces) {
+            Square currentSq = Square(ctzll(whitePieces)); // Find the least significant set bit
+
+            // Extract the feature for STM
+            int inputFeatureWhite = NNUE::feature(WHITE, WHITE, getPiece(currentSq), currentSq);
+            int inputFeatureBlack = NNUE::feature(BLACK, WHITE, getPiece(currentSq), currentSq);
+
+            // Accumulate weights for STM hidden layer
+            for (int i = 0; i < HL_SIZE; i++) {
+                whiteAccum[i] += nn.weightsToHL[inputFeatureWhite * HL_SIZE + i];
+                blackAccum[i] += nn.weightsToHL[inputFeatureBlack * HL_SIZE + i];
+            }
+
+            whitePieces &= (whitePieces - 1); // Clear the least significant set bit
+        }
+
+        // Accumulate contributions for OPP pieces
+        while (blackPieces) {
+            Square currentSq = Square(ctzll(blackPieces)); // Find the least significant set bit
+
+            // Extract the feature for STM
+            int inputFeatureWhite = NNUE::feature(WHITE, BLACK, getPiece(currentSq), currentSq);
+            int inputFeatureBlack = NNUE::feature(BLACK, BLACK, getPiece(currentSq), currentSq);
+
+            // Accumulate weights for STM hidden layer
+            for (int i = 0; i < HL_SIZE; i++) {
+                whiteAccum[i] += nn.weightsToHL[inputFeatureWhite * HL_SIZE + i];
+                blackAccum[i] += nn.weightsToHL[inputFeatureBlack * HL_SIZE + i];
+            }
+
+            blackPieces &= (blackPieces - 1); // Clear the least significant set bit
+        }
+    }
+
     void updateZobrist() {
         zobrist = 0;
         // Pieces
@@ -1975,63 +2054,11 @@ public:
 
 // Returns the output of the NN
 int NNUE::forwardPass(Board* board) {
-    // Temporary accumulators for hidden layer sums for STM and OPP perspectives
-    Accumulator accumulatorSTM;
-    Accumulator accumulatorOPP;
-    accumulatorSTM.fill(0);
-    accumulatorOPP.fill(0);
-
     // Determine the side to move and the opposite side
     Color stm = board->side;
-    Color opp = ~stm;
-
-    // Bitboards for STM and OPP pieces
-    u64 stmPieces = stm ? board->whitePieces : board->blackPieces;
-    u64 oppPieces = ~stm ? board->whitePieces : board->blackPieces;
-
-    // Accumulate contributions for STM pieces
-    while (stmPieces) {
-        Square currentSq = Square(ctzll(stmPieces)); // Find the least significant set bit
-
-        // Extract the feature for STM
-        int inputFeatureSTM = feature(stm, stm, board->getPiece(currentSq), currentSq);
-        int inputFeatureOPP = feature(opp, stm, board->getPiece(currentSq), currentSq);
-
-        // Accumulate weights for STM hidden layer
-        for (int i = 0; i < HL_SIZE; i++) {
-            accumulatorSTM[i] += weightsToHL[inputFeatureSTM * HL_SIZE + i];
-            accumulatorOPP[i] += weightsToHL[inputFeatureOPP * HL_SIZE + i];
-        }
-
-        stmPieces &= (stmPieces - 1); // Clear the least significant set bit
-    }
-
-    // Accumulate contributions for OPP pieces
-    while (oppPieces) {
-        Square currentSq = Square(ctzll(oppPieces)); // Find the least significant set bit
-
-        // Extract the feature for STM
-        int inputFeatureSTM = feature(stm, opp, board->getPiece(currentSq), currentSq);
-        int inputFeatureOPP = feature(opp, opp, board->getPiece(currentSq), currentSq);
-
-        // Accumulate weights for STM hidden layer
-        for (int i = 0; i < HL_SIZE; i++) {
-            accumulatorSTM[i] += weightsToHL[inputFeatureSTM * HL_SIZE + i];
-            accumulatorOPP[i] += weightsToHL[inputFeatureOPP * HL_SIZE + i];
-        }
-
-        oppPieces &= (oppPieces - 1); // Clear the least significant set bit
-    }
-
-    // Apply bias and activation (SCReLU) to STM hidden layer
-    for (int i = 0; i < HL_SIZE; i++) {
-        accumulatorSTM[i] += hiddenLayerBias[i];
-    }
-
-    // Apply bias and activation (SCReLU) to OPP hidden layer
-    for (int i = 0; i < HL_SIZE; i++) {
-        accumulatorOPP[i] += hiddenLayerBias[i];
-    }
+    
+    Accumulator& accumulatorSTM = stm ? board->whiteAccum : board->blackAccum;
+    Accumulator& accumulatorOPP = ~stm ? board->whiteAccum : board->blackAccum;
 
     // Accumulate output for STM and OPP using separate weight segments
     i64 eval = 0;
@@ -2595,14 +2622,14 @@ void iterativeDeepening(
 
 
 int main() {
-    Precomputed::compute();
-    initializeAllDatabases();
     string command;
     std::deque<string> parsedcommand;
     Board currentPos;
+    Precomputed::compute();
+    initializeAllDatabases();
+    nn.loadNet("C:\\Users\\qitag\\Downloads\\simple(2).nnue");
     currentPos.reset();
     std::atomic<bool> breakFlag(false);
-    nn.loadNet("C:\\Users\\qitag\\Downloads\\quantised.bin");
     std::optional<std::thread> searchThreadOpt;
     cout << "Prelude ready and awaiting commands" << endl;
     while (true) {
