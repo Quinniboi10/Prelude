@@ -58,6 +58,7 @@ using u32 = uint32_t;
 using u16 = uint16_t;
 using u8 = uint8_t;
 
+using i64 = int64_t;
 using i32 = int32_t;
 using i16 = int16_t;
 
@@ -841,7 +842,7 @@ public:
 constexpr i16 inputQuantizationValue = 255;
 constexpr i16 hiddenQuantizationValue = 64;
 constexpr i16 evalScale = 400;
-constexpr size_t HL_SIZE = 32;
+constexpr size_t HL_SIZE = 64;
 
 
 using Accumulator = array<i16, HL_SIZE>;
@@ -856,9 +857,10 @@ public:
     array<i16, HL_SIZE * 2> weightsToOut;
     i16 outputBias;
 
-    void CReLU(i16& x) {
+    i32 SCReLU(i16 x) {
         if (x < 0) x = 0;
         else if (x > inputQuantizationValue) x = inputQuantizationValue;
+        return x * x;
     }
 
     int feature(Color perspective, Color color, PieceType piece, Square square) {
@@ -929,6 +931,7 @@ public:
         outputBias = read_little_endian<int16_t>(stream);
 
         cout << "Network loaded successfully from " << filepath << endl;
+        cout << outputBias << endl;
     }
 
     int forwardPass(Board* board);
@@ -1911,10 +1914,10 @@ public:
 
         eval = whitePieces - blackPieces;
 
-        // Only utilize the NNUE in situations when eval isn't very strong
+        // Only utilize the NNUE in situations when game isn't very won or lsot
         // Concept from SF
         if (std::abs(eval) < 950) {
-            eval = nn.forwardPass(this);
+            return nn.forwardPass(this);
         }
 
         // Adjust evaluation for the side to move
@@ -2003,40 +2006,34 @@ int NNUE::forwardPass(Board* board) {
         oppPieces &= (oppPieces - 1); // Clear the least significant set bit
     }
 
-    // Define hidden layers for STM and OPP
-    Accumulator hiddenLayerSTM;
-    Accumulator hiddenLayerOPP;
-
-    // Apply bias and activation (CReLU) to STM hidden layer
+    // Apply bias and activation (SCReLU) to STM hidden layer
     for (int i = 0; i < HL_SIZE; i++) {
-        hiddenLayerSTM[i] = accumulatorSTM[i] + hiddenLayerBias[i];
-        CReLU(hiddenLayerSTM[i]);
+        accumulatorSTM[i] += hiddenLayerBias[i];
     }
 
-    // Apply bias and activation (CReLU) to OPP hidden layer
+    // Apply bias and activation (SCReLU) to OPP hidden layer
     for (int i = 0; i < HL_SIZE; i++) {
-        hiddenLayerOPP[i] = accumulatorOPP[i] + hiddenLayerBias[i];
-        CReLU(hiddenLayerOPP[i]);
+        accumulatorOPP[i] += hiddenLayerBias[i];
     }
 
     // Accumulate output for STM and OPP using separate weight segments
-    int outputSTM = 0;
-    int outputOPP = 0;
+    i64 eval = 0;
+
     for (int i = 0; i < HL_SIZE; i++) {
         // First HL_SIZE weights are for STM
-        outputSTM += hiddenLayerSTM[i] * weightsToOut[i];
+        eval += SCReLU(accumulatorSTM[i]) * weightsToOut[i];
 
         // Last HL_SIZE weights are for OPP
-        outputOPP += hiddenLayerOPP[i] * weightsToOut[HL_SIZE + i];
+        eval += SCReLU(accumulatorOPP[i]) * weightsToOut[HL_SIZE + i];
     }
 
-    // Combine STM and OPP outputs
-    int combinedOutput = outputSTM + outputOPP;
+    // Dequantization
+    eval /= inputQuantizationValue;
 
-    combinedOutput += outputBias;
+    eval += outputBias;
 
     // Apply output bias and scale the result
-    return (combinedOutput * evalScale) / (inputQuantizationValue * hiddenQuantizationValue);
+    return (eval * evalScale) / (inputQuantizationValue * hiddenQuantizationValue);
 }
 
 
@@ -2453,7 +2450,7 @@ static MoveEvaluation go(Board& board,
                 }
                 double elapsedMs = (double)std::chrono::duration_cast<std::chrono::milliseconds>(now - timerStart).count();
                 int nps = (int)((double)nodes / (elapsedMs / 1000));
-                cout << "info depth " << depth << " nodes " << nodes << " nps " << nps << " time " << std::to_string((int)elapsedMs) << " hashfull " << (int)(TTused / (double)TT.size * 1000) << " currmove " << m.toString() << " currmovenumber " << movesMade << endl;
+                cout << "info depth " << depth << " nodes " << nodes << " nps " << nps << " time " << std::to_string((int)elapsedMs) << " hashfull " << (int)(TTused / (double)TT.size * 1000) << " currmove " << m.toString() << endl;
             }
         }
     }
@@ -2520,6 +2517,9 @@ void iterativeDeepening(
     MoveEvaluation bestMove;
 
     IFDBG m_assert(maxDepth >= 1, "Depth is less than 1 in ID search");
+
+    // Cap the depth to 255
+    maxDepth = std::min(255, maxDepth);
 
     for (int depth = 1; depth <= maxDepth; depth++) {
         move = go(board, depth, breakFlag, start, timeToSpend, -INF_INT, INF_INT, maxNodes, true);
@@ -2592,7 +2592,7 @@ int main() {
     Board currentPos;
     currentPos.reset();
     std::atomic<bool> breakFlag(false);
-    nn.loadNet("C:\\Users\\qitag\\Downloads\\32.nnue");
+    nn.loadNet("C:\\Users\\qitag\\Downloads\\quantised.bin");
     std::optional<std::thread> searchThreadOpt;
     cout << "Prelude ready and awaiting commands" << endl;
     while (true) {
@@ -2769,7 +2769,7 @@ int main() {
             }
         }
         else if (command == "debug.eval") {
-            cout << "Evaluation (centipawns as currenet side): " << currentPos.evaluate() << endl;
+            cout << "Evaluation (centipawns as current side): " << currentPos.evaluate() << endl;
         }
         else if (command == "debug.popcnt") {
             cout << "White pawns: " << popcountll(currentPos.white[0]) << endl;
