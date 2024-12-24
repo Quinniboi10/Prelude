@@ -774,9 +774,9 @@ struct MoveList {
 };
 
 struct Transposition {
-    i16 score;
-    Move bestMove;
     u64 zobristKey;
+    Move bestMove;
+    i16 score;
     u8 flag;
     u8 depth;
 
@@ -842,25 +842,41 @@ public:
 constexpr i16 inputQuantizationValue = 255;
 constexpr i16 hiddenQuantizationValue = 64;
 constexpr i16 evalScale = 400;
-constexpr size_t HL_SIZE = 384;
+constexpr size_t HL_SIZE = 64;
+
+constexpr int ReLU = 0;
+constexpr int CReLU = 1;
+constexpr int SCReLU = 2;
+
+constexpr int activation = SCReLU;
 
 
 using Accumulator = array<i16, HL_SIZE>;
 // NNUE is not UEd yet
 class NNUE {
 public:
-
     array<i16, HL_SIZE * 768> weightsToHL;
-
-    array<i16, HL_SIZE> hiddenLayerBias;
-
     array<i16, HL_SIZE * 2> weightsToOut;
+    array<i16, HL_SIZE> hiddenLayerBias;
     i16 outputBias;
 
-    i32 SCReLU(i16 x) {
-        if (x < 0) x = 0;
-        else if (x > inputQuantizationValue) x = inputQuantizationValue;
-        return x * x;
+    constexpr i32 ReLU(const i16 x) {
+        if (x < 0) return 0;
+        return x;
+    }
+
+    constexpr i32 CReLU(const i16 x) {
+        i16 ans = x;
+        if (x < 0) ans = 0;
+        else if (x > inputQuantizationValue) ans = inputQuantizationValue;
+        return ans;
+    }
+
+    constexpr i32 SCReLU(const i16 x) {
+        i32 ans = x;
+        if (x < 0) ans = 0;
+        else if (x > inputQuantizationValue) ans = inputQuantizationValue;
+        return ans * ans;
     }
 
     static int feature(Color perspective, Color color, PieceType piece, Square square) {
@@ -897,7 +913,6 @@ public:
         return result;
     }
 
-public:
     NNUE() {
         weightsToHL.fill(1);
         weightsToOut.fill(1);
@@ -2065,14 +2080,18 @@ int NNUE::forwardPass(Board* board) {
 
     for (int i = 0; i < HL_SIZE; i++) {
         // First HL_SIZE weights are for STM
-        eval += SCReLU(accumulatorSTM[i]) * weightsToOut[i];
+        if constexpr (activation == ::ReLU) eval += ReLU(accumulatorSTM[i]) * weightsToOut[i];
+        if constexpr (activation == ::CReLU) eval += CReLU(accumulatorSTM[i]) * weightsToOut[i];
+        if constexpr (activation == ::SCReLU) eval += SCReLU(accumulatorSTM[i]) * weightsToOut[i];
 
         // Last HL_SIZE weights are for OPP
-        eval += SCReLU(accumulatorOPP[i]) * weightsToOut[HL_SIZE + i];
+        if constexpr (activation == ::ReLU) eval += ReLU(accumulatorOPP[i]) * weightsToOut[HL_SIZE + i];
+        if constexpr (activation == ::CReLU) eval += CReLU(accumulatorOPP[i]) * weightsToOut[HL_SIZE + i];
+        if constexpr (activation == ::SCReLU) eval += SCReLU(accumulatorOPP[i]) * weightsToOut[HL_SIZE + i];
     }
 
     // Dequantization
-    eval /= inputQuantizationValue;
+    if constexpr (activation == ::SCReLU) eval /= inputQuantizationValue;
 
     eval += outputBias;
 
@@ -2627,7 +2646,7 @@ int main() {
     Board currentPos;
     Precomputed::compute();
     initializeAllDatabases();
-    nn.loadNet("C:\\Users\\qitag\\Downloads\\simple(2).nnue");
+    nn.loadNet("C:\\Users\\qitag\\Downloads\\quantised.bin");
     currentPos.reset();
     std::atomic<bool> breakFlag(false);
     std::optional<std::thread> searchThreadOpt;
