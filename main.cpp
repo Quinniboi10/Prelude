@@ -2501,13 +2501,16 @@ void iterativeDeepening(
     lastInfo = std::chrono::high_resolution_clock::now();
     nodes = 0;
     int timeToSpend = 0;
+    int softLimit = 0;
     auto start = std::chrono::steady_clock::now();
     std::string bestMoveAlgebra = "";
     if (wtime || btime) {
         timeToSpend = board.side ? wtime / movesToGo : btime / movesToGo;
+        softLimit = timeToSpend * 0.65;
     }
     else if (mtime) {
         timeToSpend = mtime;
+        softLimit = timeToSpend;
     }
 
     // timeToSpend is a hard limit
@@ -2525,6 +2528,8 @@ void iterativeDeepening(
 
     // Cap the depth to 255
     maxDepth = std::min(255, maxDepth);
+
+    softLimit = std::min(softLimit, timeToSpend);
 
     for (int depth = 1; depth <= maxDepth; depth++) {
         move = go(board, depth, breakFlag, start, timeToSpend, -INF_INT, INF_INT, maxNodes, true);
@@ -2568,9 +2573,9 @@ void iterativeDeepening(
             break;
         }
 
-        if (timeToSpend != 0 && depth > 1) {
+        if (softLimit != 0 && depth > 1) {
             auto now = std::chrono::steady_clock::now();
-            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count() >= timeToSpend) {
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count() >= softLimit) {
                 IFDBG cout << "Stopping search because of time limit" << endl;
                 break;
             }
