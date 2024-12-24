@@ -2293,9 +2293,6 @@ static MoveEvaluation _qs(Board& board,
     }
 
     if (board.isDraw()) {
-        if (board.isInCheck(board.side)) {
-            return { Move(), -999999 };
-        }
         return { Move(), 0 };
     }
 
@@ -2368,9 +2365,6 @@ static MoveEvaluation go(Board& board,
             return { Move(), eval };
         }
         else if (board.isDraw()) {
-            if (board.isInCheck(board.side)) {
-                return { Move(), -999999 };
-            }
             return { Move(), 0 };
         }
     }
