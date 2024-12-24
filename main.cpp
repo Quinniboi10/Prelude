@@ -842,7 +842,7 @@ public:
 constexpr i16 inputQuantizationValue = 255;
 constexpr i16 hiddenQuantizationValue = 64;
 constexpr i16 evalScale = 400;
-constexpr size_t HL_SIZE = 64;
+constexpr size_t HL_SIZE = 1024;
 
 constexpr int ReLU = 0;
 constexpr int CReLU = 1;
@@ -860,12 +860,12 @@ public:
     array<i16, HL_SIZE> hiddenLayerBias;
     i16 outputBias;
 
-    constexpr i32 ReLU(const i16 x) {
+    constexpr i16 ReLU(const i16 x) {
         if (x < 0) return 0;
         return x;
     }
 
-    constexpr i32 CReLU(const i16 x) {
+    constexpr i16 CReLU(const i16 x) {
         i16 ans = x;
         if (x < 0) ans = 0;
         else if (x > inputQuantizationValue) ans = inputQuantizationValue;
@@ -2639,6 +2639,60 @@ void iterativeDeepening(
     breakFlag.store(false);
 }
 
+// ****** BENCH STUFF ******
+void bench(int depth = 7, const std::string& filePath = "bench_fens.txt") {
+    std::ifstream fensFile(filePath);
+    if (!fensFile.is_open()) {
+        std::cerr << "Failed to open bench file: " << filePath << std::endl;
+        return;
+    }
+
+    std::string fen;
+    u64 totalNodes = 0;
+    double totalTimeMs = 0.0;
+
+    std::cout << "Starting benchmark with depth " << depth << " using file '" << filePath << "'" << std::endl;
+
+    while (std::getline(fensFile, fen)) {
+        if (fen.empty()) continue; // Skip empty lines
+
+        Board benchBoard;
+        benchBoard.reset();
+
+        // Split the FEN string into components
+        std::deque<std::string> fenParts = split(fen, ' ');
+        benchBoard.loadFromFEN(fenParts);
+
+        nodes = 0; // Reset node count
+
+        // Set up for iterative deepening
+        std::atomic<bool> benchBreakFlag(false);
+        std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+
+        // Start the iterative deepening search
+        iterativeDeepening(benchBoard, depth, benchBreakFlag, 0, 0, 0, 0, 0, -1);
+
+        std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+        double durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+
+        totalNodes += nodes;
+        totalTimeMs += durationMs;
+
+        std::cout << "FEN: " << fen << std::endl;
+        std::cout << "Nodes: " << nodes << ", Time: " << durationMs << " ms" << std::endl;
+        std::cout << "----------------------------------------" << std::endl;
+    }
+
+    fensFile.close();
+
+    std::cout << "Benchmark Completed." << std::endl;
+    std::cout << "Total Nodes: " << formatNum(totalNodes) << std::endl;
+    std::cout << "Total Time: " << formatNum(totalTimeMs) << " ms" << std::endl;
+    if (totalTimeMs > 0) {
+        std::cout << "Average NPS: " << formatNum(static_cast<long long>((totalNodes / totalTimeMs) * 1000)) << std::endl;
+    }
+}
+
 
 int main() {
     string command;
@@ -2646,7 +2700,7 @@ int main() {
     Board currentPos;
     Precomputed::compute();
     initializeAllDatabases();
-    nn.loadNet("C:\\Users\\qitag\\Downloads\\quantised.bin");
+    nn.loadNet("C:\\Users\\qitag\\Downloads\\beans1024.bin");
     currentPos.reset();
     std::atomic<bool> breakFlag(false);
     std::optional<std::thread> searchThreadOpt;
@@ -2824,6 +2878,27 @@ int main() {
                 cout << moves.moves[i].toString() << endl;
             }
         }
+        else if (!parsedcommand.empty() && parsedcommand.at(0) == "bench") {
+            int depth = 7; // Default depth
+            std::string filePath = "bench_fens.txt"; // Default file path
+
+            if (parsedcommand.size() >= 2) {
+                try {
+                    depth = std::stoi(parsedcommand.at(1));
+                }
+                catch (const std::exception& e) {
+                    std::cerr << "Invalid depth value. Using default depth of 7." << std::endl;
+                    depth = 7;
+                }
+            }
+
+            if (parsedcommand.size() >= 3) {
+                filePath = parsedcommand.at(2);
+            }
+
+            // Start benchmarking
+            bench(depth, filePath);
+        }
         else if (command == "debug.eval") {
             cout << "Evaluation (centipawns as current side): " << currentPos.evaluate() << endl;
         }
@@ -2841,6 +2916,9 @@ int main() {
             cout << "Black rooks: " << popcountll(currentPos.black[3]) << endl;
             cout << "Black queens: " << popcountll(currentPos.black[4]) << endl;
             cout << "Black king: " << popcountll(currentPos.black[5]) << endl;
+        }
+        else {
+            std::cerr << "Unknown command: " << command << std::endl;
         }
     }
     return 0;
