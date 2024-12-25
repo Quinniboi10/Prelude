@@ -1399,9 +1399,8 @@ public:
     }
 
     bool isInCheck(bool checkWhite) {
-        u64 kingBit = checkWhite ? white[5] : black[5];
-        if (!kingBit) return false;
-        return isUnderAttack(checkWhite, ctzll(kingBit));
+        // Check mask is all 1s to allow all moves when no checks are given
+        return ~checkMask;
     }
 
     bool isUnderAttack(bool checkWhite, int square) {
