@@ -806,17 +806,13 @@ public:
         resize(sizeInMB);
     }
 
-    bool isValidEntry(u64 zobristKey) {
-        return (*getEntry(zobristKey)).zobristKey == zobristKey;
-    }
-
     void clear() {
         table.clear();
     }
 
-    void resize(size_t newSizeMB) {
+    void resize(size_t newSizeMiB) {
         // Find number of bytes allowed
-        size = newSizeMB * 1000 * 1000;
+        size = newSizeMiB * 1024 * 1024;
         // Divide by size of transposition entry
         size /= sizeof(Transposition);
         // Add one just to make sure to avoid div by 0
@@ -2742,10 +2738,10 @@ int main() {
         else if (parsedcommand.at(0) == "setoption") {
             // Assumes setoption name ...
             if (parsedcommand.at(2) == "Hash") {
-                TT = TranspositionTable(stoi(parsedcommand.at(4)));
+                TT = TranspositionTable(stoi(parsedcommand.at(findIndexOf(parsedcommand, "Hash") + 1)));
             }
             else if (parsedcommand.at(2) == "Move Overhead") {
-                moveOverhead = (stoi(parsedcommand.at(3)));
+                moveOverhead = stoi(parsedcommand.at(findIndexOf(parsedcommand, "Move Overhead") + 1));
             }
         }
         if (!parsedcommand.empty() && parsedcommand.at(0) == "position") { // Handle "position" command
