@@ -949,7 +949,7 @@ public:
 
 
 u64 nodes = 0;
-int moveOverhead = 20;
+int moveOverhead = 50;
 int movesToGo = 20;
 TranspositionTable TT;
 NNUE nn;
@@ -1627,7 +1627,7 @@ public:
 
     void placePiece(Color c, int pt, int square) {
         auto& us = c ? white : black;
-        
+
         setBit(us[pt], square, 1);
         zobrist ^= Precomputed::zobrist[c][pt][square];
 
@@ -2067,7 +2067,7 @@ public:
 int NNUE::forwardPass(Board* board) {
     // Determine the side to move and the opposite side
     Color stm = board->side;
-    
+
     Accumulator& accumulatorSTM = stm ? board->whiteAccum : board->blackAccum;
     Accumulator& accumulatorOPP = ~stm ? board->whiteAccum : board->blackAccum;
 
@@ -2338,7 +2338,7 @@ void perftSuite(const string& filePath) {
 // ****** SEARCH FUNCTIONS ******
 constexpr int RFPMargin = 75;
 
-static MoveEvaluation _qs(Board& board,
+static int _qs(Board& board,
     std::atomic<bool>& breakFlag,
     std::chrono::steady_clock::time_point& timerStart,
     int timeToSpend,
@@ -2347,14 +2347,14 @@ static MoveEvaluation _qs(Board& board,
     int beta) {
     int stand_pat = board.evaluate();
     if (stand_pat >= beta) {
-        return { Move(), beta };
+        return beta;
     }
     if (alpha < stand_pat) {
         alpha = stand_pat;
     }
 
     if (board.isDraw()) {
-        return { Move(), 0 };
+        return 0;
     }
 
     MoveList moves = board.generateMoves(true);
@@ -2375,14 +2375,14 @@ static MoveEvaluation _qs(Board& board,
         int score;
 
         // Principal variation search stuff
-        score = -(_qs(testBoard, breakFlag, timerStart, timeToSpend, maxNodes, -alpha - 1, -alpha).eval);
+        score = -_qs(testBoard, breakFlag, timerStart, timeToSpend, maxNodes, -alpha - 1, -alpha);
         // If it fails high or low we search again with the original bounds
         if (score > alpha && score < beta) {
-            score = -(_qs(testBoard, breakFlag, timerStart, timeToSpend, maxNodes, -beta, -alpha).eval);
+            score = -_qs(testBoard, breakFlag, timerStart, timeToSpend, maxNodes, -beta, -alpha);
         }
 
         if (score >= beta) {
-            return { Move(), beta };
+            return beta;
         }
         if (score > alpha) {
             alpha = score;
@@ -2405,7 +2405,7 @@ static MoveEvaluation _qs(Board& board,
         TT.setEntry(board.zobrist, entry);
     }
 
-    return { bestMove, alpha };
+    return alpha;
 }
 
 // Full search function
@@ -2423,7 +2423,7 @@ static MoveEvaluation go(Board& board,
     // More expensive to check isDraw() than to check !isRoot because isDraw() needs to search an array
     if (!isRoot) {
         if (depth == 0) {
-            int eval = _qs(board, breakFlag, timerStart, timeToSpend, maxNodes, alpha, beta).eval;
+            int eval = _qs(board, breakFlag, timerStart, timeToSpend, maxNodes, alpha, beta);
             return { Move(), eval };
         }
         else if (board.isDraw()) {
@@ -2484,7 +2484,7 @@ static MoveEvaluation go(Board& board,
         int eval;
 
         // Principal variation search stuff
-        eval = -(go(testBoard, depth - 1, breakFlag, timerStart, timeToSpend, -alpha - 1, -alpha, maxNodes, false, true).eval);
+        eval = -(go(testBoard, depth - 1, breakFlag, timerStart, timeToSpend, -alpha - 1, -alpha, maxNodes, false, false).eval);
         // If it fails high or low we search again with the original bounds
         if (eval > alpha && eval < beta) {
             eval = -(go(testBoard, depth - 1, breakFlag, timerStart, timeToSpend, -beta, -alpha, maxNodes, false, isPV).eval);
@@ -2495,7 +2495,11 @@ static MoveEvaluation go(Board& board,
         if (eval > bestEval) {
             bestEval = eval;
             bestMove = m;
-            alpha = std::max(bestEval, alpha);
+            if (bestEval > alpha) {
+                // This flag seems to lose elo, should be re-tested later on.
+                //flag = EXACT;
+                alpha = bestEval;
+            }
         }
 
         // Fail high
@@ -2603,7 +2607,7 @@ void iterativeDeepening(
             if (TT.getEntry(i)->zobristKey != 0) TTused++;
         }
 
-        string ans = "info depth " + std::to_string(depth) + " nodes " + std::to_string(nodes) + " nps " + std::to_string(nps) + " time " + std::to_string((int)(elapsedNs/1e6)) +  " hashfull " + std::to_string((int)(TTused / (double)TT.size * 1000));
+        string ans = "info depth " + std::to_string(depth) + " nodes " + std::to_string(nodes) + " nps " + std::to_string(nps) + " time " + std::to_string((int)(elapsedNs / 1e6)) + " hashfull " + std::to_string((int)(TTused / (double)TT.size * 1000));
 
         if (std::abs(bestMove.eval) >= 90000) {
             // Assume large positive value is mate
