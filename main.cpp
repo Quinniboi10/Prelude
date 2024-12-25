@@ -2340,6 +2340,8 @@ void perftSuite(const string& filePath) {
 
 
 // ****** SEARCH FUNCTIONS ******
+constexpr int RFPMargin = 75;
+
 static MoveEvaluation _qs(Board& board,
     std::atomic<bool>& breakFlag,
     std::chrono::steady_clock::time_point& timerStart,
@@ -2419,7 +2421,8 @@ static MoveEvaluation go(Board& board,
     int alpha,
     int beta,
     int maxNodes,
-    const bool isRoot = false) {
+    bool isRoot = false,
+    bool isPV = false) {
     // Only worry about draws and such if the node is a child, otherwise game would be over
     // More expensive to check isDraw() than to check !isRoot because isDraw() needs to search an array
     if (!isRoot) {
@@ -2440,6 +2443,12 @@ static MoveEvaluation go(Board& board,
         || (entry->flag == FAILLOW && entry->score <= alpha) // Upper bound, fail low
         )) {
         return { Move(), entry->score };
+    }
+
+    // Reverse futility pruning (+ 32 nElo +-34)
+    int staticEval = board.evaluate();
+    if (staticEval - RFPMargin * depth >= beta && depth < 4 && !isPV && !board.isInCheck(board.side)) {
+        return { Move(), staticEval - RFPMargin };
     }
 
     MoveList moves = board.generateMoves();
@@ -2479,10 +2488,10 @@ static MoveEvaluation go(Board& board,
         int eval;
 
         // Principal variation search stuff
-        eval = -(go(testBoard, depth - 1, breakFlag, timerStart, timeToSpend, -alpha - 1, -alpha, maxNodes).eval);
+        eval = -(go(testBoard, depth - 1, breakFlag, timerStart, timeToSpend, -alpha - 1, -alpha, maxNodes, false, true).eval);
         // If it fails high or low we search again with the original bounds
         if (eval > alpha && eval < beta) {
-            eval = -(go(testBoard, depth - 1, breakFlag, timerStart, timeToSpend, -beta, -alpha, maxNodes).eval);
+            eval = -(go(testBoard, depth - 1, breakFlag, timerStart, timeToSpend, -beta, -alpha, maxNodes, false, isPV).eval);
         }
 
 
