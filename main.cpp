@@ -34,13 +34,8 @@
 #include <memory>
 #include <random>
 
-#define ctzll(x) ((x) ? _tzcnt_u64(x) : 64)
-#define clzll(x) ((x) ? __lzcnt64(x) : 64)
-//#define popcountll(x) __popcnt64(x)
-
-//#define ctzll(x) ((x) ? __builtin_ctzll(x) : 64)
-//#define clzll(x) ((x) ? __builtin_clzll(x) : 64)
-#define popcountll(x) __builtin_popcountll(x)
+#define ctzll(x) std::countr_zero(x)
+#define popcountll(x) std::popcount(x)
 
 #define DEBUG true
 #define IFDBG if constexpr (DEBUG)
@@ -2789,8 +2784,8 @@ int main() {
             if (parsedcommand.at(2) == "Hash") {
                 TT = TranspositionTable(stoi(parsedcommand.at(findIndexOf(parsedcommand, "Hash") + 1)));
             }
-            else if (parsedcommand.at(2) == "Move Overhead") {
-                moveOverhead = stoi(parsedcommand.at(findIndexOf(parsedcommand, "Move Overhead") + 1));
+            else if (parsedcommand.at(2) == "Move" && parsedcommand.at(3) == "Overhead") {
+                moveOverhead = stoi(parsedcommand.at(findIndexOf(parsedcommand, "Overhead") + 1));
             }
         }
         else if (!parsedcommand.empty() && parsedcommand.at(0) == "position") { // Handle "position" command
