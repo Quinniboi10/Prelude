@@ -33,6 +33,7 @@
 #include <thread>
 #include <memory>
 #include <random>
+#include <cstring>
 
 #define ctzll(x) std::countr_zero(x)
 #define popcountll(x) std::popcount(x)
