@@ -101,10 +101,11 @@ nn.loadNet("path/to/your.nnue");
 
 ## Special Thanks
 
-- **Vast:** Help hunting for bugs and explaining concepts
+- **Vast**: Help hunting for bugs and explaining concepts
 - **Ciekce**: Guidance and test NNUEs
 - **Shawn\_xu**: Explaining NNUEs and many other things
 - **A\_randomnoob**: Fixing obvious mistakes
+- **Matt**: Providing help and allowing me to use his git instance
 
 ## License
 
