@@ -355,6 +355,7 @@ public:
 
             knightMoves[i] = positions;
         }
+        
         // *** KING MOVES ***
         for (int i = 0; i < 64; ++i) {
             onNEdge = (1ULL << i) & isOn8;
