@@ -2,7 +2,9 @@
 
 > UCI chess engine with NNUE evaluation
 
-Prelude is a UCI-compatible chess engine utilizing advanced search algorithms and a neural network (NNUE) for evaluation. Designed for high performance and configurability, Prelude is ideal for chess enthusiasts and developers.
+Prelude is a UCI-compatible chess engine utilizing advanced search algorithms and a neural network (NNUE) for evaluation. Designed for high performance* and configurability, Prelude is ideal for chess enthusiasts and developers.
+
+*performance is unlikely
 
 ## Feature List:
 
