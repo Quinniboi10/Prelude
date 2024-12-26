@@ -18,8 +18,7 @@
 
 
 // TODO (Ordered): 
-// rnbqkbnr/pp2pppp/2p5/8/3P4/4P3/PP1BpPPP/RN2K1NR b KQkq - 1 6
-// Qxd4 is a VERY NOT GOOD MOVE
+// More pruning in search
 
 #include <iostream>
 #include <string>
@@ -1982,36 +1981,32 @@ public:
     }
 
     int evaluate() { // Returns evaluation in centipawns as side to move
-        int eval = 0;
-        int whitePieces = 0;
-        int blackPieces = 0;
+        return nn.forwardPass(this);
+
+        // Code below here can be used when there are 2 NNUEs
+        int matEval = 0;
 
         // Uses some magic python buffoonery https://github.com/ianfab/chess-variant-stats/blob/main/piece_values.py
         // Based on this https://discord.com/channels/435943710472011776/1300744461281787974/1312722964915027980
 
         // Material evaluation
-        whitePieces += popcountll(white[0]) * 100;
-        whitePieces += popcountll(white[1]) * 316;
-        whitePieces += popcountll(white[2]) * 328;
-        whitePieces += popcountll(white[3]) * 493;
-        whitePieces += popcountll(white[4]) * 982;
+        matEval += popcountll(white[0]) * 100;
+        matEval += popcountll(white[1]) * 316;
+        matEval += popcountll(white[2]) * 328;
+        matEval += popcountll(white[3]) * 493;
+        matEval += popcountll(white[4]) * 982;
 
-        blackPieces += popcountll(black[0]) * 100;
-        blackPieces += popcountll(black[1]) * 316;
-        blackPieces += popcountll(black[2]) * 328;
-        blackPieces += popcountll(black[3]) * 493;
-        blackPieces += popcountll(black[4]) * 982;
+        matEval += popcountll(black[0]) * 100;
+        matEval += popcountll(black[1]) * 316;
+        matEval += popcountll(black[2]) * 328;
+        matEval += popcountll(black[3]) * 493;
+        matEval += popcountll(black[4]) * 982;
 
-        eval = whitePieces - blackPieces;
-
-        // Only utilize the NNUE in situations when game isn't very won or lost
+        // Only utilize the large NNUE in situations when game isn't very won or lost
         // Concept from SF
-        if (std::abs(eval) < 950) {
+        if (std::abs(matEval) < 950) {
             return nn.forwardPass(this);
         }
-
-        // Adjust evaluation for the side to move
-        return (side) ? eval : -eval;
     }
 
     void updateAccum() {
@@ -2848,7 +2843,6 @@ int main() {
             int binc = 0;
 
             if (findIndexOf(parsedcommand, "nodes") > 0) {
-                IFDBG cout << "Starting search with max nodes limit" << endl;
                 maxNodes = stoi(parsedcommand.at(findIndexOf(parsedcommand, "nodes") + 1));
             }
 
