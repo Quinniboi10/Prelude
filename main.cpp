@@ -355,7 +355,7 @@ public:
 
             knightMoves[i] = positions;
         }
-        
+
         // *** KING MOVES ***
         for (int i = 0; i < 64; ++i) {
             onNEdge = (1ULL << i) & isOn8;
@@ -2128,10 +2128,10 @@ int NNUE::forwardPass(Board* board) {
 
         __m256i v1 = _mm256_hadd_epi32(sum, sum);
         __m256i v2 = _mm256_hadd_epi32(v1, v1);
-        
+
         eval = _mm256_extract_epi32(v2, 0) + _mm256_extract_epi32(v2, 4);
     }
-    
+
 
     // Dequantization
     if constexpr (activation == ::SCReLU) eval /= inputQuantizationValue;
@@ -2386,13 +2386,41 @@ void perftSuite(const string& filePath) {
 constexpr int RFPMargin = 75;
 constexpr int NMPReduction = 3;
 
+struct SearchLimit {
+    std::chrono::high_resolution_clock::time_point searchStart;
+    int maxNodes;
+    int searchTime;
+    std::atomic<bool>* breakFlag;
+
+    SearchLimit() {
+        searchStart = std::chrono::high_resolution_clock::now();
+        maxNodes = 0;
+        searchTime = 0;
+        breakFlag = nullptr;
+    }
+    SearchLimit(auto searchStart, auto breakFlag, auto searchTime, auto maxNodes) {
+        this->searchStart = searchStart;
+        this->breakFlag = breakFlag;
+        this->searchTime = searchTime;
+        this->maxNodes = maxNodes;
+    }
+
+    bool outOfNodes() {
+        if (maxNodes <= 0) return false;
+        return nodes >= maxNodes;
+    }
+
+    bool outOfTime() {
+        if (searchTime <= 0) return false;
+        auto now = std::chrono::high_resolution_clock::now();
+        return std::chrono::duration_cast<std::chrono::milliseconds>(now - searchStart).count() >= searchTime;
+    }
+};
+
 static int _qs(Board& board,
-    std::atomic<bool>& breakFlag,
-    std::chrono::steady_clock::time_point& timerStart,
-    int timeToSpend,
-    int maxNodes,
     int alpha,
-    int beta) {
+    int beta,
+    SearchLimit* sl) {
     int stand_pat = board.evaluate();
     if (stand_pat >= beta) {
         return beta;
@@ -2411,7 +2439,13 @@ static int _qs(Board& board,
     int flag = FAILLOW;
 
     for (int i = 0; i < moves.count; ++i) {
-        if (breakFlag.load() && !bestMove.isNull()) break;
+        if (sl->breakFlag->load() && !bestMove.isNull()) break;
+        if (sl->outOfNodes()) break;
+        if (nodes % 2048 == 0 && sl->outOfTime()) {
+            sl->breakFlag->store(true);
+            break;
+        }
+
         const Move& m = moves.moves[i];
 
         if (!board.isLegalMove(m)) continue;
@@ -2424,10 +2458,10 @@ static int _qs(Board& board,
         int score;
 
         // Principal variation search stuff
-        score = -_qs(testBoard, breakFlag, timerStart, timeToSpend, maxNodes, -alpha - 1, -alpha);
+        score = -_qs(testBoard, -alpha - 1, -alpha, sl);
         // If it fails high or low we search again with the original bounds
         if (score > alpha && score < beta) {
-            score = -_qs(testBoard, breakFlag, timerStart, timeToSpend, maxNodes, -beta, -alpha);
+            score = -_qs(testBoard, -beta, -alpha, sl);
         }
 
         if (score >= beta) {
@@ -2437,15 +2471,6 @@ static int _qs(Board& board,
             alpha = score;
             bestMove = m;
         }
-
-        if (nodes % 2048 == 0 && timeToSpend != 0) {
-            auto now = std::chrono::steady_clock::now();
-            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - timerStart).count() >= timeToSpend) {
-                breakFlag.store(true);
-                break;
-            }
-        }
-        if (maxNodes > 0 && nodes >= maxNodes) break;
     }
 
     Transposition entry = Transposition(board.zobrist, bestMove, flag, alpha, 0);
@@ -2457,19 +2482,14 @@ static int _qs(Board& board,
 // Full search function
 static MoveEvaluation go(Board& board,
     int depth,
-    std::atomic<bool>& breakFlag,
-    std::chrono::steady_clock::time_point& timerStart,
-    int timeToSpend,
     int alpha,
     int beta,
-    int maxNodes,
-    bool isRoot = false) {
+    int ply,
+    SearchLimit* sl) {
     // Only worry about draws and such if the node is a child, otherwise game would be over
-    // More expensive to check isDraw() than to check !isRoot because isDraw() needs to search an array
-    if (!isRoot) {
-        // Depth may be less than zero because of bad coding (hey I did that) in the null move pruning, so depth 1-3 or depth -2 search is possible
+    if (ply > 0) {
         if (depth <= 0) {
-            int eval = _qs(board, breakFlag, timerStart, timeToSpend, maxNodes, alpha, beta);
+            int eval = _qs(board, alpha, beta, sl);
             return { Move(), eval };
         }
         else if (board.isDraw()) {
@@ -2479,7 +2499,7 @@ static MoveEvaluation go(Board& board,
 
     Transposition* entry = TT.getEntry(board.zobrist);
 
-    if (!isRoot && entry->zobristKey == board.zobrist && entry->depth >= depth && (
+    if (ply > 0 && entry->zobristKey == board.zobrist && entry->depth >= depth && (
         entry->flag == EXACT // Exact score
         || (entry->flag == BETACUTOFF && entry->score >= beta) // Lower bound, fail high
         || (entry->flag == FAILLOW && entry->score <= alpha) // Upper bound, fail low
@@ -2487,7 +2507,7 @@ static MoveEvaluation go(Board& board,
         return { Move(), entry->score };
     }
 
-    const bool isPV = !(beta - alpha == 1) && !isRoot;
+    const bool isPV = !(beta - alpha == 1) && ply > 0;
 
     // Reverse futility pruning (+ 32 elo +-34)
     int staticEval = board.evaluate();
@@ -2500,7 +2520,7 @@ static MoveEvaluation go(Board& board,
     if (!isPV && !board.fromNull && staticEval >= beta && !board.isInCheck() && popcountll(board.side ? board.white[0] : board.black[0]) + 1 == popcountll(board.side ? board.whitePieces : board.blackPieces)) {
         Board testBoard = board;
         testBoard.makeNullMove();
-        int eval = -(go(testBoard, depth - NMPReduction, breakFlag, timerStart, timeToSpend, -beta, -beta + 1, maxNodes).eval);
+        int eval = -go(testBoard, depth - NMPReduction, -beta, -beta + 1, ply + 1, sl).eval;
         if (eval >= beta) {
             return { Move(), eval };
         }
@@ -2517,16 +2537,12 @@ static MoveEvaluation go(Board& board,
     for (int i = 0; i < moves.count; ++i) {
         // Break checks
         if (alpha >= beta) break; // Alpha-beta pruning
-        if (breakFlag.load() && !bestMove.isNull()) break;
-        if (nodes % 2048 == 0 && timeToSpend != 0) {
-            auto now = std::chrono::steady_clock::now();
-            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - timerStart).count() >= timeToSpend) {
-                breakFlag.store(true);
-                break;
-            }
+        if (sl->breakFlag->load() && !bestMove.isNull()) break;
+        if (sl->outOfNodes()) break;
+        if (nodes % 2048 == 0 && sl->outOfTime()) {
+            sl->breakFlag->store(true);
+            break;
         }
-        if (maxNodes > 0 && nodes >= maxNodes) break;
-
 
         Move& m = moves.moves[i];
 
@@ -2555,14 +2571,14 @@ static MoveEvaluation go(Board& board,
 
         // Only run PVS with more than one move already searched
         if (movesMade == 1) {
-            eval = -go(testBoard, depth - 1, breakFlag, timerStart, timeToSpend, -beta, -alpha, maxNodes).eval;
+            eval = -go(testBoard, depth - 1, -beta, -alpha, ply + 1, sl).eval;
         }
         else {
             // Principal variation search stuff
-            eval = -go(testBoard, depth - 1 - depthReduction, breakFlag, timerStart, timeToSpend, -alpha - 1, -alpha, maxNodes).eval;
+            eval = -go(testBoard, depth - 1 - depthReduction, -alpha - 1, -alpha, ply + 1, sl).eval;
             // If it fails high and isPV or used reduction, go again with full bounds
             if (eval > alpha && (isPV || depthReduction > 0)) {
-                eval = -go(testBoard, depth - 1, breakFlag, timerStart, timeToSpend, -beta, -alpha, maxNodes).eval;
+                eval = -go(testBoard, depth - 1, -beta, -alpha, ply + 1, sl).eval;
             }
         }
 
@@ -2583,14 +2599,14 @@ static MoveEvaluation go(Board& board,
             flag = BETACUTOFF;
         }
 
-        if (isRoot) {
+        if (ply == 0) {
             auto now = std::chrono::steady_clock::now();
             if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastInfo).count() >= msInfoInterval) {
                 int TTused = 0;
                 for (int i = 0; i < TT.size; i++) {
                     if (TT.getEntry(i)->zobristKey != 0) TTused++;
                 }
-                double elapsedMs = (double)std::chrono::duration_cast<std::chrono::milliseconds>(now - timerStart).count();
+                double elapsedMs = (double)std::chrono::duration_cast<std::chrono::milliseconds>(now - sl->searchStart).count();
                 int nps = (int)((double)nodes / (elapsedMs / 1000));
                 cout << "info depth " << depth << " nodes " << nodes << " nps " << nps << " time " << std::to_string((int)elapsedMs) << " hashfull " << (int)(TTused / (double)TT.size * 1000) << " currmove " << m.toString() << endl;
             }
@@ -2656,8 +2672,10 @@ void iterativeDeepening(
 
     softLimit = std::min(softLimit, timeToSpend);
 
+    SearchLimit sl = SearchLimit(std::chrono::high_resolution_clock::now(), &breakFlag, timeToSpend, maxNodes);
+
     for (int depth = 1; depth <= maxDepth; depth++) {
-        move = go(board, depth, breakFlag, start, timeToSpend, -INF_INT, INF_INT, maxNodes, true);
+        move = go(board, depth, -INF_INT, INF_INT, 0, &sl);
 
         IFDBG m_assert(!move.move.isNull(), "Returned null move in search");
 
