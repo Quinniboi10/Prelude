@@ -2417,7 +2417,7 @@ struct SearchLimit {
     }
 };
 
-static int _qs(Board& board,
+int _qs(Board& board,
     int alpha,
     int beta,
     SearchLimit* sl) {
@@ -2431,6 +2431,16 @@ static int _qs(Board& board,
 
     if (board.isDraw()) {
         return 0;
+    }
+
+    Transposition* entry = TT.getEntry(board.zobrist);
+
+    if (entry->zobristKey == board.zobrist && (
+        entry->flag == EXACT // Exact score
+        || (entry->flag == BETACUTOFF && entry->score >= beta) // Lower bound, fail high
+        || (entry->flag == FAILLOW && entry->score <= alpha) // Upper bound, fail low
+        )) {
+        return entry->score;
     }
 
     MoveList moves = board.generateMoves(true);
@@ -2473,14 +2483,13 @@ static int _qs(Board& board,
         }
     }
 
-    Transposition entry = Transposition(board.zobrist, bestMove, flag, alpha, 0);
-    TT.setEntry(board.zobrist, entry);
+    *entry = Transposition(board.zobrist, bestMove, flag, alpha, 0);
 
     return alpha;
 }
 
 // Full search function
-static MoveEvaluation go(Board& board,
+MoveEvaluation go(Board& board,
     int depth,
     int alpha,
     int beta,
