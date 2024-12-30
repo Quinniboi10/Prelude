@@ -23,6 +23,7 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <sstream>
 #include <deque>
 #include <chrono>
 #include <array>
@@ -35,6 +36,26 @@
 #include <random>
 #include <cstring>
 #include <immintrin.h>
+
+
+#ifndef EVALFILE
+#define EVALFILE "./nnue.bin"
+#endif
+
+#ifdef _MSC_VER
+#define MSVC
+#pragma push_macro("_MSC_VER")
+#undef _MSC_VER
+#endif
+
+#include "./external/incbin.h"
+
+#ifdef MSVC
+#pragma pop_macro("_MSC_VER")
+#undef MSVC
+#endif
+
+INCBIN(EVAL, EVALFILE);
 
 #define ctzll(x) std::countr_zero(x)
 #define popcountll(x) std::popcount(x)
@@ -849,9 +870,9 @@ using Accumulator = array<i16, HL_SIZE>;
 // NNUE is not UEd yet
 class NNUE {
 public:
-    array<i16, HL_SIZE * 768> weightsToHL;
-    array<i16, HL_SIZE * 2> weightsToOut;
-    array<i16, HL_SIZE> hiddenLayerBias;
+    alignas(32) array<i16, HL_SIZE * 768> weightsToHL;
+    alignas(32) array<i16, HL_SIZE> hiddenLayerBias;
+    alignas(32) array<i16, HL_SIZE * 2> weightsToOut;
     i16 outputBias;
 
     constexpr i16 ReLU(const i16 x) {
@@ -864,13 +885,6 @@ public:
         if (x < 0) ans = 0;
         else if (x > inputQuantizationValue) ans = inputQuantizationValue;
         return ans;
-    }
-
-    constexpr i32 SCReLU(const i16 x) {
-        i32 ans = x;
-        if (x < 0) ans = 0;
-        else if (x > inputQuantizationValue) ans = inputQuantizationValue;
-        return ans * ans;
     }
 
     static int feature(Color perspective, Color color, PieceType piece, Square square) {
@@ -909,38 +923,11 @@ public:
 
     NNUE() {
         weightsToHL.fill(1);
-        weightsToOut.fill(1);
 
         hiddenLayerBias.fill(0);
+
+        weightsToOut.fill(1);
         outputBias = 0;
-    }
-
-    void loadNet(const std::string& filepath) {
-        std::ifstream stream(filepath, std::ios::binary);
-        if (!stream.is_open()) {
-            std::cerr << "Failed to open file: " + filepath << endl;
-            std::cerr << "Expect engine to not work as intended with bad evaluation" << endl;
-        }
-
-        // Load weightsToHL
-        for (size_t i = 0; i < weightsToHL.size(); ++i) {
-            weightsToHL[i] = read_little_endian<int16_t>(stream);
-        }
-
-        // Load hiddenLayerBias
-        for (size_t i = 0; i < hiddenLayerBias.size(); ++i) {
-            hiddenLayerBias[i] = read_little_endian<int16_t>(stream);
-        }
-
-        // Load weightsToOut
-        for (size_t i = 0; i < weightsToOut.size(); ++i) {
-            weightsToOut[i] = read_little_endian<int16_t>(stream);
-        }
-
-        // Load outputBias
-        outputBias = read_little_endian<int16_t>(stream);
-
-        cout << "Network loaded successfully from " << filepath << endl;
     }
 
     int forwardPass(Board* board);
@@ -953,7 +940,7 @@ int movesToGo = 20;
 TranspositionTable TT;
 NNUE nn;
 int msInfoInterval = 1000;
-std::chrono::high_resolution_clock::time_point lastInfo;
+std::chrono::steady_clock::time_point lastInfo;
 
 
 class Board {
@@ -2253,7 +2240,7 @@ u64 _perft(Board& board, int depth) {
 }
 
 void perft(Board& board, int depth, bool bulk) {
-    auto start = std::chrono::high_resolution_clock::now();
+    auto start = std::chrono::steady_clock::now();
 
     if (depth < 1) return;
     if (depth == 1 && bulk) bulk = false;
@@ -2271,9 +2258,9 @@ void perft(Board& board, int depth, bool bulk) {
         cout << moves.moves[i].toString() << ": " << movesThisIter << endl;
     }
 
-    int nps = (int)(((double)localNodes) / (std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - start).count()) * 1000000000);
+    int nps = (int)(((double)localNodes) / (std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count()) * 1000000000);
 
-    double timeTaken = (std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - start).count());
+    double timeTaken = (std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count());
     if (timeTaken / 1000000 < 1000) cout << "Time taken: " << timeTaken / 1000000 << " milliseconds" << endl;
     else cout << "Time taken: " << timeTaken / 1000000000 << " seconds" << endl;
     cout << "Generated moves with " << formatNum(localNodes) << " nodes and NPS of " << formatNum(nps) << endl;
@@ -2398,13 +2385,13 @@ constexpr int RFPMargin = 75;
 constexpr int NMPReduction = 3;
 
 struct SearchLimit {
-    std::chrono::high_resolution_clock::time_point searchStart;
+    std::chrono::steady_clock::time_point searchStart;
     int maxNodes;
     int searchTime;
     std::atomic<bool>* breakFlag;
 
     SearchLimit() {
-        searchStart = std::chrono::high_resolution_clock::now();
+        searchStart = std::chrono::steady_clock::now();
         maxNodes = 0;
         searchTime = 0;
         breakFlag = nullptr;
@@ -2423,7 +2410,7 @@ struct SearchLimit {
 
     bool outOfTime() {
         if (searchTime <= 0) return false;
-        auto now = std::chrono::high_resolution_clock::now();
+        auto now = std::chrono::steady_clock::now();
         return std::chrono::duration_cast<std::chrono::milliseconds>(now - searchStart).count() >= searchTime;
     }
 };
@@ -2662,7 +2649,7 @@ void iterativeDeepening(
     int maxNodes = -1
 ) {
     breakFlag.store(false);
-    lastInfo = std::chrono::high_resolution_clock::now();
+    lastInfo = std::chrono::steady_clock::now();
     nodes = 0;
     int timeToSpend = 0;
     int softLimit = 0;
@@ -2695,7 +2682,7 @@ void iterativeDeepening(
 
     softLimit = std::min(softLimit, timeToSpend);
 
-    SearchLimit sl = SearchLimit(std::chrono::high_resolution_clock::now(), &breakFlag, timeToSpend, maxNodes);
+    SearchLimit sl = SearchLimit(std::chrono::steady_clock::now(), &breakFlag, timeToSpend, maxNodes);
 
     for (int depth = 1; depth <= maxDepth; depth++) {
         move = go<true>(board, depth, -INF_INT, INF_INT, 0, &sl);
@@ -2732,7 +2719,7 @@ void iterativeDeepening(
         ans += " pv " + bestMoveAlgebra;
 
         cout << ans << endl;
-        lastInfo = std::chrono::high_resolution_clock::now();
+        lastInfo = std::chrono::steady_clock::now();
 
         if (breakFlag.load() && depth > 1) {
             IFDBG cout << "Stopping search because of break flag" << endl;
@@ -2820,7 +2807,7 @@ int main() {
     Board currentPos;
     Precomputed::compute();
     initializeAllDatabases();
-    nn.loadNet("C:\\Users\\qitag\\Downloads\\beans1024.bin");
+    nn = *reinterpret_cast<const NNUE*>(gEVALData);
     currentPos.reset();
     std::atomic<bool> breakFlag(false);
     std::optional<std::thread> searchThreadOpt;
