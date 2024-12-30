@@ -2383,6 +2383,7 @@ void perftSuite(const string& filePath) {
 // ****** SEARCH FUNCTIONS ******
 constexpr int RFPMargin = 75;
 constexpr int NMPReduction = 3;
+bool searchQuiet; // This flag is used for benchmarks so it searches without output
 
 struct SearchLimit {
     std::chrono::steady_clock::time_point searchStart;
@@ -2618,7 +2619,7 @@ MoveEvaluation go(Board& board,
                 }
                 double elapsedMs = (double)std::chrono::duration_cast<std::chrono::milliseconds>(now - sl->searchStart).count();
                 int nps = (int)((double)nodes / (elapsedMs / 1000));
-                cout << "info depth " << depth << " nodes " << nodes << " nps " << nps << " time " << std::to_string((int)elapsedMs) << " hashfull " << (int)(TTused / (double)TT.size * 1000) << " currmove " << m.toString() << endl;
+                if (!searchQuiet) cout << "info depth " << depth << " nodes " << nodes << " nps " << nps << " time " << std::to_string((int)elapsedMs) << " hashfull " << (int)(TTused / (double)TT.size * 1000) << " currmove " << m.toString() << endl;
             }
         }
     }
@@ -2718,7 +2719,7 @@ void iterativeDeepening(
 
         ans += " pv " + bestMoveAlgebra;
 
-        cout << ans << endl;
+        if (!searchQuiet) cout << ans << endl;
         lastInfo = std::chrono::steady_clock::now();
 
         if (breakFlag.load() && depth > 1) {
@@ -2742,12 +2743,13 @@ void iterativeDeepening(
         if (isMate) break;
     }
 
-    std::cout << "bestmove " << bestMoveAlgebra << std::endl;
+    if (!searchQuiet) std::cout << "bestmove " << bestMoveAlgebra << std::endl;
     breakFlag.store(false);
 }
 
 // ****** BENCH STUFF ******
 void bench(int depth = 7, const std::string& filePath = "bench_fens.txt") {
+    searchQuiet = true;
     std::ifstream fensFile(filePath);
     if (!fensFile.is_open()) {
         std::cerr << "Failed to open bench file: " << filePath << std::endl;
@@ -2758,7 +2760,7 @@ void bench(int depth = 7, const std::string& filePath = "bench_fens.txt") {
     u64 totalNodes = 0;
     double totalTimeMs = 0.0;
 
-    std::cout << "Starting benchmark with depth " << depth << " using file '" << filePath << "'" << std::endl;
+    cout << "Starting benchmark with depth " << depth << " using file '" << filePath << "'" << std::endl;
 
     while (std::getline(fensFile, fen)) {
         if (fen.empty()) continue; // Skip empty lines
@@ -2785,19 +2787,23 @@ void bench(int depth = 7, const std::string& filePath = "bench_fens.txt") {
         totalNodes += nodes;
         totalTimeMs += durationMs;
 
-        std::cout << "FEN: " << fen << std::endl;
-        std::cout << "Nodes: " << nodes << ", Time: " << durationMs << " ms" << std::endl;
-        std::cout << "----------------------------------------" << std::endl;
+        cout << "FEN: " << fen << std::endl;
+        cout << "Nodes: " << nodes << ", Time: " << durationMs << " ms" << std::endl;
+        cout << "----------------------------------------" << std::endl;
     }
 
     fensFile.close();
 
-    std::cout << "Benchmark Completed." << std::endl;
-    std::cout << "Total Nodes: " << formatNum(totalNodes) << std::endl;
-    std::cout << "Total Time: " << formatNum(totalTimeMs) << " ms" << std::endl;
+    cout << "Benchmark Completed." << std::endl;
+    cout << "Total Nodes: " << formatNum(totalNodes) << std::endl;
+    cout << "Total Time: " << formatNum(totalTimeMs) << " ms" << std::endl;
+    int nps = INF_INT;
     if (totalTimeMs > 0) {
-        std::cout << "Average NPS: " << formatNum(static_cast<long long>((totalNodes / totalTimeMs) * 1000)) << std::endl;
+        nps = static_cast<long long>((totalNodes / totalTimeMs) * 1000);
+        cout << "Average NPS: " << formatNum(nps) << std::endl;
     }
+    cout << totalNodes << " nodes " << nps << " nps";
+    searchQuiet = false;
 }
 
 
