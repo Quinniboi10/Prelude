@@ -918,7 +918,8 @@ public:
     void loadNet(const std::string& filepath) {
         std::ifstream stream(filepath, std::ios::binary);
         if (!stream.is_open()) {
-            throw std::runtime_error("Failed to open file: " + filepath);
+            std::cerr << "Failed to open file: " + filepath << endl;
+            std::cerr << "Expect engine to not work as intended with bad evaluation" << endl;
         }
 
         // Load weightsToHL
@@ -1390,6 +1391,14 @@ public:
         return (c * whitePieces + ~c * blackPieces);
     }
 
+    bool isEndgame() {
+        return popcountll(~emptySquares) < 9;
+    }
+
+    bool canNullMove() {
+        return !fromNull && !isEndgame() && !isInCheck();
+    }
+
     // Uses 2fold check
     bool isDraw() {
         if (halfMoveClock >= 100) return true;
@@ -1483,7 +1492,7 @@ public:
                 checkMask |= (1ULL << (kingIndex - 9));
         }
 
-        (popcountll(checks | checkMask) > 1) ? doubleCheck = true : doubleCheck = false;
+        popcountll(checks | checkMask) > 1 ? doubleCheck = true : doubleCheck = false;
 
         while (checks) {
             checkMask |= LINESEG[kingIndex][ctzll(checks)];
@@ -1695,6 +1704,8 @@ public:
         side = ~side;
 
         fromNull = true;
+
+        updateCheckPin();
     }
 
     void move(string& moveIn) {
@@ -2489,6 +2500,7 @@ int _qs(Board& board,
 }
 
 // Full search function
+template<bool isPV>
 MoveEvaluation go(Board& board,
     int depth,
     int alpha,
@@ -2516,24 +2528,26 @@ MoveEvaluation go(Board& board,
         return { Move(), entry->score };
     }
 
-    const bool isPV = !(beta - alpha == 1) && ply > 0;
+    if constexpr (!isPV) {
+        // Reverse futility pruning (+ 32 elo +-34)
+        int staticEval = board.evaluate();
+        if (staticEval - RFPMargin * depth >= beta && depth < 4 && !board.isInCheck()) {
+            return { Move(), staticEval - RFPMargin };
+        }
 
-    // Reverse futility pruning (+ 32 elo +-34)
-    int staticEval = board.evaluate();
-    if (staticEval - RFPMargin * depth >= beta && depth < 4 && !isPV && !board.isInCheck()) {
-        return { Move(), staticEval - RFPMargin };
-    }
-
-    // Null move pruning (+75 elo +- 33)
-    // Don't prune PV nodes and don't prune king + pawn only
-    if (!isPV && !board.fromNull && staticEval >= beta && !board.isInCheck() && popcountll(board.side ? board.white[0] : board.black[0]) + 1 == popcountll(board.side ? board.whitePieces : board.blackPieces)) {
-        Board testBoard = board;
-        testBoard.makeNullMove();
-        int eval = -go(testBoard, depth - NMPReduction, -beta, -beta + 1, ply + 1, sl).eval;
-        if (eval >= beta) {
-            return { Move(), eval };
+        // Null move pruning (+75 elo +- 33)
+        // Don't prune PV nodes and don't prune king + pawn only
+        // King + pawn is likely redundant because the position would already be considered endgame, but removing it seems to lose elo
+        if (board.canNullMove() && staticEval >= beta && !board.isInCheck() && popcountll(board.side ? board.white[0] : board.black[0]) + 1 != popcountll(board.side ? board.whitePieces : board.blackPieces)) {
+            Board testBoard = board;
+            testBoard.makeNullMove();
+            int eval = -go<false>(testBoard, depth - NMPReduction, -beta, -beta + 1, ply + 1, sl).eval;
+            if (eval >= beta) {
+                return { Move(), eval };
+            }
         }
     }
+    
 
     MoveList moves = board.generateMoves();
     Move bestMove;
@@ -2580,14 +2594,14 @@ MoveEvaluation go(Board& board,
 
         // Only run PVS with more than one move already searched
         if (movesMade == 1) {
-            eval = -go(testBoard, depth - 1, -beta, -alpha, ply + 1, sl).eval;
+            eval = -go<true>(testBoard, depth - 1, -beta, -alpha, ply + 1, sl).eval;
         }
         else {
             // Principal variation search stuff
-            eval = -go(testBoard, depth - 1 - depthReduction, -alpha - 1, -alpha, ply + 1, sl).eval;
+            eval = -go<false>(testBoard, depth - 1 - depthReduction, -alpha - 1, -alpha, ply + 1, sl).eval;
             // If it fails high and isPV or used reduction, go again with full bounds
             if (eval > alpha && (isPV || depthReduction > 0)) {
-                eval = -go(testBoard, depth - 1, -beta, -alpha, ply + 1, sl).eval;
+                eval = -go<true>(testBoard, depth - 1, -beta, -alpha, ply + 1, sl).eval;
             }
         }
 
@@ -2684,7 +2698,7 @@ void iterativeDeepening(
     SearchLimit sl = SearchLimit(std::chrono::high_resolution_clock::now(), &breakFlag, timeToSpend, maxNodes);
 
     for (int depth = 1; depth <= maxDepth; depth++) {
-        move = go(board, depth, -INF_INT, INF_INT, 0, &sl);
+        move = go<true>(board, depth, -INF_INT, INF_INT, 0, &sl);
 
         IFDBG m_assert(!move.move.isNull(), "Returned null move in search");
 
@@ -2995,13 +3009,7 @@ int main() {
             std::string filePath = "bench_fens.txt"; // Default file path
 
             if (parsedcommand.size() >= 2) {
-                try {
-                    depth = std::stoi(parsedcommand.at(1));
-                }
-                catch (const std::exception& e) {
-                    std::cerr << "Invalid depth value. Using default depth of 7." << std::endl;
-                    depth = 7;
-                }
+                depth = std::stoi(parsedcommand.at(1));
             }
 
             if (parsedcommand.size() >= 3) {
