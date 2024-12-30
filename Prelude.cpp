@@ -1391,6 +1391,14 @@ public:
         return (c * whitePieces + ~c * blackPieces);
     }
 
+    bool isEndgame() {
+        return popcountll(~emptySquares) < 9;
+    }
+
+    bool canNullMove() {
+        return !fromNull && !isEndgame() && !isInCheck();
+    }
+
     // Uses 2fold check
     bool isDraw() {
         if (halfMoveClock >= 100) return true;
@@ -1484,7 +1492,7 @@ public:
                 checkMask |= (1ULL << (kingIndex - 9));
         }
 
-        (popcountll(checks | checkMask) > 1) ? doubleCheck = true : doubleCheck = false;
+        popcountll(checks | checkMask) > 1 ? doubleCheck = true : doubleCheck = false;
 
         while (checks) {
             checkMask |= LINESEG[kingIndex][ctzll(checks)];
@@ -1696,6 +1704,8 @@ public:
         side = ~side;
 
         fromNull = true;
+
+        updateCheckPin();
     }
 
     void move(string& moveIn) {
@@ -2527,7 +2537,8 @@ MoveEvaluation go(Board& board,
 
         // Null move pruning (+75 elo +- 33)
         // Don't prune PV nodes and don't prune king + pawn only
-        if (!board.fromNull && staticEval >= beta && !board.isInCheck() && popcountll(board.side ? board.white[0] : board.black[0]) + 1 == popcountll(board.side ? board.whitePieces : board.blackPieces)) {
+        // King + pawn is likely redundant because the position would already be considered endgame, but removing it seems to lose elo
+        if (board.canNullMove() && staticEval >= beta && !board.isInCheck() && popcountll(board.side ? board.white[0] : board.black[0]) + 1 != popcountll(board.side ? board.whitePieces : board.blackPieces)) {
             Board testBoard = board;
             testBoard.makeNullMove();
             int eval = -go<false>(testBoard, depth - NMPReduction, -beta, -beta + 1, ply + 1, sl).eval;
