@@ -122,6 +122,7 @@ enum File : int {
 enum Rank : int {
     RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8
 };
+
 Square& operator++(Square& s) { return s = Square(int(s) + 1); }
 Square& operator--(Square& s) { return s = Square(int(s) - 1); }
 constexpr Square operator+(Square s, Direction d) { return Square(int(s) + int(d)); }
