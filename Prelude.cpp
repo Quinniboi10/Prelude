@@ -2923,10 +2923,10 @@ int main(int argc, char* argv[]) {
         else if (parsedcommand.at(0) == "setoption") {
             // Assumes setoption name ...
             if (parsedcommand.at(2) == "Hash") {
-                TT = TranspositionTable(stoi(parsedcommand.at(findIndexOf(parsedcommand, "Hash") + 1)));
+                TT = TranspositionTable(stoi(parsedcommand.at(findIndexOf(parsedcommand, "Hash") + 2)));
             }
             else if (parsedcommand.at(2) == "Move" && parsedcommand.at(3) == "Overhead") {
-                moveOverhead = stoi(parsedcommand.at(findIndexOf(parsedcommand, "Overhead") + 1));
+                moveOverhead = stoi(parsedcommand.at(findIndexOf(parsedcommand, "Overhead") + 2));
             }
         }
         else if (!parsedcommand.empty() && parsedcommand.at(0) == "position") { // Handle "position" command
