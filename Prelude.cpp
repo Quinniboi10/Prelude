@@ -122,7 +122,6 @@ enum File : int {
 enum Rank : int {
     RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8
 };
-
 Square& operator++(Square& s) { return s = Square(int(s) + 1); }
 Square& operator--(Square& s) { return s = Square(int(s) - 1); }
 constexpr Square operator+(Square s, Direction d) { return Square(int(s) + int(d)); }
@@ -939,6 +938,10 @@ int moveOverhead = 20;
 int movesToGo = 20;
 TranspositionTable TT;
 NNUE nn;
+
+// History is history[side][from][to]
+array<array<array<int, 64>, 64>, 2> history;
+
 constexpr int msInfoInterval = 1000;
 std::chrono::steady_clock::time_point lastInfo;
 
@@ -1309,6 +1312,10 @@ public:
         return (victim * 100) - attacker;
     }
 
+    int getHistoryBonus(Move& m) {
+        return history[side][m.startSquare()][m.endSquare()];
+    }
+
     MoveList generateMoves(bool capturesOnly = false) {
         MoveList allMoves;
         generateKingMoves(allMoves);
@@ -1349,6 +1356,9 @@ public:
         prioritizedMoves.add(bestMove);
 
         std::sort(captures.moves.begin(), captures.moves.begin() + captures.count, [this](Move& a, Move& b) { return evaluateMVVLVA(a) > evaluateMVVLVA(b); });
+
+        std::sort(quietMoves.moves.begin(), quietMoves.moves.begin() + quietMoves.count, [this](Move& a, Move& b) { return getHistoryBonus(a) > getHistoryBonus(b); });
+
 
         // Combine moves in the prioritized order
         for (int i = 0; i < captures.count; ++i) {
@@ -2610,6 +2620,10 @@ MoveEvaluation go(Board& board,
         }
 
         if (alpha >= beta) {
+            if (!(m.typeOf() & CAPTURE)) {
+                int clampedBonus = std::clamp(depth * depth, -MAX_HISTORY, MAX_HISTORY);
+                history[board.side][m.startSquare()][m.endSquare()] += clampedBonus - history[board.side][m.startSquare()][m.endSquare()] * abs(clampedBonus) / MAX_HISTORY;
+            }
             break;
         }
 
@@ -2855,7 +2869,6 @@ void bench(int depth = 7) {
 }
 
 
-
 int main(int argc, char* argv[]) {
     string command;
     std::deque<string> parsedcommand;
@@ -2870,15 +2883,8 @@ int main(int argc, char* argv[]) {
     if (argc > 1) {
         string arg1 = argv[1];
         if (arg1 == "bench") {
-            int depth = 7; // Default depth
-            std::string filePath = "bench_fens.txt"; // Default file path
-
-            if (parsedcommand.size() >= 2) {
-                depth = std::stoi(parsedcommand.at(1));
-            }
-
-            // Start benchmarking
-            bench(depth);
+            // Start bench
+            bench(8);
 
             // Kill engine
             breakFlag.store(true);
@@ -2919,6 +2925,13 @@ int main(int argc, char* argv[]) {
                 searchThreadOpt.reset();
             }
             TT.clear();
+            for (auto& side : history) {
+                for (auto & from : side) {
+                    for (auto& to : from) {
+                        to = 0;
+                    }
+                }
+            }
         }
         else if (parsedcommand.at(0) == "setoption") {
             // Assumes setoption name ...
@@ -3074,7 +3087,6 @@ int main(int argc, char* argv[]) {
         }
         else if (!parsedcommand.empty() && parsedcommand.at(0) == "bench") {
             int depth = 7; // Default depth
-            std::string filePath = "bench_fens.txt"; // Default file path
 
             if (parsedcommand.size() >= 2) {
                 depth = std::stoi(parsedcommand.at(1));
