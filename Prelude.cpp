@@ -122,7 +122,6 @@ enum File : int {
 enum Rank : int {
     RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8
 };
-
 Square& operator++(Square& s) { return s = Square(int(s) + 1); }
 Square& operator--(Square& s) { return s = Square(int(s) - 1); }
 constexpr Square operator+(Square s, Direction d) { return Square(int(s) + int(d)); }
@@ -940,7 +939,7 @@ int moveOverhead = 20;
 int movesToGo = 20;
 TranspositionTable TT;
 NNUE nn;
-int msInfoInterval = 1000;
+constexpr int msInfoInterval = 1000;
 std::chrono::steady_clock::time_point lastInfo;
 
 
@@ -2384,7 +2383,8 @@ void perftSuite(const string& filePath) {
 // ****** SEARCH FUNCTIONS ******
 constexpr int RFPMargin = 75;
 constexpr int NMPReduction = 3;
-bool searchQuiet; // This flag is used for benchmarks so it searches without output
+constexpr int MAX_HISTORY = 50;
+bool searchQuiet = false; // This flag is used for benchmarks so it searches without output
 
 struct SearchLimit {
     std::chrono::steady_clock::time_point searchStart;
@@ -2548,7 +2548,6 @@ MoveEvaluation go(Board& board,
 
     for (int i = 0; i < moves.count; ++i) {
         // Break checks
-        if (alpha >= beta) break; // Alpha-beta pruning
         if (sl->breakFlag->load() && !bestMove.isNull()) break;
         if (sl->outOfNodes()) break;
         if (nodes % 2048 == 0 && sl->outOfTime()) {
@@ -2594,7 +2593,6 @@ MoveEvaluation go(Board& board,
             }
         }
 
-
         // Update best move and alpha-beta values
         if (eval > bestEval) {
             bestEval = eval;
@@ -2609,6 +2607,10 @@ MoveEvaluation go(Board& board,
         // Fail high
         if (eval >= beta) {
             flag = BETACUTOFF;
+        }
+
+        if (alpha >= beta) {
+            break;
         }
 
         if (ply == 0) {
@@ -2803,12 +2805,12 @@ void bench(int depth = 7, const std::string& filePath = "bench_fens.txt") {
         nps = static_cast<long long>((totalNodes / totalTimeMs) * 1000);
         cout << "Average NPS: " << formatNum(nps) << std::endl;
     }
-    cout << totalNodes << " nodes " << nps << " nps";
+    cout << totalNodes << " nodes " << nps << " nps" << endl;
     searchQuiet = false;
 }
 
 
-int main() {
+int main(int argc, char* argv[]) {
     string command;
     std::deque<string> parsedcommand;
     Board currentPos;
@@ -2818,6 +2820,36 @@ int main() {
     currentPos.reset();
     std::atomic<bool> breakFlag(false);
     std::optional<std::thread> searchThreadOpt;
+
+    if (argc > 1) {
+        string arg1 = argv[1];
+        if (arg1 == "bench") {
+            int depth = 7; // Default depth
+            std::string filePath = "bench_fens.txt"; // Default file path
+
+            if (parsedcommand.size() >= 2) {
+                depth = std::stoi(parsedcommand.at(1));
+            }
+
+            if (parsedcommand.size() >= 3) {
+                filePath = parsedcommand.at(2);
+            }
+
+            // Start benchmarking
+            bench(depth, filePath);
+
+            // Kill engine
+            breakFlag.store(true);
+            // Ensure the search thread is joined before exiting
+            if (searchThreadOpt.has_value()) {
+                if (searchThreadOpt->joinable()) {
+                    searchThreadOpt->join();
+                }
+            }
+            return 0;
+        }
+    }
+
     cout << "Prelude ready and awaiting commands" << endl;
     while (true) {
         std::getline(std::cin, command);
