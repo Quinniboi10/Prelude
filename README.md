@@ -23,10 +23,9 @@ Prelude is a UCI-compatible chess engine utilizing advanced search algorithms an
 
 ### Board Representation:
 
-1. Efficient bitboard implementation.
+1. Bitboard implementation.
 2. Zobrist hashing for fast position recognition.
 3. Incremental NNUE updates.
-4. Repetition detection.
 
 ### Search Algorithms:
 
@@ -34,7 +33,7 @@ Prelude is a UCI-compatible chess engine utilizing advanced search algorithms an
 2. Transposition Table (TT) with configurable size.
 3. Null move pruning, reverse futility pruning, with more to come.
 4. Iterative deepening.
-5. Quiescence search for tactical clarity.
+5. Quiescence search.
 
 ### Evaluation:
 
@@ -50,7 +49,9 @@ Prelude is a UCI-compatible chess engine utilizing advanced search algorithms an
 
 ### Prerequisites
 
-- **C++ Compiler**: Requires support for C++17 or later.
+- **Make**: Uses make to build the executable.
+- **G++ Compiler**: Requires support for C++20 or later.
+- **CPU Architecture**: Requires support for AVX2 or later.
 - **Neural Network File**: Provide an NNUE and update the code to load it.
 
 ### Compilation
@@ -62,10 +63,10 @@ Prelude is a UCI-compatible chess engine utilizing advanced search algorithms an
    cd Prelude
    ```
 
-2. Compile using a C++ compiler:
+2. Compile using a G++ and make:
 
    ```bash
-   g++ -std=c++17 -O3 -pthread main.cpp -o Prelude
+   make
    ```
 
 3. Run the engine:
@@ -80,6 +81,7 @@ Prelude uses the UCI protocol but supports custom debugging and testing commands
 
 ### Custom Commands:
 
+- **`d`**: Display the current board position.
 - **`debug.gamestate`**: Inspect board state and legal moves.
 - **`perft <depth>`**: Test move generation accuracy to a specified depth.
 - **`bench <depth>`**: Evaluate engine speed across predefined positions.
@@ -98,7 +100,7 @@ Prelude supports customizable options via the `setoption` command:
 Ensure a NNUE file is correctly placed. Update its path in the code if necessary:
 
 ```cpp
-nn.loadNet("path/to/your.nnue");
+#define EVALFILE "./pathToYourNNUE.bin"
 ```
 
 ## Special Thanks
