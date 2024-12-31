@@ -197,7 +197,6 @@ static void setBit(BitboardType& bitboard, int index, bool value) {
 
 class Board;
 
-
 class Move {
     // Bit indexes of various things
     // See https://www.chessprogramming.org/Encoding_Moves
