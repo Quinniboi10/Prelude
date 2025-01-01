@@ -2672,24 +2672,26 @@ void iterativeDeepening(
     breakFlag.store(false);
     lastInfo = std::chrono::steady_clock::now();
     nodes = 0;
-    int timeToSpend = 0;
+    int hardLimit = 0;
     int softLimit = 0;
     auto start = std::chrono::steady_clock::now();
     std::string bestMoveAlgebra = "";
     if (wtime || btime) {
-        timeToSpend = board.side ? wtime / movesToGo : btime / movesToGo;
-        softLimit = timeToSpend * 0.65;
+        hardLimit = board.side ? wtime / movesToGo : btime / movesToGo;
+        hardLimit += board.side ? winc : binc;
+        softLimit = hardLimit * 0.65;
     }
     else if (mtime) {
-        timeToSpend = mtime;
-        softLimit = timeToSpend;
+        hardLimit = mtime;
+        softLimit = hardLimit;
     }
 
-    // timeToSpend is a hard limit
-    if (timeToSpend) {
-        // 100ms margin for GUI stuff, etc.
-        if (timeToSpend > 150) timeToSpend -= moveOverhead;
-        // If there is less than 100 ms left, just search 1 ply ahead with quiescence search
+    if (hardLimit) {
+        // Set margin for GUI stuff, canceling search, etc.
+        // Assumes max search time at depth 1 is 15 ms
+        if (hardLimit - moveOverhead > 15) hardLimit -= moveOverhead;
+        // If there is less than moveOverhead ms left, just search 1 ply ahead with quiescence search
+        // This search is very fast, usually around 5-15ms depending on the CPU and position
         else maxDepth = 1;
     }
 
@@ -2701,9 +2703,9 @@ void iterativeDeepening(
     // Cap the depth to 255
     maxDepth = std::min(255, maxDepth);
 
-    softLimit = std::min(softLimit, timeToSpend);
+    softLimit = std::min(softLimit, hardLimit);
 
-    SearchLimit sl = SearchLimit(std::chrono::steady_clock::now(), &breakFlag, timeToSpend, maxNodes);
+    SearchLimit sl = SearchLimit(std::chrono::steady_clock::now(), &breakFlag, hardLimit, maxNodes);
 
     for (int depth = 1; depth <= maxDepth; depth++) {
         move = go<true>(board, depth, -INF_INT, INF_INT, 0, &sl);
