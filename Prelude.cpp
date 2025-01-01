@@ -2527,6 +2527,9 @@ MoveEvaluation go(Board& board,
         return { Move(), entry->score };
     }
 
+    // Internal iterative reductions (+ 19 +- 10)
+    if (entry->zobristKey != board.zobrist && depth > 3) depth -= 1;
+
     if constexpr (!isPV) {
         // Reverse futility pruning (+ 32 elo +-34)
         int staticEval = board.evaluate();
@@ -2926,7 +2929,7 @@ int main(int argc, char* argv[]) {
             }
             TT.clear();
             for (auto& side : history) {
-                for (auto & from : side) {
+                for (auto& from : side) {
                     for (auto& to : from) {
                         to = 0;
                     }
