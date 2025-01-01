@@ -2527,7 +2527,7 @@ MoveEvaluation go(Board& board,
         return { Move(), entry->score };
     }
 
-    // Internal iterative reductions (+ n +- n)
+    // Internal iterative reductions (+ 19 +- 10)
     if (entry->zobristKey != board.zobrist && depth > 3) depth -= 1;
 
     if constexpr (!isPV) {
