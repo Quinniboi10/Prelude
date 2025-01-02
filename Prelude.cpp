@@ -37,25 +37,11 @@
 #include <cstring>
 #include <immintrin.h>
 
+#include "./external/incbin.h"
 
 #ifndef EVALFILE
 #define EVALFILE "./nnue.bin"
 #endif
-
-#ifdef _MSC_VER
-#define MSVC
-#pragma push_macro("_MSC_VER")
-#undef _MSC_VER
-#endif
-
-#include "./external/incbin.h"
-
-#ifdef MSVC
-#pragma pop_macro("_MSC_VER")
-#undef MSVC
-#endif
-
-INCBIN(EVAL, EVALFILE);
 
 #define ctzll(x) std::countr_zero(x)
 #define popcountll(x) std::popcount(x)
@@ -144,6 +130,10 @@ enum flags {
     UNDEFINED, FAILLOW, BETACUTOFF, EXACT
 };
 
+enum compiler {
+    MSVC, OTHER
+};
+
 struct shifts {
     static inline int NORTH = 8;
     static inline int NORTH_EAST = 9;
@@ -192,6 +182,14 @@ template <typename BitboardType>
 static void setBit(BitboardType& bitboard, int index, bool value) {
     if (value) bitboard |= (1ULL << index);
     else bitboard &= ~(1ULL << index);
+}
+
+constexpr compiler getCompilerInfo() {
+#if defined(_MSC_VER) && !defined(__clang__)
+    return MSVC;
+#else
+    return OTHER;
+#endif
 }
 
 class Board;
@@ -866,7 +864,7 @@ constexpr int activation = SCReLU;
 
 
 using Accumulator = array<i16, HL_SIZE>;
-// NNUE is not UEd yet
+
 class NNUE {
 public:
     alignas(32) array<i16, HL_SIZE * 768> weightsToHL;
@@ -927,6 +925,34 @@ public:
 
         weightsToOut.fill(1);
         outputBias = 0;
+    }
+
+    void loadNetwork(const std::string& filepath) {
+        std::ifstream stream(filepath, std::ios::binary);
+        if (!stream.is_open()) {
+            std::cerr << "Failed to open file: " + filepath << endl;
+            std::cerr << "Expect engine to not work as intended with bad evaluation" << endl;
+        }
+
+        // Load weightsToHL
+        for (size_t i = 0; i < weightsToHL.size(); ++i) {
+            weightsToHL[i] = read_little_endian<int16_t>(stream);
+        }
+
+        // Load hiddenLayerBias
+        for (size_t i = 0; i < hiddenLayerBias.size(); ++i) {
+            hiddenLayerBias[i] = read_little_endian<int16_t>(stream);
+        }
+
+        // Load weightsToOut
+        for (size_t i = 0; i < weightsToOut.size(); ++i) {
+            weightsToOut[i] = read_little_endian<int16_t>(stream);
+        }
+
+        // Load outputBias
+        outputBias = read_little_endian<int16_t>(stream);
+
+        cout << "Network loaded successfully from " << filepath << endl;
     }
 
     int forwardPass(Board* board);
@@ -2880,7 +2906,14 @@ int main(int argc, char* argv[]) {
     Board currentPos;
     Precomputed::compute();
     initializeAllDatabases();
+    #if getCompilerInfo() != MSVC
+        INCBIN(EVAL, EVALFILE);
+    }
     nn = *reinterpret_cast<const NNUE*>(gEVALData);
+    #else
+    nn.loadNetwork(EVALFILE);
+    #endif
+
     currentPos.reset();
     std::atomic<bool> breakFlag(false);
     std::optional<std::thread> searchThreadOpt;
@@ -2889,7 +2922,7 @@ int main(int argc, char* argv[]) {
         string arg1 = argv[1];
         if (arg1 == "bench") {
             // Start bench
-            bench(8);
+            bench(9);
 
             // Kill engine
             breakFlag.store(true);
@@ -3091,7 +3124,7 @@ int main(int argc, char* argv[]) {
             currentPos.makeNullMove();
         }
         else if (!parsedcommand.empty() && parsedcommand.at(0) == "bench") {
-            int depth = 7; // Default depth
+            int depth = 9; // Default depth
 
             if (parsedcommand.size() >= 2) {
                 depth = std::stoi(parsedcommand.at(1));
