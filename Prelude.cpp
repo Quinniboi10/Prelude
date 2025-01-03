@@ -46,7 +46,7 @@
 #define ctzll(x) std::countr_zero(x)
 #define popcountll(x) std::popcount(x)
 
-#define DEBUG true
+#define DEBUG false
 #define IFDBG if constexpr (DEBUG)
 
 using std::cerr;
@@ -1018,6 +1018,7 @@ public:
         outputBias = read_little_endian<int16_t>(stream);
 
         cout << "Network loaded successfully from " << filepath << endl;
+        std::cerr << "WARNING: You are using MSVC, this means that your nnue was NOT embedded into the exe." << endl;
     }
 
     int forwardPass(Board* board);
@@ -1435,9 +1436,9 @@ public:
         }
 
         Move bestMove = Move();
-        Transposition& TTEntry = *TT.getEntry(zobrist);
-        if (TTEntry.zobristKey == zobrist) {
-            bestMove = TTEntry.bestMove;
+        Transposition* TTEntry = TT.getEntry(zobrist);
+        if (TTEntry->zobristKey == zobrist) {
+            bestMove = TTEntry->bestMove;
         }
 
         // Initialize the prioritizedMoves list
@@ -2595,7 +2596,7 @@ int _qs(Board& board,
 }
 
 // Full search function
-template<bool isPV, bool isMainThread>
+template<bool isPV>
 MoveEvaluation go(Board& board,
     int depth,
     int alpha,
@@ -2639,7 +2640,7 @@ MoveEvaluation go(Board& board,
         if (board.canNullMove() && staticEval >= beta && !board.isInCheck() && popcountll(board.side ? board.white[0] : board.black[0]) + 1 != popcountll(board.side ? board.whitePieces : board.blackPieces)) {
             Board testBoard = board;
             testBoard.makeNullMove();
-            int eval = -go<false, isMainThread>(testBoard, depth - NMPReduction, -beta, -beta + 1, ply + 1, sl).eval;
+            int eval = -go<false>(testBoard, depth - NMPReduction, -beta, -beta + 1, ply + 1, sl).eval;
             if (eval >= beta) {
                 return { Move(), eval };
             }
@@ -2691,14 +2692,14 @@ MoveEvaluation go(Board& board,
 
         // Only run PVS with more than one move already searched
         if (movesMade == 1) {
-            eval = -go<true, isMainThread>(testBoard, depth - 1, -beta, -alpha, ply + 1, sl).eval;
+            eval = -go<true>(testBoard, depth - 1, -beta, -alpha, ply + 1, sl).eval;
         }
         else {
             // Principal variation search stuff
-            eval = -go<false, isMainThread>(testBoard, depth - 1 - depthReduction, -alpha - 1, -alpha, ply + 1, sl).eval;
+            eval = -go<false>(testBoard, depth - 1 - depthReduction, -alpha - 1, -alpha, ply + 1, sl).eval;
             // If it fails high and isPV or used reduction, go again with full bounds
             if (eval > alpha && (isPV || depthReduction > 0)) {
-                eval = -go<true, isMainThread>(testBoard, depth - 1, -beta, -alpha, ply + 1, sl).eval;
+                eval = -go<true>(testBoard, depth - 1, -beta, -alpha, ply + 1, sl).eval;
             }
         }
 
@@ -2808,7 +2809,7 @@ void iterativeDeepening(
     SearchLimit sl = SearchLimit(std::chrono::steady_clock::now(), &breakFlag, hardLimit, maxNodes);
 
     for (int depth = 1; depth <= maxDepth; depth++) {
-        move = go<true, true>(board, depth, -INF_INT, INF_INT, 0, &sl);
+        move = go<true>(board, depth, -INF_INT, INF_INT, 0, &sl);
 
         IFDBG m_assert(!move.move.isNull(), "Returned null move in search");
 
@@ -2833,6 +2834,24 @@ void iterativeDeepening(
         if (std::abs(bestMove.eval) >= MATE_SCORE - MAX_DEPTH) isMate = true;
 
         string ans;
+
+        if (breakFlag.load() && depth > 1) {
+            IFDBG cout << "Stopping search because of break flag" << endl;
+            break;
+        }
+
+        if (softLimit != 0 && depth > 1) {
+            auto now = std::chrono::steady_clock::now();
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count() >= softLimit) {
+                IFDBG cout << "Stopping search because of time limit" << endl;
+                break;
+            }
+        }
+
+        if (maxNodes > 0 && maxNodes <= nodes && depth > 1) {
+            IFDBG cout << "Stopping search because of node limit" << endl;
+            break;
+        }
 
         if (isUci && !searchQuiet) {
             ans = "info depth " + std::to_string(depth) + " nodes " + std::to_string(nodes) + " nps " + std::to_string(nps) + " time " + std::to_string((int)(elapsedNs / 1e6)) + " hashfull " + std::to_string((int)(TTused / (double)sampleSize * 1000));
@@ -2871,24 +2890,6 @@ void iterativeDeepening(
         }
 
         lastInfo = std::chrono::steady_clock::now();
-
-        if (breakFlag.load() && depth > 1) {
-            IFDBG cout << "Stopping search because of break flag" << endl;
-            break;
-        }
-
-        if (softLimit != 0 && depth > 1) {
-            auto now = std::chrono::steady_clock::now();
-            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count() >= softLimit) {
-                IFDBG cout << "Stopping search because of time limit" << endl;
-                break;
-            }
-        }
-
-        if (maxNodes > 0 && maxNodes <= nodes && depth > 1) {
-            IFDBG cout << "Stopping search because of node limit" << endl;
-            break;
-        }
 
         if (isMate) break;
     }
@@ -3008,7 +3009,7 @@ int main(int argc, char* argv[]) {
     Board currentPos;
     Precomputed::compute();
     initializeAllDatabases();
-#if defined(_MSC_VER) && !defined(__clang__)
+#if defined(_MSC_VER)
     nn.loadNetwork(EVALFILE);
 #else
     INCBIN(EVAL, EVALFILE);
