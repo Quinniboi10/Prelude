@@ -3015,10 +3015,21 @@ int main(int argc, char* argv[]) {
     INCBIN(EVAL, EVALFILE);
     nn = *reinterpret_cast<const NNUE*>(gEVALData);
 #endif
-
+    
     currentPos.reset();
     std::atomic<bool> breakFlag(false);
     std::optional<std::thread> searchThreadOpt;
+
+    auto stopSearch = [&]() {
+        breakFlag.store(true);
+        // Ensure the search thread is joined before exiting
+        if (searchThreadOpt.has_value()) {
+            if (searchThreadOpt->joinable()) {
+                searchThreadOpt->join();
+            }
+            searchThreadOpt.reset();
+        }
+    };
 
     if (argc > 1) {
         string arg1 = argv[1];
@@ -3027,13 +3038,7 @@ int main(int argc, char* argv[]) {
             bench(9);
 
             // Kill engine
-            breakFlag.store(true);
-            // Ensure the search thread is joined before exiting
-            if (searchThreadOpt.has_value()) {
-                if (searchThreadOpt->joinable()) {
-                    searchThreadOpt->join();
-                }
-            }
+            stopSearch();
             return 0;
         }
     }
@@ -3060,14 +3065,9 @@ int main(int argc, char* argv[]) {
             isUci = true;
             breakFlag.store(false);
             movesToGo = 20;
-            if (searchThreadOpt.has_value()) {
-                if (searchThreadOpt->joinable()) {
-                    breakFlag.store(true);
-                    searchThreadOpt->join();
-                    breakFlag.store(false);
-                }
-                searchThreadOpt.reset();
-            }
+
+            stopSearch();
+
             TT.clear();
             for (auto& side : history) {
                 for (auto& from : side) {
@@ -3115,14 +3115,7 @@ int main(int argc, char* argv[]) {
         }
         else if (!parsedcommand.empty() && parsedcommand.at(0) == "go") { // Handle "go" command
             // If a search thread is already running, wait for it to finish
-            if (searchThreadOpt.has_value()) {
-                if (searchThreadOpt->joinable()) {
-                    breakFlag.store(true);
-                    searchThreadOpt->join();
-                    breakFlag.store(false);
-                }
-                searchThreadOpt.reset();
-            }
+            stopSearch();
 
             int maxNodes = -1;
             int depth = INF_INT;
@@ -3177,21 +3170,12 @@ int main(int argc, char* argv[]) {
         else if (command == "stop") {
             breakFlag.store(true);
             // Optionally, join the search thread to ensure it has stopped
-            if (searchThreadOpt.has_value()) {
-                if (searchThreadOpt->joinable()) {
-                    searchThreadOpt->join();
-                }
-                searchThreadOpt.reset();
-            }
+            stopSearch();
         }
         else if (command == "quit") {
             breakFlag.store(true);
             // Ensure the search thread is joined before exiting
-            if (searchThreadOpt.has_value()) {
-                if (searchThreadOpt->joinable()) {
-                    searchThreadOpt->join();
-                }
-            }
+            stopSearch();
             return 0;
         }
         else if (command == "debug.gamestate") {
