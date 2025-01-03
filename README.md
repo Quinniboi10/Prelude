@@ -11,39 +11,43 @@ Prelude is a UCI-compatible chess engine utilizing advanced search algorithms an
 ### CLI Commands:
 
 1. Functional UCI implementation with custom commands:
-   - **`debug.gamestate`**: Displays the current board state and game metadata.
-   - **`perft <depth>`**: Performs a perft test from the current position.
-   - **`perftsuite <suite>`**: Executes a suite of perft tests.
-   - **`bench <depth>`**: Benchmarks engine performance on test positions.
-   - **`position kiwipete`**: Loads the famous "Kiwipete" position.
+   - **`d`**: Display the current board position.
    - **`move <move>`**: Applies a move in long algebraic notation.
-   - **`debug.moves`**: Lists all legal moves for the current position.
+   - **`bulk <depth>`**: Starts a perft test from the current position using bulk counting.
+   - **`perft <depth>`**: Performs a perft test from the current position.
+   - **`perftsuite <suite>`**: Executes a suite of perft tests*.
+   - **`bench <depth>`**: Benchmarks engine performance on test positions.
+   - **`position kiwipete`**: Loads the "Kiwipete" position, commonly used for debugging.
+   - **`debug.gamestate`**: Displays the current board state and game metadata.
+   - **`debug.moves`**: Lists **all moves**\*\* for the current position.
    - **`debug.eval`**: Outputs the evaluation of the current position.
-   - **`debug.popcnt`**: Displays piece counts for both sides.
+   - **`debug.popcnt`**: Displays piece counts for both sides.  
+*Uses bulk counting  
+\*\*All pseudolegal moves  
 
 ### Board Representation:
 
 1. Bitboard implementation.
-2. Zobrist hashing for fast position recognition.
-3. Incremental NNUE updates.
+2. Incremental zobrist hashing for fast position recognition.
+3. Efficient NNUE updates.
 
 ### Search Algorithms:
 
 1. Fail-soft Principal Variation Search (PVS) with alpha-beta pruning.
-2. Transposition Table (TT) with configurable size.
+2. Transposition Table (TT) used for move ordering and cutoffs.
 3. Null move pruning, reverse futility pruning, with more to come.
 4. Iterative deepening.
 5. Quiescence search.
 
 ### Evaluation:
 
-1. NNUE evaluation for accurate and deep positional analysis
+1. NNUE evaluation
 2. Currently uses a 1024HL perspective net trained by Ciekce
 
 ### Move Ordering:
 
 1. TT best move prioritization.
-2. Most valuable victim - least valuable attacker prioritization for captures.
+2. Most valuable victim - least valuable attacker (MVVLVA) prioritization for captures.
 
 ## Installation
 
@@ -52,7 +56,7 @@ Prelude is a UCI-compatible chess engine utilizing advanced search algorithms an
 - **Make**: Uses make to build the executable.
 - **G++ Compiler**: Requires support for C++20 or later.
 - **CPU Architecture**: Requires support for AVX2 or later.
-- **Neural Network File**: Provide an NNUE and update the code to load it.
+- **Neural Network File**: Provide an NNUE and update the code to load it (included nnue.bin is recommended).
 
 ### Compilation
 
@@ -77,16 +81,7 @@ Prelude is a UCI-compatible chess engine utilizing advanced search algorithms an
 
 ## Usage
 
-Prelude uses the UCI protocol but supports custom debugging and testing commands. Compatible with GUIs like Cute Chess, En Croissant, or any UCI-compatible interface.
-
-### Custom Commands:
-
-- **`d`**: Display the current board position.
-- **`debug.gamestate`**: Inspect board state and legal moves.
-- **`perft <depth>`**: Test move generation accuracy to a specified depth.
-- **`bench <depth>`**: Evaluate engine speed across predefined positions.
-- **`move <move>`**: Apply a move to the current board state.
-- **`debug.eval`**: Analyze position evaluation score.
+Prelude uses the UCI protocol but supports custom debugging and testing commands. Compatible with GUIs like Cute Chess, En Croissant, or any UCI-compatible interface. See above commands.
 
 ## Configuration
 
