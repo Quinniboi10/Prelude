@@ -310,7 +310,7 @@ string formatTime(int timeInMS) {
     const double hrs = timeInMS / (1000.0 * 60 * 60);
     const double mins = timeInMS / (1000.0 * 60);
     const double secs = timeInMS / 1000.0;
-    if (timeInMS > 1000 * 60 *60) return std::format("{:.4f}h", hrs); // hrs
+    if (timeInMS > 1000 * 60 * 60) return std::format("{:.4f}h", hrs); // hrs
     if (timeInMS > 1000 * 60) return std::format("{:.2f}m", mins); // mins
     if (timeInMS > 1000) return std::format("{:.2f}s", secs); // secs
     return std::to_string(timeInMS) + "ms"; // ms
@@ -883,7 +883,7 @@ private:
 public:
     size_t size;
 
-    TranspositionTable(size_t sizeInMB = 16) {
+    TranspositionTable(float sizeInMB = 16) {
         resize(sizeInMB);
     }
 
@@ -891,18 +891,17 @@ public:
         table.clear();
     }
 
-    void resize(size_t newSizeMiB) {
+    void resize(float newSizeMiB) {
         // Find number of bytes allowed
         size = newSizeMiB * 1024 * 1024;
         // Divide by size of transposition entry
         size /= sizeof(Transposition);
-        // Add one just to make sure to avoid div by 0
-        size += 1;
+        if (size == 0) size += 1;
+        IFDBG cout << "Using transposition table with " << formatNum(size) << " entries" << endl;
         table.resize(size);
     }
 
     int index(u64 key, u64 size) {
-        // Could improve performance: return key >= size ? key % size : key;
         return key % size;
     }
 
@@ -2596,7 +2595,7 @@ int _qs(Board& board,
 }
 
 // Full search function
-template<bool isPV>
+template<bool isPV, bool isMainThread>
 MoveEvaluation go(Board& board,
     int depth,
     int alpha,
@@ -2640,7 +2639,7 @@ MoveEvaluation go(Board& board,
         if (board.canNullMove() && staticEval >= beta && !board.isInCheck() && popcountll(board.side ? board.white[0] : board.black[0]) + 1 != popcountll(board.side ? board.whitePieces : board.blackPieces)) {
             Board testBoard = board;
             testBoard.makeNullMove();
-            int eval = -go<false>(testBoard, depth - NMPReduction, -beta, -beta + 1, ply + 1, sl).eval;
+            int eval = -go<false, isMainThread>(testBoard, depth - NMPReduction, -beta, -beta + 1, ply + 1, sl).eval;
             if (eval >= beta) {
                 return { Move(), eval };
             }
@@ -2692,14 +2691,14 @@ MoveEvaluation go(Board& board,
 
         // Only run PVS with more than one move already searched
         if (movesMade == 1) {
-            eval = -go<true>(testBoard, depth - 1, -beta, -alpha, ply + 1, sl).eval;
+            eval = -go<true, isMainThread>(testBoard, depth - 1, -beta, -alpha, ply + 1, sl).eval;
         }
         else {
             // Principal variation search stuff
-            eval = -go<false>(testBoard, depth - 1 - depthReduction, -alpha - 1, -alpha, ply + 1, sl).eval;
+            eval = -go<false, isMainThread>(testBoard, depth - 1 - depthReduction, -alpha - 1, -alpha, ply + 1, sl).eval;
             // If it fails high and isPV or used reduction, go again with full bounds
             if (eval > alpha && (isPV || depthReduction > 0)) {
-                eval = -go<true>(testBoard, depth - 1, -beta, -alpha, ply + 1, sl).eval;
+                eval = -go<true, isMainThread>(testBoard, depth - 1, -beta, -alpha, ply + 1, sl).eval;
             }
         }
 
@@ -2731,12 +2730,13 @@ MoveEvaluation go(Board& board,
             auto now = std::chrono::steady_clock::now();
             if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastInfo).count() >= msInfoInterval) {
                 int TTused = 0;
-                for (int i = 0; i < TT.size; i++) {
+                int sampleSize = TT.size > 2000 ? 2000 : TT.size;
+                for (int i = 0; i < sampleSize; i++) {
                     if (TT.getEntry(i)->zobristKey != 0) TTused++;
                 }
                 double elapsedMs = (double)std::chrono::duration_cast<std::chrono::milliseconds>(now - sl->searchStart).count();
                 int nps = (int)((double)nodes / (elapsedMs / 1000));
-                if (!searchQuiet && isUci) cout << "info depth " << depth << " nodes " << nodes << " nps " << nps << " time " << std::to_string((int)elapsedMs) << " hashfull " << (int)(TTused / (double)TT.size * 1000) << " currmove " << m.toString() << endl;
+                if (!searchQuiet && isUci) cout << "info depth " << depth << " nodes " << nodes << " nps " << nps << " time " << std::to_string((int)elapsedMs) << " hashfull " << (int)(TTused / (double)sampleSize * 1000) << " currmove " << m.toString() << endl;
             }
         }
     }
@@ -2808,7 +2808,7 @@ void iterativeDeepening(
     SearchLimit sl = SearchLimit(std::chrono::steady_clock::now(), &breakFlag, hardLimit, maxNodes);
 
     for (int depth = 1; depth <= maxDepth; depth++) {
-        move = go<true>(board, depth, -INF_INT, INF_INT, 0, &sl);
+        move = go<true, true>(board, depth, -INF_INT, INF_INT, 0, &sl);
 
         IFDBG m_assert(!move.move.isNull(), "Returned null move in search");
 
@@ -2824,7 +2824,8 @@ void iterativeDeepening(
         bool isMate = false;
 
         int TTused = 0;
-        for (int i = 0; i < TT.size; i++) {
+        int sampleSize = TT.size > 2000 ? 2000 : TT.size;
+        for (int i = 0; i < sampleSize; i++) {
             if (TT.getEntry(i)->zobristKey != 0) TTused++;
         }
 
@@ -2834,7 +2835,7 @@ void iterativeDeepening(
         string ans;
 
         if (isUci && !searchQuiet) {
-            ans = "info depth " + std::to_string(depth) + " nodes " + std::to_string(nodes) + " nps " + std::to_string(nps) + " time " + std::to_string((int)(elapsedNs / 1e6)) + " hashfull " + std::to_string((int)(TTused / (double)TT.size * 1000));
+            ans = "info depth " + std::to_string(depth) + " nodes " + std::to_string(nodes) + " nps " + std::to_string(nps) + " time " + std::to_string((int)(elapsedNs / 1e6)) + " hashfull " + std::to_string((int)(TTused / (double)sampleSize * 1000));
 
             if (isMate) {
                 ans += " score mate " + std::to_string((bestMove.eval > 0) ? (depth / 2) : -(depth / 2));
@@ -2849,18 +2850,18 @@ void iterativeDeepening(
         }
         else if (!searchQuiet) {
             cout << std::fixed << std::setprecision(2);
-            const double hashPercent = TTused / (double)TT.size * 100;
+            const double hashPercent = TTused / (double)sampleSize * 100;
             const string fancyEval = (bestMove.eval > 0 ? '+' : '\0') + std::format("{:.2f}", bestMove.eval / 100.0);
             if (!searchQuiet) {
                 cout << padStr(formatNum(depth), 7);
                 cout << Colors::grey;
                 cout << padStr(formatTime((int)(elapsedNs / 1e6)), 8);
                 cout << padStr(abbreviateNum(nodes) + "nodes", 14);
-                cout << padStr(abbreviateNum(nps) + "nps", 14) ;
+                cout << padStr(abbreviateNum(nps) + "nps", 14);
                 cout << Colors::cyan;
                 cout << "TT: ";
                 cout << Colors::grey;
-                cout << padStr(std::format("{:.2f}%", hashPercent), 9);
+                cout << padStr(std::format("{:.1f}%", hashPercent), 9);
                 cout << Colors::bright_green;
                 cout << padStr(fancyEval, 7);
                 cout << Colors::blue;
@@ -2892,8 +2893,8 @@ void iterativeDeepening(
         if (isMate) break;
     }
 
-    if (!searchQuiet && !isUci) std::cout << "bestmove " << bestMoveAlgebra << std::endl;
-    breakFlag.store(false);
+    if (!searchQuiet && isUci) std::cout << "bestmove " << bestMoveAlgebra << std::endl;
+    breakFlag.store(true);
 }
 
 // ****** BENCH STUFF ******
@@ -3008,10 +3009,10 @@ int main(int argc, char* argv[]) {
     Precomputed::compute();
     initializeAllDatabases();
 #if defined(_MSC_VER) && !defined(__clang__)
+    nn.loadNetwork(EVALFILE);
+#else
     INCBIN(EVAL, EVALFILE);
     nn = *reinterpret_cast<const NNUE*>(gEVALData);
-#else
-    nn.loadNetwork(EVALFILE);
 #endif
 
     currentPos.reset();
@@ -3054,6 +3055,8 @@ int main(int argc, char* argv[]) {
             cout << "readyok" << endl;
         }
         else if (command == "ucinewgame") {
+            searchQuiet = false;
+            isUci = true;
             breakFlag.store(false);
             movesToGo = 20;
             if (searchThreadOpt.has_value()) {
@@ -3076,7 +3079,7 @@ int main(int argc, char* argv[]) {
         else if (parsedcommand.at(0) == "setoption") {
             // Assumes setoption name ...
             if (parsedcommand.at(2) == "Hash") {
-                TT = TranspositionTable(stoi(parsedcommand.at(findIndexOf(parsedcommand, "Hash") + 2)));
+                TT = TranspositionTable(stof(parsedcommand.at(findIndexOf(parsedcommand, "Hash") + 2)));
             }
             else if (parsedcommand.at(2) == "Move" && parsedcommand.at(3) == "Overhead") {
                 moveOverhead = stoi(parsedcommand.at(findIndexOf(parsedcommand, "Overhead") + 2));
@@ -3229,7 +3232,7 @@ int main(int argc, char* argv[]) {
             int depth = 9; // Default depth
 
             if (parsedcommand.size() >= 2) {
-                depth = std::stoi(parsedcommand.at(1));
+                depth = stoi(parsedcommand.at(1));
             }
 
             // Start benchmarking
