@@ -109,5 +109,3 @@ Ensure a NNUE file is correctly placed. Update its path in the code if necessary
 ## License
 
 Prelude is released under the GNU 3 License. See `LICENSE` for details.
-
----
