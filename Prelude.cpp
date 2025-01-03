@@ -165,6 +165,33 @@ struct indexes {
     static inline array<int, 4> diagonalDirs = { NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST };
 };
 
+struct Colors {
+    // ANSI codes for colors https://raw.githubusercontent.com/fidian/ansi/master/images/color-codes.png
+    constexpr static const string reset = "\033[0m";
+
+    // Basic colors
+    constexpr static const string black = "\033[30m";
+    constexpr static const string red = "\033[31m";
+    constexpr static const string green = "\033[32m";
+    constexpr static const string yellow = "\033[33m";
+    constexpr static const string blue = "\033[34m";
+    constexpr static const string magenta = "\033[35m";
+    constexpr static const string cyan = "\033[36m";
+    constexpr static const string white = "\033[37m";
+
+    // Bright colors
+    constexpr static const string bright_black = "\033[90m";
+    constexpr static const string bright_red = "\033[91m";
+    constexpr static const string bright_green = "\033[92m";
+    constexpr static const string bright_yellow = "\033[93m";
+    constexpr static const string bright_blue = "\033[94m";
+    constexpr static const string bright_magenta = "\033[95m";
+    constexpr static const string bright_cyan = "\033[96m";
+    constexpr static const string bright_white = "\033[97m";
+
+    constexpr static const string grey = bright_black;
+};
+
 static int parseSquare(const string& square) {
     return (square.at(1) - '1') * 8 + (square.at(0) - 'a'); // Calculate the index of any square
 }
@@ -182,14 +209,6 @@ template <typename BitboardType>
 static void setBit(BitboardType& bitboard, int index, bool value) {
     if (value) bitboard |= (1ULL << index);
     else bitboard &= ~(1ULL << index);
-}
-
-constexpr compiler getCompilerInfo() {
-#if defined(_MSC_VER) && !defined(__clang__)
-    return MSVC;
-#else
-    return OTHER;
-#endif
 }
 
 class Board;
@@ -238,6 +257,32 @@ std::deque<string> split(const string& s, char delim) {
     return result;
 }
 
+int getPadding(string str, int targetLen) {
+    targetLen -= str.length();
+    return std::max(targetLen, 2);
+}
+
+template<typename objType>
+string padStr(objType obj, int targetLen) {
+    std::string objStr;
+    if constexpr (std::is_same_v<objType, std::string> || std::is_same_v<objType, std::basic_string<char>>) {
+        objStr = obj; // Strings make everything explode
+    }
+    else {
+        objStr = std::to_string(obj); // Convert other types
+    }
+    int padding = getPadding(objStr, targetLen);
+    for (int i = 0; i < padding; i++) {
+        objStr += " ";
+    }
+    return objStr;
+}
+
+template<typename objType>
+int getLength(objType obj) {
+    return std::to_string(obj).length();
+}
+
 template<typename arrType>
 int findIndexOf(const arrType arr, string entry) {
     auto it = std::find(arr.begin(), arr.end(), entry);
@@ -261,15 +306,35 @@ void printBitboard(u64 bitboard) {
     cout << "+---+---+---+---+---+---+---+---+" << endl;
 }
 
-string formatNum(u64 v) {
+string formatTime(int timeInMS) {
+    const double hrs = timeInMS / (1000.0 * 60 * 60);
+    const double mins = timeInMS / (1000.0 * 60);
+    const double secs = timeInMS / 1000.0;
+    if (timeInMS > 1000 * 60 *60) return std::format("{:.4f}h", hrs); // hrs
+    if (timeInMS > 1000 * 60) return std::format("{:.2f}m", mins); // mins
+    if (timeInMS > 1000) return std::format("{:.2f}s", secs); // secs
+    return std::to_string(timeInMS) + "ms"; // ms
+}
+
+string formatNum(i64 v) {
     auto s = std::to_string(v);
 
     int n = s.length() - 3;
+    if (v < 0) n--;
     while (n > 0) {
         s.insert(n, ",");
         n -= 3;
     }
+
     return s;
+}
+
+string abbreviateNum(const i64 v) {
+    if (v > 1000000000) return std::format("{:.2f} g", v / 1000000000.0);
+    if (v > 1000000) return std::format("{:.2f} m", v / 1000000.0);
+    if (v > 1000) return std::format("{:.2f} k", v / 1000.0);
+
+    return std::to_string(v) + " ";
 }
 
 class Precomputed {
@@ -836,7 +901,8 @@ public:
         table.resize(size);
     }
 
-    int index(u64 key, int size) {
+    int index(u64 key, u64 size) {
+        // Could improve performance: return key >= size ? key % size : key;
         return key % size;
     }
 
@@ -2418,8 +2484,13 @@ void perftSuite(const string& filePath) {
 
 // ****** SEARCH FUNCTIONS ******
 constexpr int RFPMargin = 75;
-constexpr int NMPReduction = 3;
-constexpr int MAX_HISTORY = 50;
+constexpr int NMPReduction = 3; // NMP depth reduction
+constexpr int MAX_HISTORY = 50; // Max history bonus
+
+constexpr int MATE_SCORE = 99999;
+constexpr int MAX_DEPTH = 255;
+
+bool isUci = false; // Flag to represent if output should be human or UCI
 bool searchQuiet = false; // This flag is used for benchmarks so it searches without output
 
 struct SearchLimit {
@@ -2665,20 +2736,23 @@ MoveEvaluation go(Board& board,
                 }
                 double elapsedMs = (double)std::chrono::duration_cast<std::chrono::milliseconds>(now - sl->searchStart).count();
                 int nps = (int)((double)nodes / (elapsedMs / 1000));
-                if (!searchQuiet) cout << "info depth " << depth << " nodes " << nodes << " nps " << nps << " time " << std::to_string((int)elapsedMs) << " hashfull " << (int)(TTused / (double)TT.size * 1000) << " currmove " << m.toString() << endl;
+                if (!searchQuiet && isUci) cout << "info depth " << depth << " nodes " << nodes << " nps " << nps << " time " << std::to_string((int)elapsedMs) << " hashfull " << (int)(TTused / (double)TT.size * 1000) << " currmove " << m.toString() << endl;
             }
         }
     }
 
     if (!movesMade) {
         if (board.isInCheck()) {
-            return { Move(), -99999 };
+            return { Move(), -MATE_SCORE };
         }
         return { Move(), 0 };
     }
 
-    // Uses entry that was already gathered above
+    // Uses entry that was already fetched above
     *entry = Transposition(board.zobrist, bestMove, flag, bestEval, depth);
+
+    // Clamp to prevent detecting mate
+    bestEval = std::clamp(bestEval, -MATE_SCORE + MAX_DEPTH, MATE_SCORE - MAX_DEPTH);
 
     return { bestMove, bestEval };
 }
@@ -2754,20 +2828,47 @@ void iterativeDeepening(
             if (TT.getEntry(i)->zobristKey != 0) TTused++;
         }
 
-        string ans = "info depth " + std::to_string(depth) + " nodes " + std::to_string(nodes) + " nps " + std::to_string(nps) + " time " + std::to_string((int)(elapsedNs / 1e6)) + " hashfull " + std::to_string((int)(TTused / (double)TT.size * 1000));
+        // The -MAX_DEPTH is not needed as of present, however it is there to ensure that later on in the case of unsound search, earlier mates will be prefered
+        if (std::abs(bestMove.eval) >= MATE_SCORE - MAX_DEPTH) isMate = true;
 
-        if (std::abs(bestMove.eval) >= 90000) {
-            // Assume large positive value is mate
-            ans += " score mate " + std::to_string((bestMove.eval > 0) ? (depth / 2) : -(depth / 2));
-            isMate = true;
+        string ans;
+
+        if (isUci && !searchQuiet) {
+            ans = "info depth " + std::to_string(depth) + " nodes " + std::to_string(nodes) + " nps " + std::to_string(nps) + " time " + std::to_string((int)(elapsedNs / 1e6)) + " hashfull " + std::to_string((int)(TTused / (double)TT.size * 1000));
+
+            if (isMate) {
+                ans += " score mate " + std::to_string((bestMove.eval > 0) ? (depth / 2) : -(depth / 2));
+            }
+            else {
+                ans += " score cp " + std::to_string(bestMove.eval);
+            }
+
+            ans += " pv " + bestMoveAlgebra;
+
+            cout << ans << endl;
         }
-        else {
-            ans += " score cp " + std::to_string(bestMove.eval);
+        else if (!searchQuiet) {
+            cout << std::fixed << std::setprecision(2);
+            const double hashPercent = TTused / (double)TT.size * 100;
+            const string fancyEval = (bestMove.eval > 0 ? '+' : '\0') + std::format("{:.2f}", bestMove.eval / 100.0);
+            if (!searchQuiet) {
+                cout << padStr(formatNum(depth), 7);
+                cout << Colors::grey;
+                cout << padStr(formatTime((int)(elapsedNs / 1e6)), 8);
+                cout << padStr(abbreviateNum(nodes) + "nodes", 14);
+                cout << padStr(abbreviateNum(nps) + "nps", 14) ;
+                cout << Colors::cyan;
+                cout << "TT: ";
+                cout << Colors::grey;
+                cout << padStr(std::format("{:.2f}%", hashPercent), 9);
+                cout << Colors::bright_green;
+                cout << padStr(fancyEval, 7);
+                cout << Colors::blue;
+                cout << bestMoveAlgebra;
+            }
+            cout << Colors::reset << std::defaultfloat << std::setprecision(6) << endl;
         }
 
-        ans += " pv " + bestMoveAlgebra;
-
-        if (!searchQuiet) cout << ans << endl;
         lastInfo = std::chrono::steady_clock::now();
 
         if (breakFlag.load() && depth > 1) {
@@ -2791,12 +2892,12 @@ void iterativeDeepening(
         if (isMate) break;
     }
 
-    if (!searchQuiet) std::cout << "bestmove " << bestMoveAlgebra << std::endl;
+    if (!searchQuiet && !isUci) std::cout << "bestmove " << bestMoveAlgebra << std::endl;
     breakFlag.store(false);
 }
 
 // ****** BENCH STUFF ******
-void bench(int depth = 7) {
+void bench(int depth) {
     searchQuiet = true;
 
     u64 totalNodes = 0;
@@ -2906,13 +3007,12 @@ int main(int argc, char* argv[]) {
     Board currentPos;
     Precomputed::compute();
     initializeAllDatabases();
-    #if getCompilerInfo() != MSVC
-        INCBIN(EVAL, EVALFILE);
-    }
+#if defined(_MSC_VER) && !defined(__clang__)
+    INCBIN(EVAL, EVALFILE);
     nn = *reinterpret_cast<const NNUE*>(gEVALData);
-    #else
+#else
     nn.loadNetwork(EVALFILE);
-    #endif
+#endif
 
     currentPos.reset();
     std::atomic<bool> breakFlag(false);
@@ -2939,8 +3039,10 @@ int main(int argc, char* argv[]) {
     cout << "Prelude ready and awaiting commands" << endl;
     while (true) {
         std::getline(std::cin, command);
+        if (command == "") continue;
         parsedcommand = split(command, ' ');
         if (command == "uci") {
+            isUci = true;
             cout << "id name Prelude" << endl;
             cout << "id author Quinniboi10" << endl;
             cout << "option name Threads type spin default 1 min 1 max 1" << endl;
