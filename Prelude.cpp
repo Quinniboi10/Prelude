@@ -43,6 +43,10 @@
 #define EVALFILE "./nnue.bin"
 #endif
 
+#if !defined(_MSC_VER)
+INCBIN(EVAL, EVALFILE);
+#endif
+
 #define ctzll(x) std::countr_zero(x)
 #define popcountll(x) std::popcount(x)
 
@@ -3012,7 +3016,6 @@ int main(int argc, char* argv[]) {
 #if defined(_MSC_VER)
     nn.loadNetwork(EVALFILE);
 #else
-    INCBIN(EVAL, EVALFILE);
     nn = *reinterpret_cast<const NNUE*>(gEVALData);
 #endif
     
