@@ -73,6 +73,7 @@ using i16 = int16_t;
 constexpr u64 INF = std::numeric_limits<uint64_t>::max();
 constexpr int INF_INT = std::numeric_limits<int>::max();
 
+
 enum Color : int {
     WHITE = 1, BLACK = 0
 };
@@ -2629,6 +2630,23 @@ MoveEvaluation go(Board& board,
 
     // Internal iterative reductions (+ 19 +- 10)
     if (entry->zobristKey != board.zobrist && depth > 3) depth -= 1;
+
+    // Mate distance pruning (+ n +- n)
+    if (ply > 0) {
+        int mateValue = MATE_SCORE - ply;
+
+        if (mateValue < beta) {
+            beta = mateValue;
+            if (alpha >= mateValue) return { Move(), mateValue };
+        }
+
+        mateValue = -mateValue;
+
+        if (mateValue > alpha) {
+            alpha = mateValue;
+            if (beta <= mateValue) return { Move(), mateValue };
+        }
+    }
 
     if constexpr (!isPV) {
         // Reverse futility pruning (+ 32 elo +-34)
