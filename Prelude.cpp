@@ -2843,15 +2843,15 @@ void iterativeDeepening(
 
         bestMoveAlgebra = bestMove.move.toString();
 
-        bool isMate = false;
-
         int TTused = 0;
         int sampleSize = TT.size > 2000 ? 2000 : TT.size;
         for (int i = 0; i < sampleSize; i++) {
             if (TT.getEntry(i)->zobristKey != 0) TTused++;
         }
 
-        // The -MAX_DEPTH is not needed as of present, however it is there to ensure that later on in the case of unsound search, earlier mates will be prefered
+        bool isMate = false;
+
+        // The -MAX_DEPTH is in the case of unsound search, earlier mates will be prefered
         if (std::abs(bestMove.eval) >= MATE_SCORE - MAX_DEPTH) isMate = true;
 
         string ans;
@@ -2911,8 +2911,6 @@ void iterativeDeepening(
         }
 
         lastInfo = std::chrono::steady_clock::now();
-
-        if (isMate) break;
     }
 
     if (!searchQuiet && isUci) std::cout << "bestmove " << bestMoveAlgebra << std::endl;
@@ -3035,7 +3033,7 @@ int main(int argc, char* argv[]) {
 #else
     nn = *reinterpret_cast<const NNUE*>(gEVALData);
 #endif
-    
+
     currentPos.reset();
     std::atomic<bool> breakFlag(false);
     std::optional<std::thread> searchThreadOpt;
@@ -3049,7 +3047,7 @@ int main(int argc, char* argv[]) {
             }
             searchThreadOpt.reset();
         }
-    };
+        };
 
     if (argc > 1) {
         string arg1 = argv[1];
