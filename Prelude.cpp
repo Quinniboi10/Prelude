@@ -73,7 +73,6 @@ using i16 = int16_t;
 constexpr u64 INF = std::numeric_limits<uint64_t>::max();
 constexpr int INF_INT = std::numeric_limits<int>::max();
 
-
 enum Color : int {
     WHITE = 1, BLACK = 0
 };
