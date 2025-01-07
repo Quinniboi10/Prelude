@@ -35,6 +35,7 @@
 #include <memory>
 #include <random>
 #include <cstring>
+#include <cstdlib>
 #include <immintrin.h>
 
 #include "./external/incbin.h"
@@ -50,7 +51,7 @@ INCBIN(EVAL, EVALFILE);
 #define ctzll(x) std::countr_zero(x)
 #define popcountll(x) std::popcount(x)
 
-#define DEBUG true
+#define DEBUG false
 #define IFDBG if constexpr (DEBUG)
 
 using std::cerr;
@@ -3158,7 +3159,7 @@ void writeToFile(const string& filePath, const std::vector<DataUnit>& data) {
     // Check if the file was opened successfully
     if (!outFile.is_open()) {
         std::cerr << "Error: Could not open the file " << filePath << " for writing." << std::endl;
-        return;
+        exit(-1);
     }
 
     for (const auto& dataUnit : data) {
@@ -3168,8 +3169,8 @@ void writeToFile(const string& filePath, const std::vector<DataUnit>& data) {
     outFile.close();
 }
 
-void playGames(string filePath = "") {
-    if (filePath == "") makeFileName(); // Should be added as a cli param later
+void playGames() {
+    string filePath = makeFileName(); // Should be added as a cli param later
 
     std::atomic<bool> breakFlag(false);
     Board board;
@@ -3178,6 +3179,7 @@ void playGames(string filePath = "") {
     searchQuiet = true;
 
     std::vector<DataUnit> outputBuffer;
+    std::atomic<bool> bufferLock(false);
 
     auto startTime = std::chrono::steady_clock::now();
 
@@ -3266,13 +3268,24 @@ void playGames(string filePath = "") {
             if (board.isDraw()) finalData += "0.5";
             else if (board.side == WHITE) finalData += "0"; // White was STM when game was over, so white loses
             else finalData += "1";
+
+            while (bufferLock.load()) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            bufferLock.store(true);
+
             outputBuffer.push_back(DataUnit(finalData));
+
+            bufferLock.store(false);
         }
         if (outputBuffer.size() > clearBufferEvery) {
+            while (bufferLock.load()) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            bufferLock.store(true);
+
             writeToFile(filePath, outputBuffer);
             cachedPositions = 0;
             savedPositions += outputBuffer.size();
             outputBuffer.clear();
+
+            bufferLock.store(false);
         }
     }
 }
