@@ -248,6 +248,10 @@ public:
     MoveType typeOf() { return MoveType(move >> 12); } // Return the flag bits
 
     bool isNull() { return !move; }
+
+    bool operator==(const Move other) const {
+        return move == other.move;
+    }
 };
 
 std::deque<string> split(const string& s, char delim) {
@@ -835,8 +839,12 @@ struct MoveList {
         return moves[index];
     }
 
-    Move back() {
-        return moves[count];
+    int find(const Move entry) {
+        auto it = std::find(moves.begin(), moves.begin() + count, entry);
+        if (it != moves.begin() + count) {
+            return std::distance(moves.begin(), it);
+        }
+        return -1;
     }
 
     void sortByString(Board& board) {
@@ -1420,7 +1428,7 @@ public:
             return allMoves;
         }
 
-        MoveList captures, quietMoves;
+        MoveList prioritizedMoves, captures, quietMoves;
         generatePawnMoves(allMoves);
         generateKnightMoves(allMoves);
         generateBishopMoves(allMoves);
@@ -1441,15 +1449,10 @@ public:
 
         Move bestMove = Move();
         Transposition* TTEntry = TT.getEntry(zobrist);
-        if (TTEntry->zobristKey == zobrist) {
-            bestMove = TTEntry->bestMove;
+        if (TTEntry->zobristKey == zobrist && allMoves.find(TTEntry->bestMove) != -1) {
+            prioritizedMoves.add(TTEntry->bestMove);
         }
-
-        // Initialize the prioritizedMoves list
-        MoveList prioritizedMoves;
-
-        // Add bestMove first, it will be removed as it is null
-        prioritizedMoves.add(bestMove);
+        
 
         std::sort(captures.moves.begin(), captures.moves.begin() + captures.count, [this](Move& a, Move& b) { return evaluateMVVLVA(a) > evaluateMVVLVA(b); });
 
@@ -3029,7 +3032,8 @@ void bench(int depth) {
 }
 
 // ****** DATA GEN ******
-constexpr int games = 1'000'000; // Number of games to play
+constexpr int games = 10'000'000; // Number of games to play
+constexpr int datagenInfoInterval = 100; // How often to send progress report to console
 constexpr int saveEveryN = 15; // Save every n positions, if the best move is capture or a side is in check, it will save as soon as possible
 constexpr int clearBufferEvery = 100; // Push output buffer to file every n data points
 constexpr int randMoves = 14; // Number of random halfmoves before data gen begins
@@ -3125,6 +3129,7 @@ void playGames() {
     std::vector<DataUnit> outputBuffer;
 
     for (int i = 0; i < games; i++) {
+        if (i % datagenInfoInterval == 0) cout << "Starting game " << i << "/" << games << endl;
         std::vector<PartialDataUnit> gameData;
         int movesSinceStore = 0; // Moves since the position was put into the buffer
 
@@ -3203,7 +3208,7 @@ int main(int argc, char* argv[]) {
             }
             searchThreadOpt.reset();
         }
-    };
+        };
 
     if (argc > 1) {
         string arg1 = argv[1];
