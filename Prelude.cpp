@@ -314,7 +314,8 @@ void printBitboard(u64 bitboard) {
     cout << "+---+---+---+---+---+---+---+---+" << endl;
 }
 
-string formatTime(int timeInMS) {
+// Old time conversion
+/*string formatTime(u64 timeInMS) {
     const double hrs = timeInMS / (1000.0 * 60 * 60);
     const double mins = timeInMS / (1000.0 * 60);
     const double secs = timeInMS / 1000.0;
@@ -322,6 +323,22 @@ string formatTime(int timeInMS) {
     if (timeInMS > 1000 * 60) return std::format("{:.2f}m", mins); // mins
     if (timeInMS > 1000) return std::format("{:.2f}s", secs); // secs
     return std::to_string(timeInMS) + "ms"; // ms
+}*/
+
+string formatTime(u64 timeInMS) {
+    long long seconds = timeInMS / 1000;
+    long long hours = seconds / 3600;
+    seconds %= 3600;
+    long long minutes = seconds / 60;
+    seconds %= 60;
+
+    string result;
+
+    if (hours > 0) result += std::to_string(hours) + "h ";
+    if (minutes > 0 || hours > 0) result += std::to_string(minutes) + "m ";
+    if (seconds > 0 || minutes > 0 || hours > 0) result += std::to_string(seconds) + "s";
+    if (result == "") return std::to_string(timeInMS) + "ms";
+    return result;
 }
 
 string formatNum(i64 v) {
@@ -1451,7 +1468,7 @@ public:
         if (TTEntry->zobristKey == zobrist && allMoves.find(TTEntry->bestMove) != -1) {
             prioritizedMoves.add(TTEntry->bestMove);
         }
-        
+
 
         std::sort(captures.moves.begin(), captures.moves.begin() + captures.count, [this](Move& a, Move& b) { return evaluateMVVLVA(a) > evaluateMVVLVA(b); });
 
@@ -1830,7 +1847,7 @@ public:
         auto from = moveIn.startSquare();
         auto to = moveIn.endSquare();
 
-        IFDBG {
+        IFDBG{
             if ((1ULL << to) & (white[5] | black[5])) {
                 cout << "WARNING: ATTEMPTED CAPTURE OF THE KING. MOVE: " << moveIn.toString() << endl;
                 display();
@@ -3056,11 +3073,11 @@ void bench(int depth) {
 }
 
 // ****** DATA GEN ******
-constexpr int games = 10'000'000; // Number of games to play
-constexpr int datagenInfoInterval = 100; // How often to send progress report to console
-constexpr int saveEveryN = 15; // Save every n positions, if the best move is capture or a side is in check, it will save as soon as possible
-constexpr int clearBufferEvery = 100; // Push output buffer to file every n data points
-constexpr int randMoves = 14; // Number of random halfmoves before data gen begins
+constexpr int targetPositions = 10'000'000; // Number of positions to generate
+constexpr int datagenInfoInterval = 1; // How often to send progress report to console
+constexpr int saveEveryN = 1; // Save every n positions, if the best move is capture or a side is in check, it will save as soon as possible
+constexpr int clearBufferEvery = 200; // Push output buffer to file every n data points
+constexpr int randMoves = 8; // Number of random halfmoves before data gen begins
 constexpr int nodesPerMove = 5000; // Soft nodes per move
 
 struct DataUnit {
@@ -3094,7 +3111,17 @@ void makeRandomMove(Board& board) {
 
     std::uniform_int_distribution<int> dist(0, moves.count);
 
-    board.move(moves.moves[dist(engine)]);
+    Board testBoard;
+    Move m;
+
+    do {
+        m = moves.moves[dist(engine)];
+
+        testBoard = board;
+        testBoard.move(m);
+    } while (testBoard.isInCheck());
+
+    board.move(m);
 }
 
 string makeFileName() {
@@ -3121,7 +3148,7 @@ string makeFileName() {
 
     string randomStr = std::to_string(dist(engine));
 
-    return "data-" + std::format("{:04}-{:02}-{:02}", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday) + randomStr + ".prelude";
+    return "data-" + std::format("{:04}-{:02}-{:02}", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday) + "-" + randomStr + ".preludedata";
 }
 
 void writeToFile(const string& filePath, const std::vector<DataUnit>& data) {
@@ -3141,8 +3168,8 @@ void writeToFile(const string& filePath, const std::vector<DataUnit>& data) {
     outFile.close();
 }
 
-void playGames() {
-    string filePath = makeFileName(); // Should be added as a cli param later
+void playGames(string filePath = "") {
+    if (filePath == "") makeFileName(); // Should be added as a cli param later
 
     std::atomic<bool> breakFlag(false);
     Board board;
@@ -3152,8 +3179,48 @@ void playGames() {
 
     std::vector<DataUnit> outputBuffer;
 
-    for (int i = 0; i < games; i++) {
-        if (i % datagenInfoInterval == 0) cout << "Starting game " << i << "/" << games << endl;
+    auto startTime = std::chrono::steady_clock::now();
+
+    int cachedPositions = 0;
+    int savedPositions = 0;
+    int totalPositions = 0;
+
+    int saveEveryN = ::saveEveryN + (::saveEveryN % 2 == 0); // Force to be odd to get equal white/black positions
+
+    saveEveryN = std::max(saveEveryN, 1);
+
+    if (saveEveryN > 1) cout << "Saving every " << saveEveryN << " positions" << endl;
+    else cout << "Saving every position" << endl;
+
+    auto clear = []() {
+#if defined(_WIN32) || defined(_WIN64) 
+        system("cls");
+#else
+        system("clear");
+#endif
+        };
+
+    std::random_device rd;
+
+    std::mt19937_64 engine(rd());
+
+    std::uniform_int_distribution<int> dist(0, 1);
+
+    auto randBool = [&]() { return dist(engine); };
+
+    while (totalPositions < targetPositions) {
+        int randMoves = ::randMoves + randBool(); // Half of the games start with first 
+
+        auto now = std::chrono::steady_clock::now();
+        int timeSpent = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime).count();
+        clear();
+        double avgPosPerSec = totalPositions / (timeSpent / 1000.0);
+        cout << "Positions/second: " + std::format("{:.2f}", avgPosPerSec) << endl;
+        cout << "Positions (cached): " << formatNum(cachedPositions) << endl;
+        cout << "Positions (saved): " << formatNum(savedPositions) << endl;
+        cout << "Time: " << formatTime(timeSpent) << endl;
+        cout << endl;
+
         std::vector<PartialDataUnit> gameData;
         int movesSinceStore = 0; // Moves since the position was put into the buffer
 
@@ -3187,6 +3254,8 @@ void playGames() {
             movesSinceStore++;
             if (movesSinceStore >= saveEveryN && !board.isInCheck() && !(bestMove.move.typeOf() & CAPTURE)) {
                 gameData.push_back(PartialDataUnit(board.exportToFEN() + " " + std::to_string(bestMove.eval) + " "));
+                totalPositions++;
+                cachedPositions++;
                 movesSinceStore = 0;
             }
         }
@@ -3201,6 +3270,8 @@ void playGames() {
         }
         if (outputBuffer.size() > clearBufferEvery) {
             writeToFile(filePath, outputBuffer);
+            cachedPositions = 0;
+            savedPositions += outputBuffer.size();
             outputBuffer.clear();
         }
     }
