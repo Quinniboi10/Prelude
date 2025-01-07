@@ -35,6 +35,7 @@
 #include <memory>
 #include <random>
 #include <cstring>
+#include <cstdlib>
 #include <immintrin.h>
 
 #include "./external/incbin.h"
@@ -248,6 +249,10 @@ public:
     MoveType typeOf() { return MoveType(move >> 12); } // Return the flag bits
 
     bool isNull() { return !move; }
+
+    bool operator==(const Move other) const {
+        return move == other.move;
+    }
 };
 
 std::deque<string> split(const string& s, char delim) {
@@ -310,7 +315,8 @@ void printBitboard(u64 bitboard) {
     cout << "+---+---+---+---+---+---+---+---+" << endl;
 }
 
-string formatTime(int timeInMS) {
+// Old time conversion
+/*string formatTime(u64 timeInMS) {
     const double hrs = timeInMS / (1000.0 * 60 * 60);
     const double mins = timeInMS / (1000.0 * 60);
     const double secs = timeInMS / 1000.0;
@@ -318,6 +324,22 @@ string formatTime(int timeInMS) {
     if (timeInMS > 1000 * 60) return std::format("{:.2f}m", mins); // mins
     if (timeInMS > 1000) return std::format("{:.2f}s", secs); // secs
     return std::to_string(timeInMS) + "ms"; // ms
+}*/
+
+string formatTime(u64 timeInMS) {
+    long long seconds = timeInMS / 1000;
+    long long hours = seconds / 3600;
+    seconds %= 3600;
+    long long minutes = seconds / 60;
+    seconds %= 60;
+
+    string result;
+
+    if (hours > 0) result += std::to_string(hours) + "h ";
+    if (minutes > 0 || hours > 0) result += std::to_string(minutes) + "m ";
+    if (seconds > 0 || minutes > 0 || hours > 0) result += std::to_string(seconds) + "s";
+    if (result == "") return std::to_string(timeInMS) + "ms";
+    return result;
 }
 
 string formatNum(i64 v) {
@@ -474,7 +496,7 @@ public:
 
         engine.seed(69420); // Nice
 
-        std::uniform_int_distribution<uint64_t> dist(0, std::numeric_limits<uint64_t>::max());
+        std::uniform_int_distribution<u64> dist(0, INF);
 
         for (auto& side : zobrist) {
             for (auto& pieceTable : side) {
@@ -835,8 +857,12 @@ struct MoveList {
         return moves[index];
     }
 
-    Move back() {
-        return moves[count];
+    int find(const Move entry) {
+        auto it = std::find(moves.begin(), moves.begin() + count, entry);
+        if (it != moves.begin() + count) {
+            return std::distance(moves.begin(), it);
+        }
+        return -1;
     }
 
     void sortByString(Board& board) {
@@ -1420,7 +1446,7 @@ public:
             return allMoves;
         }
 
-        MoveList captures, quietMoves;
+        MoveList prioritizedMoves, captures, quietMoves;
         generatePawnMoves(allMoves);
         generateKnightMoves(allMoves);
         generateBishopMoves(allMoves);
@@ -1439,17 +1465,11 @@ public:
             }
         }
 
-        Move bestMove = Move();
         Transposition* TTEntry = TT.getEntry(zobrist);
-        if (TTEntry->zobristKey == zobrist) {
-            bestMove = TTEntry->bestMove;
+        if (TTEntry->zobristKey == zobrist && allMoves.find(TTEntry->bestMove) != -1) {
+            prioritizedMoves.add(TTEntry->bestMove);
         }
 
-        // Initialize the prioritizedMoves list
-        MoveList prioritizedMoves;
-
-        // Add bestMove first, it will be removed as it is null
-        prioritizedMoves.add(bestMove);
 
         std::sort(captures.moves.begin(), captures.moves.begin() + captures.count, [this](Move& a, Move& b) { return evaluateMVVLVA(a) > evaluateMVVLVA(b); });
 
@@ -1490,6 +1510,11 @@ public:
 
     bool canNullMove() {
         return !fromNull && !isEndgame() && !isInCheck();
+    }
+
+    // This function is fairly slow and should not be used where possible
+    bool isGameOver() {
+        return isDraw() || generateLegalMoves().count == 0;
     }
 
     // Uses 2fold check
@@ -1820,9 +1845,33 @@ public:
 
         fromNull = false;
 
-
         auto from = moveIn.startSquare();
         auto to = moveIn.endSquare();
+
+        IFDBG{
+            if ((1ULL << to) & (white[5] | black[5])) {
+                cout << "WARNING: ATTEMPTED CAPTURE OF THE KING. MOVE: " << moveIn.toString() << endl;
+                display();
+
+                Transposition* TTEntry = TT.getEntry(zobrist);
+                if (TTEntry->zobristKey == zobrist && TTEntry->bestMove == moveIn) cout << "MOVE WAS FROM TT." << endl;
+                cout << "MOVE WAS NOT FROM TT." << endl;
+
+                int whiteKing = ctzll(white[5]);
+                int blackKing = ctzll(black[5]);
+                cout << "Is in check (white): " << isUnderAttack(WHITE, whiteKing) << endl;
+                cout << "Is in check (black): " << isUnderAttack(BLACK, blackKing) << endl;
+                cout << "En passant square: " << (ctzll(enPassant) < 64 ? squareToAlgebraic(ctzll(enPassant)) : "-") << endl;
+                cout << "Castling rights: " << std::bitset<4>(castlingRights) << endl;
+                MoveList moves = generateLegalMoves();
+                moves.sortByString(*this);
+                cout << "Legal moves (" << moves.count << "):" << endl;
+                for (int i = 0; i < moves.count; ++i) {
+                    cout << moves.moves[i].toString() << endl;
+                }
+
+            }
+        }
 
         for (int i = 0; i < 6; ++i) {
             if (readBit(us[i], from)) {
@@ -2496,6 +2545,7 @@ constexpr int MAX_DEPTH = 255;
 
 bool isUci = false; // Flag to represent if output should be human or UCI
 bool searchQuiet = false; // This flag is used for benchmarks so it searches without output
+bool softNodes = false; // When flag is true, search only breaks in ID loop due to nodes
 
 struct SearchLimit {
     std::chrono::steady_clock::time_point searchStart;
@@ -2517,7 +2567,7 @@ struct SearchLimit {
     }
 
     bool outOfNodes() {
-        if (maxNodes <= 0) return false;
+        if (maxNodes <= 0 || softNodes) return false;
         return nodes >= maxNodes;
     }
 
@@ -2780,7 +2830,7 @@ MoveEvaluation go(Board& board,
 }
 
 
-void iterativeDeepening(
+MoveEvaluation iterativeDeepening(
     Board& board,
     int maxDepth,
     std::atomic<bool>& breakFlag,
@@ -2791,6 +2841,7 @@ void iterativeDeepening(
     int binc = 0,
     int maxNodes = -1
 ) {
+#define IFDBG if (DEBUG && !searchQuiet)
     breakFlag.store(false);
     lastInfo = std::chrono::steady_clock::now();
     nodes = 0;
@@ -2915,6 +2966,7 @@ void iterativeDeepening(
 
     if (!searchQuiet && isUci) std::cout << "bestmove " << bestMoveAlgebra << std::endl;
     breakFlag.store(true);
+    return bestMove;
 }
 
 // ****** BENCH STUFF ******
@@ -3021,7 +3073,224 @@ void bench(int depth) {
     searchQuiet = false;
 }
 
+// ****** DATA GEN ******
+constexpr int targetPositions = 10'000'000; // Number of positions to generate
+constexpr int datagenInfoInterval = 1; // How often to send progress report to console
+constexpr int saveEveryN = 1; // Save every n positions, if the best move is capture or a side is in check, it will save as soon as possible
+constexpr int clearBufferEvery = 200; // Push output buffer to file every n data points
+constexpr int randMoves = 8; // Number of random halfmoves before data gen begins
+constexpr int nodesPerMove = 5000; // Soft nodes per move
 
+struct DataUnit {
+    string data = ""; // This can be changed to use different data methods later
+
+    DataUnit() {
+        data = "";
+    }
+    DataUnit(string data) {
+        this->data = data;
+    }
+};
+
+struct PartialDataUnit {
+    string data = ""; // This can be changed to use different data methods later
+
+    PartialDataUnit() {
+        data = "";
+    }
+    PartialDataUnit(string data) {
+        this->data = data;
+    }
+};
+
+void makeRandomMove(Board& board) {
+    std::random_device rd;
+
+    std::mt19937_64 engine(rd());
+
+    MoveList moves = board.generateLegalMoves();
+
+    std::uniform_int_distribution<int> dist(0, moves.count);
+
+    Board testBoard;
+    Move m;
+
+    do {
+        m = moves.moves[dist(engine)];
+
+        testBoard = board;
+        testBoard.move(m);
+    } while (testBoard.isInCheck());
+
+    board.move(m);
+}
+
+string makeFileName() {
+    std::random_device rd;
+
+    std::mt19937_64 engine(rd());
+
+    std::uniform_int_distribution<int> dist(0, INF_INT);
+
+    // Get current time
+    auto now = std::chrono::system_clock::now();
+
+    // Convert to time_t
+    std::time_t t = std::chrono::system_clock::to_time_t(now);
+
+    // Convert to tm structure
+    std::tm tm;
+
+#ifdef _WIN32
+    localtime_s(&tm, &t);
+#else
+    localtime_r(&t, &tm);
+#endif
+
+    string randomStr = std::to_string(dist(engine));
+
+    return "data-" + std::format("{:04}-{:02}-{:02}", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday) + "-" + randomStr + ".preludedata";
+}
+
+void writeToFile(const string& filePath, const std::vector<DataUnit>& data) {
+    // Open the file in write mode, should make a new file every time, but will append otherwise
+    std::ofstream outFile(filePath, std::ios::out | std::ios::app);
+
+    // Check if the file was opened successfully
+    if (!outFile.is_open()) {
+        std::cerr << "Error: Could not open the file " << filePath << " for writing." << std::endl;
+        exit(-1);
+    }
+
+    for (const auto& dataUnit : data) {
+        outFile << dataUnit.data << endl;
+    }
+
+    outFile.close();
+}
+
+void playGames() {
+    string filePath = makeFileName(); // Should be added as a cli param later
+
+    std::atomic<bool> breakFlag(false);
+    Board board;
+
+    softNodes = true;
+    searchQuiet = true;
+
+    std::vector<DataUnit> outputBuffer;
+    std::atomic<bool> bufferLock(false);
+
+    auto startTime = std::chrono::steady_clock::now();
+
+    int cachedPositions = 0;
+    int savedPositions = 0;
+    int totalPositions = 0;
+
+    int saveEveryN = ::saveEveryN + (::saveEveryN % 2 == 0); // Force to be odd to get equal white/black positions
+
+    saveEveryN = std::max(saveEveryN, 1);
+
+    if (saveEveryN > 1) cout << "Saving every " << saveEveryN << " positions" << endl;
+    else cout << "Saving every position" << endl;
+
+    auto clear = []() {
+#if defined(_WIN32) || defined(_WIN64) 
+        system("cls");
+#else
+        system("clear");
+#endif
+        };
+
+    std::random_device rd;
+
+    std::mt19937_64 engine(rd());
+
+    std::uniform_int_distribution<int> dist(0, 1);
+
+    auto randBool = [&]() { return dist(engine); };
+
+    while (totalPositions < targetPositions) {
+        int randMoves = ::randMoves + randBool(); // Half of the games start with first 
+
+        auto now = std::chrono::steady_clock::now();
+        int timeSpent = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime).count();
+        clear();
+        double avgPosPerSec = totalPositions / (timeSpent / 1000.0);
+        cout << "Positions/second: " + std::format("{:.2f}", avgPosPerSec) << endl;
+        cout << "Positions (cached): " << formatNum(cachedPositions) << endl;
+        cout << "Positions (saved): " << formatNum(savedPositions) << endl;
+        cout << "Time: " << formatTime(timeSpent) << endl;
+        cout << endl;
+
+        std::vector<PartialDataUnit> gameData;
+        int movesSinceStore = 0; // Moves since the position was put into the buffer
+
+        TT.clear();
+        for (auto& side : history) {
+            for (auto& from : side) {
+                for (auto& to : from) {
+                    to = 0;
+                }
+            }
+        }
+
+        board.reset();
+
+        for (int i = 0; i < randMoves; i++) {
+            makeRandomMove(board);
+        }
+
+        while (!board.isGameOver()) {
+            MoveEvaluation bestMove = iterativeDeepening(
+                std::ref(board), // Board
+                INF_INT, // Depth
+                std::ref(breakFlag), // Breakflag
+                0, // Wtime
+                0, // Btime
+                0, // Movetime
+                0, // Winc
+                0, // Binc
+                nodesPerMove);
+            board.move(bestMove.move);
+            movesSinceStore++;
+            if (movesSinceStore >= saveEveryN && !board.isInCheck() && !(bestMove.move.typeOf() & CAPTURE)) {
+                gameData.push_back(PartialDataUnit(board.exportToFEN() + " " + std::to_string(bestMove.eval) + " "));
+                totalPositions++;
+                cachedPositions++;
+                movesSinceStore = 0;
+            }
+        }
+
+        // Take partial move data and add the game result
+        for (PartialDataUnit i : gameData) {
+            string finalData = i.data + " ";
+            if (board.isDraw()) finalData += "0.5";
+            else if (board.side == WHITE) finalData += "0"; // White was STM when game was over, so white loses
+            else finalData += "1";
+
+            while (bufferLock.load()) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            bufferLock.store(true);
+
+            outputBuffer.push_back(DataUnit(finalData));
+
+            bufferLock.store(false);
+        }
+        if (outputBuffer.size() > clearBufferEvery) {
+            while (bufferLock.load()) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            bufferLock.store(true);
+
+            writeToFile(filePath, outputBuffer);
+            cachedPositions = 0;
+            savedPositions += outputBuffer.size();
+            outputBuffer.clear();
+
+            bufferLock.store(false);
+        }
+    }
+}
+
+// ****** MAIN ENTRY POINT ******
 int main(int argc, char* argv[]) {
     string command;
     std::deque<string> parsedcommand;
@@ -3052,13 +3321,13 @@ int main(int argc, char* argv[]) {
     if (argc > 1) {
         string arg1 = argv[1];
         if (arg1 == "bench") {
-            // Start bench
             bench(9);
-
-            // Kill engine
-            stopSearch();
-            return 0;
         }
+        else if (arg1 == "datagen") {
+            playGames();
+        }
+        stopSearch();
+        return 0;
     }
 
     cout << "Prelude ready and awaiting commands" << endl;
@@ -3081,7 +3350,6 @@ int main(int argc, char* argv[]) {
         else if (command == "ucinewgame") {
             searchQuiet = false;
             isUci = true;
-            breakFlag.store(false);
             movesToGo = 20;
 
             stopSearch();
@@ -3249,6 +3517,9 @@ int main(int argc, char* argv[]) {
         }
         else if (command == "debug.pinned") {
             printBitboard(currentPos.pinned);
+        }
+        else if (command == "debug.datagen") {
+            playGames();
         }
         else if (command == "debug.popcnt") {
             cout << "White pawns: " << popcountll(currentPos.white[0]) << endl;
