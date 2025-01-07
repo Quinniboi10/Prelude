@@ -50,7 +50,7 @@ INCBIN(EVAL, EVALFILE);
 #define ctzll(x) std::countr_zero(x)
 #define popcountll(x) std::popcount(x)
 
-#define DEBUG false
+#define DEBUG true
 #define IFDBG if constexpr (DEBUG)
 
 using std::cerr;
@@ -1447,7 +1447,6 @@ public:
             }
         }
 
-        Move bestMove = Move();
         Transposition* TTEntry = TT.getEntry(zobrist);
         if (TTEntry->zobristKey == zobrist && allMoves.find(TTEntry->bestMove) != -1) {
             prioritizedMoves.add(TTEntry->bestMove);
@@ -1828,9 +1827,33 @@ public:
 
         fromNull = false;
 
-
         auto from = moveIn.startSquare();
         auto to = moveIn.endSquare();
+
+        IFDBG {
+            if ((1ULL << to) & (white[5] | black[5])) {
+                cout << "WARNING: ATTEMPTED CAPTURE OF THE KING. MOVE: " << moveIn.toString() << endl;
+                display();
+
+                Transposition* TTEntry = TT.getEntry(zobrist);
+                if (TTEntry->zobristKey == zobrist && TTEntry->bestMove == moveIn) cout << "MOVE WAS FROM TT." << endl;
+                cout << "MOVE WAS NOT FROM TT." << endl;
+
+                int whiteKing = ctzll(white[5]);
+                int blackKing = ctzll(black[5]);
+                cout << "Is in check (white): " << isUnderAttack(WHITE, whiteKing) << endl;
+                cout << "Is in check (black): " << isUnderAttack(BLACK, blackKing) << endl;
+                cout << "En passant square: " << (ctzll(enPassant) < 64 ? squareToAlgebraic(ctzll(enPassant)) : "-") << endl;
+                cout << "Castling rights: " << std::bitset<4>(castlingRights) << endl;
+                MoveList moves = generateLegalMoves();
+                moves.sortByString(*this);
+                cout << "Legal moves (" << moves.count << "):" << endl;
+                for (int i = 0; i < moves.count; ++i) {
+                    cout << moves.moves[i].toString() << endl;
+                }
+
+            }
+        }
 
         for (int i = 0; i < 6; ++i) {
             if (readBit(us[i], from)) {
@@ -2800,6 +2823,7 @@ MoveEvaluation iterativeDeepening(
     int binc = 0,
     int maxNodes = -1
 ) {
+#define IFDBG if (DEBUG && !searchQuiet)
     breakFlag.store(false);
     lastInfo = std::chrono::steady_clock::now();
     nodes = 0;
