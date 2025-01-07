@@ -474,7 +474,7 @@ public:
 
         engine.seed(69420); // Nice
 
-        std::uniform_int_distribution<uint64_t> dist(0, std::numeric_limits<uint64_t>::max());
+        std::uniform_int_distribution<u64> dist(0, INF);
 
         for (auto& side : zobrist) {
             for (auto& pieceTable : side) {
@@ -1492,6 +1492,11 @@ public:
         return !fromNull && !isEndgame() && !isInCheck();
     }
 
+    // This function is fairly slow and should not be used where possible
+    bool isGameOver() {
+        return isDraw() || generateLegalMoves().count == 0;
+    }
+
     // Uses 2fold check
     bool isDraw() {
         if (halfMoveClock >= 100) return true;
@@ -2496,6 +2501,7 @@ constexpr int MAX_DEPTH = 255;
 
 bool isUci = false; // Flag to represent if output should be human or UCI
 bool searchQuiet = false; // This flag is used for benchmarks so it searches without output
+bool softNodes = false; // When flag is true, search only breaks in ID loop due to nodes
 
 struct SearchLimit {
     std::chrono::steady_clock::time_point searchStart;
@@ -2517,7 +2523,7 @@ struct SearchLimit {
     }
 
     bool outOfNodes() {
-        if (maxNodes <= 0) return false;
+        if (maxNodes <= 0 || softNodes) return false;
         return nodes >= maxNodes;
     }
 
@@ -2780,7 +2786,7 @@ MoveEvaluation go(Board& board,
 }
 
 
-void iterativeDeepening(
+MoveEvaluation iterativeDeepening(
     Board& board,
     int maxDepth,
     std::atomic<bool>& breakFlag,
@@ -2915,6 +2921,7 @@ void iterativeDeepening(
 
     if (!searchQuiet && isUci) std::cout << "bestmove " << bestMoveAlgebra << std::endl;
     breakFlag.store(true);
+    return bestMove;
 }
 
 // ****** BENCH STUFF ******
@@ -3021,7 +3028,156 @@ void bench(int depth) {
     searchQuiet = false;
 }
 
+// ****** DATA GEN ******
+constexpr int games = 1'000'000; // Number of games to play
+constexpr int saveEveryN = 15; // Save every n positions, if the best move is capture or a side is in check, it will save as soon as possible
+constexpr int clearBufferEvery = 100; // Push output buffer to file every n data points
+constexpr int randMoves = 14; // Number of random halfmoves before data gen begins
+constexpr int nodesPerMove = 5000; // Soft nodes per move
 
+struct DataUnit {
+    string data = ""; // This can be changed to use different data methods later
+
+    DataUnit() {
+        data = "";
+    }
+    DataUnit(string data) {
+        this->data = data;
+    }
+};
+
+struct PartialDataUnit {
+    string data = ""; // This can be changed to use different data methods later
+
+    PartialDataUnit() {
+        data = "";
+    }
+    PartialDataUnit(string data) {
+        this->data = data;
+    }
+};
+
+void makeRandomMove(Board& board) {
+    std::random_device rd;
+
+    std::mt19937_64 engine(rd());
+
+    MoveList moves = board.generateLegalMoves();
+
+    std::uniform_int_distribution<int> dist(0, moves.count);
+
+    board.move(moves.moves[dist(engine)]);
+}
+
+string makeFileName() {
+    std::random_device rd;
+
+    std::mt19937_64 engine(rd());
+
+    std::uniform_int_distribution<int> dist(0, INF_INT);
+
+    // Get current time
+    auto now = std::chrono::system_clock::now();
+
+    // Convert to time_t
+    std::time_t t = std::chrono::system_clock::to_time_t(now);
+
+    // Convert to tm structure
+    std::tm tm;
+
+#ifdef _WIN32
+    localtime_s(&tm, &t);
+#else
+    localtime_r(&t, &tm);
+#endif
+
+    string randomStr = std::to_string(dist(engine));
+
+    return "data-" + std::format("{:04}-{:02}-{:02}", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday) + randomStr + ".prelude";
+}
+
+void writeToFile(const string& filePath, const std::vector<DataUnit>& data) {
+    // Open the file in write mode, should make a new file every time, but will append otherwise
+    std::ofstream outFile(filePath, std::ios::out | std::ios::app);
+
+    // Check if the file was opened successfully
+    if (!outFile.is_open()) {
+        std::cerr << "Error: Could not open the file " << filePath << " for writing." << std::endl;
+        return;
+    }
+
+    for (const auto& dataUnit : data) {
+        outFile << dataUnit.data << endl;
+    }
+
+    outFile.close();
+}
+
+void playGames() {
+    string filePath = makeFileName(); // Should be added as a cli param later
+
+    std::atomic<bool> breakFlag(false);
+    Board board;
+
+    softNodes = true;
+    searchQuiet = true;
+
+    std::vector<DataUnit> outputBuffer;
+
+    for (int i = 0; i < games; i++) {
+        std::vector<PartialDataUnit> gameData;
+        int movesSinceStore = 0; // Moves since the position was put into the buffer
+
+        TT.clear();
+        for (auto& side : history) {
+            for (auto& from : side) {
+                for (auto& to : from) {
+                    to = 0;
+                }
+            }
+        }
+
+        board.reset();
+
+        for (int i = 0; i < randMoves; i++) {
+            makeRandomMove(board);
+        }
+
+        while (!board.isGameOver()) {
+            MoveEvaluation bestMove = iterativeDeepening(
+                std::ref(board), // Board
+                INF_INT, // Depth
+                std::ref(breakFlag), // Breakflag
+                0, // Wtime
+                0, // Btime
+                0, // Movetime
+                0, // Winc
+                0, // Binc
+                nodesPerMove);
+            board.move(bestMove.move);
+            movesSinceStore++;
+            if (movesSinceStore >= saveEveryN && !board.isInCheck() && !(bestMove.move.typeOf() & CAPTURE)) {
+                gameData.push_back(PartialDataUnit(board.exportToFEN() + " " + std::to_string(bestMove.eval) + " "));
+                movesSinceStore = 0;
+            }
+        }
+
+        // Take partial move data and add the game result
+        for (PartialDataUnit i : gameData) {
+            string finalData = i.data + " ";
+            if (board.isDraw()) finalData += "0.5";
+            else if (board.side == WHITE) finalData += "0"; // White was STM when game was over, so white loses
+            else finalData += "1";
+            outputBuffer.push_back(DataUnit(finalData));
+        }
+        if (outputBuffer.size() > clearBufferEvery) {
+            writeToFile(filePath, outputBuffer);
+            outputBuffer.clear();
+        }
+    }
+}
+
+// ****** MAIN ENTRY POINT ******
 int main(int argc, char* argv[]) {
     string command;
     std::deque<string> parsedcommand;
@@ -3047,18 +3203,18 @@ int main(int argc, char* argv[]) {
             }
             searchThreadOpt.reset();
         }
-        };
+    };
 
     if (argc > 1) {
         string arg1 = argv[1];
         if (arg1 == "bench") {
-            // Start bench
             bench(9);
-
-            // Kill engine
-            stopSearch();
-            return 0;
         }
+        else if (arg1 == "datagen") {
+            playGames();
+        }
+        stopSearch();
+        return 0;
     }
 
     cout << "Prelude ready and awaiting commands" << endl;
@@ -3081,7 +3237,6 @@ int main(int argc, char* argv[]) {
         else if (command == "ucinewgame") {
             searchQuiet = false;
             isUci = true;
-            breakFlag.store(false);
             movesToGo = 20;
 
             stopSearch();
@@ -3249,6 +3404,9 @@ int main(int argc, char* argv[]) {
         }
         else if (command == "debug.pinned") {
             printBitboard(currentPos.pinned);
+        }
+        else if (command == "debug.datagen") {
+            playGames();
         }
         else if (command == "debug.popcnt") {
             cout << "White pawns: " << popcountll(currentPos.white[0]) << endl;
