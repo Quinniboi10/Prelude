@@ -48,10 +48,16 @@
 INCBIN(EVAL, EVALFILE);
 #endif
 
+int getLine(int line) {
+    return line;
+}
+
+#define exit(code) cout << "Exit from line " << getLine(__LINE__) << endl; exit(code);
+
 #define ctzll(x) std::countr_zero(x)
 #define popcountll(x) std::popcount(x)
 
-#define DEBUG false
+#define DEBUG true
 #define IFDBG if constexpr (DEBUG)
 
 using std::cerr;
@@ -1869,7 +1875,7 @@ public:
                 for (int i = 0; i < moves.count; ++i) {
                     cout << moves.moves[i].toString() << endl;
                 }
-
+                exit(-1);
             }
         }
 
@@ -3075,7 +3081,7 @@ void bench(int depth) {
 
 // ****** DATA GEN ******
 constexpr int targetPositions = 10'000'000; // Number of positions to generate
-constexpr int datagenInfoInterval = 1; // How often to send progress report to console
+constexpr int datagenInfoInterval = 1; // How often (in games) to send progress report to console
 constexpr int saveEveryN = 1; // Save every n positions, if the best move is capture or a side is in check, it will save as soon as possible
 constexpr int clearBufferEvery = 200; // Push output buffer to file every n data points
 constexpr int randMoves = 8; // Number of random halfmoves before data gen begins
@@ -3115,12 +3121,18 @@ void makeRandomMove(Board& board) {
     Board testBoard;
     Move m;
 
+    int attempts = 0;
+
     do {
         m = moves.moves[dist(engine)];
 
+        attempts++;
+
         testBoard = board;
         testBoard.move(m);
-    } while (testBoard.isInCheck());
+
+        if (attempts > 100) break; // Just to prevent infinite loops, 99% chance this is pointless
+    } while (testBoard.isInCheck()); // Don't allow positions where one side is in check
 
     board.move(m);
 }
@@ -3342,6 +3354,7 @@ int main(int argc, char* argv[]) {
             cout << "option name Threads type spin default 1 min 1 max 1" << endl;
             cout << "option name Hash type spin default 16 min 1 max 4096" << endl;
             cout << "option name Move Overhead type spin default 20 min 0 max 1000" << endl;
+            cout << "option name Softnodes type check default false" << endl;
             cout << "uciok" << endl;
         }
         else if (command == "isready") {
@@ -3366,10 +3379,13 @@ int main(int argc, char* argv[]) {
         else if (parsedcommand.at(0) == "setoption") {
             // Assumes setoption name ...
             if (parsedcommand.at(2) == "Hash") {
-                TT = TranspositionTable(stof(parsedcommand.at(findIndexOf(parsedcommand, "Hash") + 2)));
+                TT = TranspositionTable(stof(parsedcommand.at(findIndexOf(parsedcommand, "value") + 1)));
             }
             else if (parsedcommand.at(2) == "Move" && parsedcommand.at(3) == "Overhead") {
-                moveOverhead = stoi(parsedcommand.at(findIndexOf(parsedcommand, "Overhead") + 2));
+                moveOverhead = stoi(parsedcommand.at(findIndexOf(parsedcommand, "value") + 1));
+            }
+            else if (parsedcommand.at(2) == "Softnodes") {
+                softNodes = parsedcommand.at(findIndexOf(parsedcommand, "value") + 1) == "true";
             }
         }
         else if (!parsedcommand.empty() && parsedcommand.at(0) == "position") { // Handle "position" command
