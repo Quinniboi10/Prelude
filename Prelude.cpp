@@ -2006,7 +2006,7 @@ public:
         /*IFDBG{
             int kingIndex = ctzll(side == BLACK ? white[5] : black[5]);
             auto& board = boardBeforeMove;
-
+            
             bool badCastle = false;
             if (moveIn.typeOf() == CASTLE_K || moveIn.typeOf() == CASTLE_Q) {
                 bool kingside = (moveIn.typeOf() == CASTLE_K);
@@ -2664,7 +2664,6 @@ constexpr int MAX_DEPTH = 255;
 
 bool isUci = false; // Flag to represent if output should be human or UCI
 bool searchQuiet = false; // This flag is used for benchmarks so it searches without output
-bool softNodes = false; // When flag is true, search only breaks in ID loop due to nodes
 
 int seldepth = 0;
 
@@ -2702,8 +2701,7 @@ struct SearchLimit {
     }
 
     bool outOfNodes() {
-        if (maxNodes <= 0 || softNodes) return false;
-        return nodes >= maxNodes;
+        return nodes >= maxNodes && maxNodes > 0;
     }
 
     bool outOfTime() {
@@ -2848,7 +2846,7 @@ MoveEvaluation go(Board& board,
         if (board.canNullMove() && staticEval >= beta && !board.isInCheck() && popcountll(board.side ? board.white[0] : board.black[0]) + 1 != popcountll(board.side ? board.whitePieces : board.blackPieces)) {
             Board testBoard = board;
             testBoard.makeNullMove();
-            int eval = -go<false>(testBoard, ss, depth - NMPReduction, -beta, -beta + 1, ply + 1, sl).eval;
+            int eval = -go<false>(testBoard, ss + 1, depth - NMPReduction, -beta, -beta + 1, ply + 1, sl).eval;
             if (eval >= beta) {
                 return { Move(), eval };
             }
@@ -2866,9 +2864,9 @@ MoveEvaluation go(Board& board,
 
     for (int i = 0; i < moves.count; ++i) {
         // Break checks
-        if (sl->breakFlag->load() && movesMade) break;
+        if (sl->breakFlag->load() && !bestMove.isNull()) break;
         if (sl->outOfNodes()) break;
-        if (nodes % 2048 == 0 && sl->outOfTime() && movesMade) {
+        if (nodes % 2048 == 0 && sl->outOfTime()) {
             sl->breakFlag->store(true);
             break;
         }
@@ -2902,14 +2900,14 @@ MoveEvaluation go(Board& board,
 
         // Only run PVS with more than one move already searched
         if (movesMade == 1) {
-            eval = -go<true>(testBoard, ss, newDepth, -beta, -alpha, ply + 1, sl).eval;
+            eval = -go<true>(testBoard, ss + 1, newDepth, -beta, -alpha, ply + 1, sl).eval;
         }
         else {
             // Principal variation search stuff
-            eval = -go<false>(testBoard, ss, newDepth - depthReduction, -alpha - 1, -alpha, ply + 1, sl).eval;
+            eval = -go<false>(testBoard, ss + 1, newDepth - depthReduction, -alpha - 1, -alpha, ply + 1, sl).eval;
             // If it fails high and isPV or used reduction, go again with full bounds
             if (eval > alpha && (isPV || depthReduction > 0)) {
-                eval = -go<true>(testBoard, ss, newDepth, -beta, -alpha, ply + 1, sl).eval;
+                eval = -go<true>(testBoard, ss + 1, newDepth, -beta, -alpha, ply + 1, sl).eval;
             }
         }
 
@@ -2959,8 +2957,8 @@ MoveEvaluation go(Board& board,
         return { Move(), 0 };
     }
 
-    // Only store to TT if search was finished
-    if (!sl->breakFlag->load()) *entry = Transposition(board.zobrist, bestMove, flag, bestEval, depth);
+    // Uses entry that was already fetched above
+    *entry = Transposition(board.zobrist, bestMove, flag, bestEval, depth);
 
     // Clamp to prevent detecting mate
     bestEval = std::clamp(bestEval, -MATE_SCORE + MAX_DEPTH, MATE_SCORE - MAX_DEPTH);
@@ -2978,7 +2976,8 @@ MoveEvaluation iterativeDeepening(
     int mtime = 0,
     int winc = 0,
     int binc = 0,
-    int maxNodes = -1
+    int maxNodes = -1,
+    int softNodes = -1
 ) {
 #define IFDBG if (DEBUG && !searchQuiet)
     breakFlag.store(false);
@@ -3017,6 +3016,7 @@ MoveEvaluation iterativeDeepening(
 
     softLimit = std::min(softLimit, hardLimit);
 
+
     SearchLimit sl = SearchLimit(std::chrono::steady_clock::now(), &breakFlag, hardLimit, maxNodes);
 
     Stack stack[MAX_DEPTH];
@@ -3042,7 +3042,10 @@ MoveEvaluation iterativeDeepening(
             if (TT.getEntry(i)->zobristKey != 0) TTused++;
         }
 
-        bool isMate = std::abs(bestMove.eval) >= MATE_SCORE - MAX_DEPTH;
+        bool isMate = false;
+
+        // The -MAX_DEPTH is in the case of unsound search, earlier mates will be prefered
+        if (std::abs(bestMove.eval) >= MATE_SCORE - MAX_DEPTH) isMate = true;
 
         string ans;
 
@@ -3059,14 +3062,13 @@ MoveEvaluation iterativeDeepening(
             }
         }
 
-        if (maxNodes > 0 && maxNodes <= nodes && depth > 1) {
+        if (((maxNodes > 0 && nodes >= maxNodes) || (softNodes > 0 && nodes >= softNodes)) && depth > 1) {
             IFDBG cout << "Stopping search because of node limit" << endl;
             break;
         }
 
         if (isUci && !searchQuiet) {
-            ans = "info depth " + std::to_string(depth) + " seldepth " + std::to_string(seldepth) + " nodes " + std::to_string(nodes) + " nps " + std::to_string(nps) + " time " + std::to_string((int)(elapsedNs / 1e6)) + " hashfull " + std::to_string((int)(TTused / (double)sampleSize * 1000));
-
+            ans = "info depth " + std::to_string(depth) + " nodes " + std::to_string(nodes) + " nps " + std::to_string(nps) + " time " + std::to_string((int)(elapsedNs / 1e6)) + " hashfull " + std::to_string((int)(TTused / (double)sampleSize * 1000));
             if (isMate) {
                 ans += " score mate " + std::to_string((bestMove.eval > 0) ? (depth / 2) : -(depth / 2));
             }
@@ -3187,7 +3189,7 @@ void bench(int depth) {
         std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
 
         // Start the iterative deepening search
-        iterativeDeepening(benchBoard, depth, benchBreakFlag, 0, 0, 0, 0, 0, -1);
+        iterativeDeepening(benchBoard, depth, benchBreakFlag, 0, 0, 0, 0, 0, -1, -1);
 
         std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
         double durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
@@ -3219,6 +3221,7 @@ constexpr int saveEveryN = 1; // Save every n positions, if the best move is cap
 constexpr int clearBufferEvery = 200; // Push output buffer to file every n data points
 constexpr int randMoves = 8; // Number of random halfmoves before data gen begins
 constexpr int nodesPerMove = 5000; // Soft nodes per move
+constexpr int maxNodesPerMove = 100'000; // Hard nodes per move
 
 struct DataUnit {
     string data = ""; // This can be changed to use different data methods later
@@ -3320,7 +3323,6 @@ void playGames() {
     std::atomic<bool> breakFlag(false);
     Board board;
 
-    softNodes = true;
     searchQuiet = true;
 
     std::vector<DataUnit> outputBuffer;
@@ -3396,7 +3398,8 @@ void playGames() {
                 0, // Movetime
                 0, // Winc
                 0, // Binc
-                nodesPerMove);
+                nodesPerMove,
+                maxNodesPerMove);
             board.move(bestMove.move);
             movesSinceStore++;
             if (movesSinceStore >= saveEveryN && !board.isInCheck() && !(bestMove.move.typeOf() & CAPTURE)) {
@@ -3487,7 +3490,6 @@ int main(int argc, char* argv[]) {
             cout << "option name Threads type spin default 1 min 1 max 1" << endl;
             cout << "option name Hash type spin default 16 min 1 max 4096" << endl;
             cout << "option name Move Overhead type spin default 20 min 0 max 1000" << endl;
-            cout << "option name Softnodes type check default false" << endl;
             cout << "uciok" << endl;
         }
         else if (command == "isready") {
@@ -3516,9 +3518,6 @@ int main(int argc, char* argv[]) {
             }
             else if (parsedcommand.at(2) == "Move" && parsedcommand.at(3) == "Overhead") {
                 moveOverhead = stoi(parsedcommand.at(findIndexOf(parsedcommand, "value") + 1));
-            }
-            else if (parsedcommand.at(2) == "Softnodes") {
-                softNodes = parsedcommand.at(findIndexOf(parsedcommand, "value") + 1) == "true";
             }
         }
         else if (!parsedcommand.empty() && parsedcommand.at(0) == "position") { // Handle "position" command
@@ -3553,6 +3552,7 @@ int main(int argc, char* argv[]) {
             stopSearch();
 
             int maxNodes = -1;
+            int maxSoftNodes = -1;
             int depth = INF_INT;
 
             int wtime = 0;
@@ -3565,6 +3565,10 @@ int main(int argc, char* argv[]) {
 
             if (findIndexOf(parsedcommand, "nodes") > 0) {
                 maxNodes = stoi(parsedcommand.at(findIndexOf(parsedcommand, "nodes") + 1));
+            }
+
+            if (findIndexOf(parsedcommand, "softnodes") > 0) {
+                maxSoftNodes = stoi(parsedcommand.at(findIndexOf(parsedcommand, "softnodes") + 1));
             }
 
             if (findIndexOf(parsedcommand, "depth") > 0) {
@@ -3600,7 +3604,8 @@ int main(int argc, char* argv[]) {
                 mtime,
                 winc,
                 binc,
-                maxNodes);
+                maxNodes,
+                maxSoftNodes);
         }
         else if (command == "stop") {
             breakFlag.store(true);
