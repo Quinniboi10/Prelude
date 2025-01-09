@@ -1,6 +1,6 @@
 # Compiler and flags
-CXX := g++
-CXXFLAGS := -O3 -march=native -std=c++20 -static -static-libgcc -static-libstdc++
+CXX := clang++
+CXXFLAGS := -O3 -march=native -std=c++20 -static
 
 # Default target executable name
 EXE ?= Prelude
