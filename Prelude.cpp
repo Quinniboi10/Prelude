@@ -38,13 +38,24 @@
 #include <cstdlib>
 #include <immintrin.h>
 
-#include "./external/incbin.h"
-
 #ifndef EVALFILE
 #define EVALFILE "./nnue.bin"
 #endif
 
-#if !defined(_MSC_VER)
+#ifdef _MSC_VER
+#define MSVC
+#pragma push_macro("_MSC_VER")
+#undef _MSC_VER
+#endif
+
+#include "./external/incbin.h"
+
+#ifdef MSVC
+#pragma pop_macro("_MSC_VER")
+#undef MSVC
+#endif
+
+#if !defined(_MSC_VER) || defined(__clang__)
 INCBIN(EVAL, EVALFILE);
 #endif
 
@@ -57,7 +68,7 @@ int getLine(int line) {
 #define ctzll(x) std::countr_zero(x)
 #define popcountll(x) std::popcount(x)
 
-#define DEBUG true
+#define DEBUG false
 #define IFDBG if constexpr (DEBUG)
 
 using std::cerr;
@@ -1753,7 +1764,7 @@ public:
                 else if (readBit(black[4], i)) currentPiece = 'q';
                 else if (readBit(black[5], i)) currentPiece = 'k';
 
-                cout << "| " << currentPiece << " ";
+                cout << "| " << ((1ULL << i) & whitePieces ? Colors::yellow : Colors::blue) << currentPiece << Colors::reset << " ";
             }
             cout << "| " << rank + 1 << endl;
         }
@@ -1832,7 +1843,7 @@ public:
         updateCheckPin();
     }
 
-    void move(string& moveIn) {
+    void move(string moveIn) {
         move(Move(moveIn, *this));
     }
 
@@ -1854,6 +1865,8 @@ public:
         auto from = moveIn.startSquare();
         auto to = moveIn.endSquare();
 
+        std::optional<Board> boardBeforeMove = *this;
+
         IFDBG{
             if ((1ULL << to) & (white[5] | black[5])) {
                 cout << "WARNING: ATTEMPTED CAPTURE OF THE KING. MOVE: " << moveIn.toString() << endl;
@@ -1869,6 +1882,22 @@ public:
                 cout << "Is in check (black): " << isUnderAttack(BLACK, blackKing) << endl;
                 cout << "En passant square: " << (ctzll(enPassant) < 64 ? squareToAlgebraic(ctzll(enPassant)) : "-") << endl;
                 cout << "Castling rights: " << std::bitset<4>(castlingRights) << endl;
+
+                cout << "White pawns: " << popcountll(white[0]) << endl;
+                cout << "White knigts: " << popcountll(white[1]) << endl;
+                cout << "White bishops: " << popcountll(white[2]) << endl;
+                cout << "White rooks: " << popcountll(white[3]) << endl;
+                cout << "White queens: " << popcountll(white[4]) << endl;
+                cout << "White king: " << popcountll(white[5]) << endl;
+                cout << endl;
+                cout << "Black pawns: " << popcountll(black[0]) << endl;
+                cout << "Black knigts: " << popcountll(black[1]) << endl;
+                cout << "Black bishops: " << popcountll(black[2]) << endl;
+                cout << "Black rooks: " << popcountll(black[3]) << endl;
+                cout << "Black queens: " << popcountll(black[4]) << endl;
+                cout << "Black king: " << popcountll(black[5]) << endl;
+                cout << endl;
+
                 MoveList moves = generateLegalMoves();
                 moves.sortByString(*this);
                 cout << "Legal moves (" << moves.count << "):" << endl;
@@ -1968,6 +1997,95 @@ public:
             }
         }
 
+        side = ~side;
+
+        recompute();
+        updateCheckPin();
+
+        // Broken code is bad. Don't use it (unless you fix it first)
+        /*IFDBG{
+            int kingIndex = ctzll(side == BLACK ? white[5] : black[5]);
+            auto& board = boardBeforeMove;
+            
+            bool badCastle = false;
+            if (moveIn.typeOf() == CASTLE_K || moveIn.typeOf() == CASTLE_Q) {
+                bool kingside = (moveIn.typeOf() == CASTLE_K);
+                int rightsIndex = board->side ? (kingside ? 3 : 2) : (kingside ? 1 : 0);
+                if (!readBit(board->castlingRights, rightsIndex)) badCastle = true;
+                if (isInCheck()) badCastle = true;
+                u64 occupied = board->whitePieces | board->blackPieces;
+                if (board->side) {
+                    if (kingside) {
+                        if ((occupied & ((1ULL << f1) | (1ULL << g1))) != 0) badCastle = true;
+                        if (isUnderAttack(true, f1) || isUnderAttack(true, g1)) badCastle = true;
+                    }
+                    else {
+                        if ((occupied & ((1ULL << b1) | (1ULL << c1) | (1ULL << d1))) != 0) badCastle = true;
+                        if (isUnderAttack(true, d1) || isUnderAttack(true, c1)) badCastle = true;
+                    }
+                }
+                else {
+                    if (kingside) {
+                        if ((occupied & ((1ULL << f8) | (1ULL << g8))) != 0) badCastle = true;
+                        if (isUnderAttack(false, f8) || isUnderAttack(false, g8)) badCastle = true;
+                    }
+                    else {
+                        if ((occupied & ((1ULL << b8) | (1ULL << c8) | (1ULL << d8))) != 0) badCastle = true;
+                        if (isUnderAttack(false, d8) || isUnderAttack(false, c8)) badCastle = true;
+                    }
+                }
+            }
+
+            // Update move history is false when checking EP moves, which is done by making move
+            if ((isUnderAttack(side == BLACK, kingIndex) || badCastle) && updateMoveHistory) {
+                cout << "WARNING: ATTEMPTED ILLEGAL MOVE. MOVE: " << moveIn.toString() << endl;
+                cout << "MOVE TYPE: " << std::bitset<4>(moveIn.typeOf()) << endl;
+                board->display();
+
+                Transposition* TTEntry = TT.getEntry(board->zobrist);
+                if (TTEntry->zobristKey == zobrist && TTEntry->bestMove == moveIn) cout << "MOVE WAS FROM TT." << endl;
+                cout << "MOVE WAS NOT FROM TT." << endl;
+
+                int whiteKing = ctzll(board->white[5]);
+                int blackKing = ctzll(board->black[5]);
+                cout << "Is in check (white): " << board->isUnderAttack(WHITE, whiteKing) << endl;
+                cout << "Is in check (black): " << board->isUnderAttack(BLACK, blackKing) << endl;
+                cout << "En passant square: " << (ctzll(enPassant) < 64 ? squareToAlgebraic(ctzll(board->enPassant)) : "-") << endl;
+                cout << "Castling rights: " << std::bitset<4>(board->castlingRights) << endl;
+
+                cout << "White pawns: " << popcountll(board->white[0]) << endl;
+                cout << "White knigts: " << popcountll(board->white[1]) << endl;
+                cout << "White bishops: " << popcountll(board->white[2]) << endl;
+                cout << "White rooks: " << popcountll(board->white[3]) << endl;
+                cout << "White queens: " << popcountll(board->white[4]) << endl;
+                cout << "White king: " << popcountll(board->white[5]) << endl;
+                cout << endl;
+                cout << "Black pawns: " << popcountll(board->black[0]) << endl;
+                cout << "Black knigts: " << popcountll(board->black[1]) << endl;
+                cout << "Black bishops: " << popcountll(board->black[2]) << endl;
+                cout << "Black rooks: " << popcountll(board->black[3]) << endl;
+                cout << "Black queens: " << popcountll(board->black[4]) << endl;
+                cout << "Black king: " << popcountll(board->black[5]) << endl;
+                cout << endl;
+
+                cout << "Each bitboard for STM" << endl;
+                auto& stm = board->side ? board->white : board->black;
+                printBitboard(stm[0]);
+                printBitboard(stm[1]);
+                printBitboard(stm[2]);
+                printBitboard(stm[3]);
+                printBitboard(stm[4]);
+                printBitboard(stm[5]);
+
+                MoveList moves = board->generateLegalMoves();
+                moves.sortByString(*this);
+                cout << "Legal moves (" << moves.count << "):" << endl;
+                for (int i = 0; i < moves.count; ++i) {
+                    cout << moves.moves[i].toString() << endl;
+                }
+                exit(-1);
+            }
+        }*/
 
         // Castling
         zobrist ^= Precomputed::zobristCastling[castlingRights];
@@ -1980,11 +2098,6 @@ public:
 
         // Only add 1 to full move clock if move was made as black
         fullMoveClock += ~side;
-
-        side = ~side;
-
-        recompute();
-        updateCheckPin();
     }
 
     void loadFromFEN(const std::deque<string>& inputFEN) {
@@ -2115,7 +2228,7 @@ public:
         if (readBit(castlingRights, 1)) ans += "k";
         if (readBit(castlingRights, 0)) ans += "q";
 
-        ans += " ";
+        if (castlingRights) ans += " ";
 
         if (enPassant) ans += squareToAlgebraic(ctzll(enPassant));
         else ans += "-";
@@ -3309,7 +3422,7 @@ int main(int argc, char* argv[]) {
     Board currentPos;
     Precomputed::compute();
     initializeAllDatabases();
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__clang__)
     nn.loadNetwork(EVALFILE);
 #else
     nn = *reinterpret_cast<const NNUE*>(gEVALData);
