@@ -2006,7 +2006,7 @@ public:
         /*IFDBG{
             int kingIndex = ctzll(side == BLACK ? white[5] : black[5]);
             auto& board = boardBeforeMove;
-            
+
             bool badCastle = false;
             if (moveIn.typeOf() == CASTLE_K || moveIn.typeOf() == CASTLE_Q) {
                 bool kingside = (moveIn.typeOf() == CASTLE_K);
@@ -2666,6 +2666,22 @@ bool isUci = false; // Flag to represent if output should be human or UCI
 bool searchQuiet = false; // This flag is used for benchmarks so it searches without output
 bool softNodes = false; // When flag is true, search only breaks in ID loop due to nodes
 
+int seldepth = 0;
+
+struct Stack { // From SF
+    Move* pv;
+    int ply;
+    Move currentMove;
+    Move excludedMove;
+    int staticEval;
+    int statScore;
+    int moveCount;
+    int cutoffCnt;
+    bool isCheck;
+    bool ttPv;
+    bool ttHit;
+};
+
 struct SearchLimit {
     std::chrono::steady_clock::time_point searchStart;
     int maxNodes;
@@ -2771,11 +2787,13 @@ int _qs(Board& board,
 // Full search function
 template<bool isPV>
 MoveEvaluation go(Board& board,
+    Stack* ss,
     int depth,
     int alpha,
     int beta,
     int ply,
     SearchLimit* sl) {
+    seldepth = std::max(ply + 1, seldepth);
     // Only worry about draws and such if the node is a child, otherwise game would be over
     if (ply > 0) {
         if (depth <= 0) {
@@ -2830,7 +2848,7 @@ MoveEvaluation go(Board& board,
         if (board.canNullMove() && staticEval >= beta && !board.isInCheck() && popcountll(board.side ? board.white[0] : board.black[0]) + 1 != popcountll(board.side ? board.whitePieces : board.blackPieces)) {
             Board testBoard = board;
             testBoard.makeNullMove();
-            int eval = -go<false>(testBoard, depth - NMPReduction, -beta, -beta + 1, ply + 1, sl).eval;
+            int eval = -go<false>(testBoard, ss, depth - NMPReduction, -beta, -beta + 1, ply + 1, sl).eval;
             if (eval >= beta) {
                 return { Move(), eval };
             }
@@ -2848,9 +2866,9 @@ MoveEvaluation go(Board& board,
 
     for (int i = 0; i < moves.count; ++i) {
         // Break checks
-        if (sl->breakFlag->load() && !bestMove.isNull()) break;
+        if (sl->breakFlag->load() && movesMade) break;
         if (sl->outOfNodes()) break;
-        if (nodes % 2048 == 0 && sl->outOfTime()) {
+        if (nodes % 2048 == 0 && sl->outOfTime() && movesMade) {
             sl->breakFlag->store(true);
             break;
         }
@@ -2880,16 +2898,18 @@ MoveEvaluation go(Board& board,
 
         int eval;
 
+        int newDepth = depth - 1;
+
         // Only run PVS with more than one move already searched
         if (movesMade == 1) {
-            eval = -go<true>(testBoard, depth - 1, -beta, -alpha, ply + 1, sl).eval;
+            eval = -go<true>(testBoard, ss, newDepth, -beta, -alpha, ply + 1, sl).eval;
         }
         else {
             // Principal variation search stuff
-            eval = -go<false>(testBoard, depth - 1 - depthReduction, -alpha - 1, -alpha, ply + 1, sl).eval;
+            eval = -go<false>(testBoard, ss, newDepth - depthReduction, -alpha - 1, -alpha, ply + 1, sl).eval;
             // If it fails high and isPV or used reduction, go again with full bounds
             if (eval > alpha && (isPV || depthReduction > 0)) {
-                eval = -go<true>(testBoard, depth - 1, -beta, -alpha, ply + 1, sl).eval;
+                eval = -go<true>(testBoard, ss, newDepth, -beta, -alpha, ply + 1, sl).eval;
             }
         }
 
@@ -2939,8 +2959,8 @@ MoveEvaluation go(Board& board,
         return { Move(), 0 };
     }
 
-    // Uses entry that was already fetched above
-    *entry = Transposition(board.zobrist, bestMove, flag, bestEval, depth);
+    // Only store to TT if search was finished
+    if (!sl->breakFlag->load()) *entry = Transposition(board.zobrist, bestMove, flag, bestEval, depth);
 
     // Clamp to prevent detecting mate
     bestEval = std::clamp(bestEval, -MATE_SCORE + MAX_DEPTH, MATE_SCORE - MAX_DEPTH);
@@ -2999,8 +3019,11 @@ MoveEvaluation iterativeDeepening(
 
     SearchLimit sl = SearchLimit(std::chrono::steady_clock::now(), &breakFlag, hardLimit, maxNodes);
 
+    Stack stack[MAX_DEPTH];
+    Stack* ss = stack;
+
     for (int depth = 1; depth <= maxDepth; depth++) {
-        move = go<true>(board, depth, -INF_INT, INF_INT, 0, &sl);
+        move = go<true>(board, ss, depth, -INF_INT, INF_INT, 0, &sl);
 
         IFDBG m_assert(!move.move.isNull(), "Returned null move in search");
 
@@ -3019,10 +3042,7 @@ MoveEvaluation iterativeDeepening(
             if (TT.getEntry(i)->zobristKey != 0) TTused++;
         }
 
-        bool isMate = false;
-
-        // The -MAX_DEPTH is in the case of unsound search, earlier mates will be prefered
-        if (std::abs(bestMove.eval) >= MATE_SCORE - MAX_DEPTH) isMate = true;
+        bool isMate = std::abs(bestMove.eval) >= MATE_SCORE - MAX_DEPTH;
 
         string ans;
 
@@ -3045,7 +3065,7 @@ MoveEvaluation iterativeDeepening(
         }
 
         if (isUci && !searchQuiet) {
-            ans = "info depth " + std::to_string(depth) + " nodes " + std::to_string(nodes) + " nps " + std::to_string(nps) + " time " + std::to_string((int)(elapsedNs / 1e6)) + " hashfull " + std::to_string((int)(TTused / (double)sampleSize * 1000));
+            ans = "info depth " + std::to_string(depth) + " seldepth " + std::to_string(seldepth) + " nodes " + std::to_string(nodes) + " nps " + std::to_string(nps) + " time " + std::to_string((int)(elapsedNs / 1e6)) + " hashfull " + std::to_string((int)(TTused / (double)sampleSize * 1000));
 
             if (isMate) {
                 ans += " score mate " + std::to_string((bestMove.eval > 0) ? (depth / 2) : -(depth / 2));
@@ -3063,10 +3083,10 @@ MoveEvaluation iterativeDeepening(
             const double hashPercent = TTused / (double)sampleSize * 100;
             const string fancyEval = (bestMove.eval > 0 ? '+' : '\0') + std::format("{:.2f}", bestMove.eval / 100.0);
             if (!searchQuiet) {
-                cout << padStr(formatNum(depth), 7);
+                cout << padStr(std::to_string(depth) + "/" + std::to_string(seldepth), 9);
                 cout << Colors::grey;
-                cout << padStr(formatTime((int)(elapsedNs / 1e6)), 8);
-                cout << padStr(abbreviateNum(nodes) + "nodes", 14);
+                cout << padStr(formatTime((int)(elapsedNs / 1e6)), 7);
+                cout << padStr(abbreviateNum(nodes) + "nodes", 15);
                 cout << padStr(abbreviateNum(nps) + "nps", 14);
                 cout << Colors::cyan;
                 cout << "TT: ";
