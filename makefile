@@ -1,9 +1,20 @@
+# Detect Operating System
+ifeq ($(OS),Windows_NT)
+    # Windows settings
+    RM := del /F /Q
+    EXE_EXT := .exe
+else
+    # Unix/Linux settings
+    RM := rm -f
+    EXE_EXT :=
+endif
+
 # Compiler and performance flags
-CXX      := clang++
+CXX      := g++
 CXXFLAGS := -O3 -march=native -flto -ffast-math -funroll-loops -std=c++20 -static -DNDEBUG
 
 # Default target executable name and evaluation file path
-EXE      ?= Prelude
+EXE      ?= Prelude$(EXE_EXT)
 EVALFILE ?= ./nnue.bin
 
 # Source and object files
@@ -21,6 +32,12 @@ $(EXE): $(OBJS)
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -DEVALFILE_PATH=\"$(EVALFILE)\" -c $< -o $@
 
+# Debug Build
+.PHONY: debug
+debug: clean
+debug: CXXFLAGS += -DDEBUG
+debug: all
+
 # Force rebuild
 .PHONY: force
 force: clean all
@@ -28,4 +45,4 @@ force: clean all
 # Clean up
 .PHONY: clean
 clean:
-	rm -f $(EXE) $(OBJS)
+	$(RM) $(EXE) $(OBJS)
