@@ -68,7 +68,7 @@ int getLine(int line) {
 #define ctzll(x) std::countr_zero(x)
 #define popcountll(x) std::popcount(x)
 
-#define DEBUG false
+#define DEBUG true
 #define IFDBG if constexpr (DEBUG)
 
 using std::cerr;
@@ -3218,7 +3218,7 @@ void bench(int depth) {
 constexpr int targetPositions = 10'000'000; // Number of positions to generate
 constexpr int datagenInfoInterval = 1; // How often (in games) to send progress report to console
 constexpr int saveEveryN = 1; // Save every n positions, if the best move is capture or a side is in check, it will save as soon as possible
-constexpr int clearBufferEvery = 200; // Push output buffer to file every n data points
+constexpr int clearBufferEvery = 1'000; // Push output buffer to file every n data points
 constexpr int randMoves = 8; // Number of random halfmoves before data gen begins
 constexpr int nodesPerMove = 5000; // Soft nodes per move
 constexpr int maxNodesPerMove = 100'000; // Hard nodes per move
@@ -3301,8 +3301,8 @@ string makeFileName() {
 }
 
 void writeToFile(const string& filePath, const std::vector<DataUnit>& data) {
-    // Open the file in write mode, should make a new file every time, but will append otherwise
-    std::ofstream outFile(filePath, std::ios::out | std::ios::app);
+    // Open the file in write mode, should make a new file every time if using random u64 filename, but will append otherwise
+    std::ofstream outFile(filePath, std::ios::app);
 
     // Check if the file was opened successfully
     if (!outFile.is_open()) {
@@ -3356,6 +3356,8 @@ void playGames() {
     std::uniform_int_distribution<int> dist(0, 1);
 
     auto randBool = [&]() { return dist(engine); };
+
+    outputBuffer.reserve(clearBufferEvery + 100);
 
     while (totalPositions < targetPositions) {
         int randMoves = ::randMoves + randBool(); // Half of the games start with first 
