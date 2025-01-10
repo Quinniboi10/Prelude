@@ -1,16 +1,14 @@
-# Compiler and flags
-CXX := clang++
-CXXFLAGS := -O3 -march=native -std=c++20 -static
+# Compiler and performance flags
+CXX      := clang++
+CXXFLAGS := -O3 -march=native -flto -ffast-math -funroll-loops -std=c++20 -static -DNDEBUG
 
-# Default target executable name
-EXE ?= Prelude
-
-# Default evaluation file path
+# Default target executable name and evaluation file path
+EXE      ?= Prelude
 EVALFILE ?= ./nnue.bin
 
 # Source and object files
-SRCS := Prelude.cpp
-OBJS := $(SRCS:.cpp=.o)
+SRCS     := Prelude.cpp
+OBJS     := $(SRCS:.cpp=.o)
 
 # Default target
 all: $(EXE)
@@ -31,11 +29,3 @@ force: clean all
 .PHONY: clean
 clean:
 	rm -f $(EXE) $(OBJS)
-
-# Debugging info
-.PHONY: print
-print:
-	@echo "EXE: $(EXE)"
-	@echo "SRCS: $(SRCS)"
-	@echo "OBJS: $(OBJS)"
-	@echo "EVALFILE: $(EVALFILE)"
