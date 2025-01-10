@@ -10,8 +10,8 @@ else
 endif
 
 # Compiler and performance flags
-CXX      := g++
-CXXFLAGS := -O3 -march=native -flto -ffast-math -funroll-loops -std=c++20 -static -DNDEBUG
+CXX      := clang++
+CXXFLAGS := -O3 -march=native -ffast-math -funroll-loops -std=c++20 -static -DNDEBUG
 
 # Default target executable name and evaluation file path
 EXE      ?= Prelude$(EXE_EXT)
