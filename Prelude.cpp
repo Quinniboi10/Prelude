@@ -68,8 +68,12 @@ int getLine(int line) {
 #define ctzll(x) std::countr_zero(x)
 #define popcountll(x) std::popcount(x)
 
-#define DEBUG true
-#define IFDBG if constexpr (DEBUG)
+#ifdef DEBUG
+constexpr bool ISDBG = true;
+#else
+constexpr bool ISDBG = false;
+#endif
+#define IFDBG if constexpr (ISDBG)
 
 using std::cerr;
 using std::string;
@@ -2979,7 +2983,7 @@ MoveEvaluation iterativeDeepening(
     int maxNodes = -1,
     int softNodes = -1
 ) {
-#define IFDBG if (DEBUG && !searchQuiet)
+#define IFDBG if (::ISDBG && !searchQuiet)
     breakFlag.store(false);
     lastInfo = std::chrono::steady_clock::now();
     nodes = 0;
@@ -3245,30 +3249,19 @@ struct PartialDataUnit {
     }
 };
 
+// Returns true if the position is checkmate by random chance (is used to reset and start over)
 void makeRandomMove(Board& board) {
+    MoveList moves = board.generateLegalMoves();
+    if (moves.count == 0) return;
+
     std::random_device rd;
 
     std::mt19937_64 engine(rd());
 
-    MoveList moves = board.generateLegalMoves();
-
-    std::uniform_int_distribution<int> dist(0, moves.count);
+    std::uniform_int_distribution<int> dist(0, moves.count - 1);
 
     Board testBoard;
-    Move m;
-
-    int attempts = 0;
-
-    do {
-        m = moves.moves[dist(engine)];
-
-        attempts++;
-
-        testBoard = board;
-        testBoard.move(m);
-
-        if (attempts > 100) break; // Just to prevent infinite loops, 99% chance this is pointless
-    } while (testBoard.isInCheck()); // Don't allow positions where one side is in check
+    Move m = moves.moves[dist(engine)];
 
     board.move(m);
 }
