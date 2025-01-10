@@ -1492,9 +1492,9 @@ public:
         }
 
 
-        std::sort(captures.moves.begin(), captures.moves.begin() + captures.count, [this](Move& a, Move& b) { return evaluateMVVLVA(a) > evaluateMVVLVA(b); });
+        std::stable_sort(captures.moves.begin(), captures.moves.begin() + captures.count, [&](Move a, Move b) { return evaluateMVVLVA(a) > evaluateMVVLVA(b); });
 
-        std::sort(quietMoves.moves.begin(), quietMoves.moves.begin() + quietMoves.count, [this](Move& a, Move& b) { return getHistoryBonus(a) > getHistoryBonus(b); });
+        std::stable_sort(quietMoves.moves.begin(), quietMoves.moves.begin() + quietMoves.count, [&](Move a, Move b) { return getHistoryBonus(a) > getHistoryBonus(b); });
 
 
         // Combine moves in the prioritized order
