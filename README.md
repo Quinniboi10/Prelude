@@ -43,7 +43,7 @@ Prelude is a UCI-compatible chess engine utilizing advanced search\* algorithms 
 ### Evaluation:
 
 1. NNUE evaluation
-2. Currently uses a 1024HL perspective net trained by Ciekce
+2. Currently uses perspective network trained on [bullet](https://github.com/jw1912/bullet)
 
 ### Move Ordering:
 
@@ -55,7 +55,7 @@ Prelude is a UCI-compatible chess engine utilizing advanced search\* algorithms 
 ### Prerequisites
 
 - **Make**: Uses make to build the executable.
-- **G++ Compiler**: Requires support for C++20 or later.
+- **Clang++ Compiler**: Requires support for C++20 or later.
 - **CPU Architecture**: Requires support for AVX2 or later.
 - **Neural Network File**: Provide an NNUE and update the code to load it (included nnue.bin is recommended).
 
@@ -68,7 +68,7 @@ Prelude is a UCI-compatible chess engine utilizing advanced search\* algorithms 
    cd Prelude
    ```
 
-2. Compile using a G++ and make:
+2. Compile using make:
 
    ```bash
    make
@@ -88,6 +88,7 @@ Prelude uses the UCI protocol but supports custom debugging and testing commands
 
 Prelude supports customizable options via the `setoption` command:
 
+- **`Threads`**: Number of threads to use (1 to 1024). Default: 1.
 - **`Hash`**: Configurable hash table size (1 to 4096 MB). Default: 16 MB.
 - **`Move Overhead`**: Adjusts time overhead per move (0 to 1000 ms). Default: 20 ms.
 
@@ -102,10 +103,11 @@ Ensure a NNUE file is correctly placed. Update its path in the code if necessary
 ## Special Thanks
 
 - **Vast**: Help hunting for bugs and explaining concepts
-- **Ciekce**: Guidance and test NNUEs
+- **Ciekce**: Lots of guidance and test NNUEs
 - **Shawn\_xu**: Explaining NNUEs and many other things
 - **A\_randomnoob**: Fixing obvious mistakes
 - **Matt**: Providing help and allowing me to use his git instance
+- **jw**: Helping me with NNUE training
 
 ## License
 
