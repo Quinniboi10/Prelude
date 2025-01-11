@@ -2729,7 +2729,7 @@ struct SearchLimit {
     }
 };
 
-template<bool mainThread>
+template<bool isPV, bool mainThread>
 int _qs(Board& board,
     int alpha,
     int beta,
@@ -2748,7 +2748,7 @@ int _qs(Board& board,
 
     Transposition* entry = TT.getEntry(board.zobrist);
 
-    if (entry->zobristKey == board.zobrist && (
+    if (!isPV && entry->zobristKey == board.zobrist && (
         entry->flag == EXACT // Exact score
         || (entry->flag == BETACUTOFF && entry->score >= beta) // Lower bound, fail high
         || (entry->flag == FAILLOW && entry->score <= alpha) // Upper bound, fail low
@@ -2781,10 +2781,10 @@ int _qs(Board& board,
         int score;
 
         // Principal variation search stuff
-        score = -_qs<mainThread>(testBoard, -alpha - 1, -alpha, sl);
+        score = -_qs<isPV, mainThread>(testBoard, -alpha - 1, -alpha, sl);
         // If it fails high or low we search again with the original bounds
         if (score > alpha && score < beta) {
-            score = -_qs<mainThread>(testBoard, -beta, -alpha, sl);
+            score = -_qs<isPV, mainThread>(testBoard, -beta, -alpha, sl);
         }
 
         if (score >= beta) {
@@ -2813,7 +2813,7 @@ MoveEvaluation search(Board& board,
     // Only worry about draws and such if the node is a child, otherwise game would be over
     if (ply > 0) {
         if (depth <= 0) {
-            int eval = _qs<mainThread>(board, alpha, beta, sl);
+            int eval = _qs<isPV, mainThread>(board, alpha, beta, sl);
             return { Move(), eval };
         }
         else if (board.isDraw()) {
@@ -2824,7 +2824,7 @@ MoveEvaluation search(Board& board,
 
     Transposition* entry = TT.getEntry(board.zobrist);
 
-    if (ply > 0 && entry->zobristKey == board.zobrist && entry->depth >= depth && (
+    if (!isPV && ply > 0 && entry->zobristKey == board.zobrist && entry->depth >= depth && (
         entry->flag == EXACT // Exact score
         || (entry->flag == BETACUTOFF && entry->score >= beta) // Lower bound, fail high
         || (entry->flag == FAILLOW && entry->score <= alpha) // Upper bound, fail low
@@ -2865,7 +2865,7 @@ MoveEvaluation search(Board& board,
         if (board.canNullMove() && staticEval >= beta && !board.isInCheck() && popcountll(board.side ? board.white[0] : board.black[0]) + 1 != popcountll(board.side ? board.whitePieces : board.blackPieces)) {
             Board testBoard = board;
             testBoard.makeNullMove();
-            int eval = -search<false>(testBoard, ss + 1, depth - NMPReduction, -beta, -beta + 1, ply + 1, sl).eval;
+            int eval = -search<false, mainThread>(testBoard, ss + 1, depth - NMPReduction, -beta, -beta + 1, ply + 1, sl).eval;
             if (eval >= beta) {
                 return { Move(), eval };
             }
@@ -2919,14 +2919,14 @@ MoveEvaluation search(Board& board,
 
         // Only run PVS with more than one move already searched
         if (movesMade == 1) {
-            eval = -search<true>(testBoard, ss + 1, newDepth, -beta, -alpha, ply + 1, sl).eval;
+            eval = -search<true, mainThread>(testBoard, ss + 1, newDepth, -beta, -alpha, ply + 1, sl).eval;
         }
         else {
             // Principal variation search stuff
-            eval = -search<false>(testBoard, ss + 1, newDepth - depthReduction, -alpha - 1, -alpha, ply + 1, sl).eval;
+            eval = -search<false, mainThread>(testBoard, ss + 1, newDepth - depthReduction, -alpha - 1, -alpha, ply + 1, sl).eval;
             // If it fails high and isPV or used reduction, go again with full bounds
             if (eval > alpha && (isPV || depthReduction > 0)) {
-                eval = -search<true>(testBoard, ss + 1, newDepth, -beta, -alpha, ply + 1, sl).eval;
+                eval = -search<true, mainThread>(testBoard, ss + 1, newDepth, -beta, -alpha, ply + 1, sl).eval;
             }
         }
 
