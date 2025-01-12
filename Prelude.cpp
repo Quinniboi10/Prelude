@@ -2270,11 +2270,11 @@ public:
         matEval += popcountll(white[3]) * 493;
         matEval += popcountll(white[4]) * 982;
 
-        matEval += popcountll(black[0]) * 100;
-        matEval += popcountll(black[1]) * 316;
-        matEval += popcountll(black[2]) * 328;
-        matEval += popcountll(black[3]) * 493;
-        matEval += popcountll(black[4]) * 982;
+        matEval -= popcountll(black[0]) * 100;
+        matEval -= popcountll(black[1]) * 316;
+        matEval -= popcountll(black[2]) * 328;
+        matEval -= popcountll(black[3]) * 493;
+        matEval -= popcountll(black[4]) * 982;
 
         // Only utilize the large NNUE in situations when game isn't very won or lost
         // Concept from SF
