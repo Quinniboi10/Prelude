@@ -2670,6 +2670,9 @@ constexpr int VALUE_TB = MATE_SCORE - MAX_DEPTH - 1;
 constexpr int VALUE_TB_WIN_IN_MAX_PLY = VALUE_TB - MAX_DEPTH;
 constexpr int VALUE_TB_LOSS_IN_MAX_PLY = -VALUE_TB_WIN_IN_MAX_PLY;
 
+constexpr int razorMargin = 475; // Margin to use for razoring
+constexpr int razorDepthScalar = 300; // Depth scalar to use for razoring
+
 bool isUci = false; // Flag to represent if output should be human or UCI
 
 int seldepth = 0;
@@ -2836,6 +2839,15 @@ MoveEvaluation search(Board& board,
         return { Move(), entry->score };
     }
 
+
+    int staticEval = board.evaluate();
+
+    // Razoring (+ n +- n)
+    if (staticEval <= alpha - razorMargin - razorDepthScalar * depth * depth) {
+        int value = _qs<false, mainThread>(board, alpha - 1, alpha, sl);
+        if (value < alpha && !isDecisive(value)) return { Move(), value };
+    }
+
     // Internal iterative reductions (+ 19 +- 10)
     if (entry->zobristKey != board.zobrist && depth > 3) depth -= 1;
 
@@ -2858,7 +2870,6 @@ MoveEvaluation search(Board& board,
 
     if constexpr (!isPV) {
         // Reverse futility pruning (+ 32 elo +-34)
-        int staticEval = board.evaluate();
         if (staticEval - RFPMargin * depth >= beta && depth < 4 && !board.isInCheck()) {
             return { Move(), staticEval - RFPMargin };
         }
