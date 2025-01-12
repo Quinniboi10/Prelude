@@ -37,7 +37,7 @@ Prelude is a UCI-compatible chess engine utilizing advanced search\* algorithms 
 1. Fail-soft Principal Variation Search (PVS) with alpha-beta pruning.
 2. Transposition Table (TT) used for move ordering and cutoffs.
 3. Null move pruning, reverse futility pruning, with more to come.
-4. Iterative deepening.
+4. Iterative deepening with aspiration windows.
 5. Quiescence search.
 
 ### Evaluation:
