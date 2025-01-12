@@ -1459,6 +1459,28 @@ public:
         return history[side][m.startSquare()][m.endSquare()];
     }
 
+    int _see(int sq) {
+        MoveList moves = generateMoves();
+
+        for (int i = 0; i < moves.count; i++) {
+            Move m = moves.get(i);
+
+            if (m.endSquare() != sq || !isLegalMove(m)) continue;
+            Board testBoard = *this;
+            testBoard.move(m);
+            return getPieceValue(getPiece(sq)) - testBoard._see(sq);
+        }
+        return 0;
+    }
+
+    int see(int sq) {
+        u64 theirPieces = side ? blackPieces : whitePieces;
+        if (1ULL << sq & theirPieces) return _see(sq);
+        Board testBoard = *this;
+        testBoard.makeNullMove();
+        return testBoard._see(sq);
+    }
+
     MoveList generateMoves(bool capturesOnly = false) {
         MoveList allMoves;
         generateKingMoves(allMoves);
@@ -1740,7 +1762,6 @@ public:
         }
         return moves;
     }
-
 
     void display() {
         if (side)
@@ -3773,6 +3794,9 @@ int main(int argc, char* argv[]) {
         }
         else if (command == "debug.datagen") {
             playGames();
+        }
+        else if (parsedcommand.at(0) == "debug.see") {
+            cout << "SEE evaluation: " << currentPos.see(parseSquare(parsedcommand.at(1))) << endl;
         }
         else if (command == "debug.searchinfo") {
             cout << threads.size() << " helper threads running" << endl;
