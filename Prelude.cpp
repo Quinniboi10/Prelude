@@ -3056,18 +3056,18 @@ MoveEvaluation iterativeDeepening(
         // Full search on depth 1, otherwise try with aspiration window
         if (depth == 1) move = search<true, mainThread>(board, ss, depth, -INF_INT, INF_INT, 0, &sl);
         else { // From Clarity
-            int alpha = std::max(MATE_SCORE, move.eval - asprDelta);
-            int beta = std::min(-MATE_SCORE, move.eval + asprDelta);
+            int alpha = std::max(-MATE_SCORE, move.eval - asprDelta);
+            int beta = std::min(MATE_SCORE, move.eval + asprDelta);
             int delta = asprDelta;
             while (true) {
                 move = search<true, mainThread>(board, ss, depth, alpha, beta, 0, &sl);
                 if (sl.stopSearch()) break;
                 if (move.eval >= beta) {
-                    beta = std::min(beta + asprDelta, -MATE_SCORE);
+                    beta = std::min(beta + delta, MATE_SCORE);
                 }
                 else if (move.eval <= alpha) {
                     beta = (alpha + beta) / 2;
-                    alpha = std::max(alpha - asprDelta, MATE_SCORE);
+                    alpha = std::max(alpha - delta, -MATE_SCORE);
                 }
                 else break;
 
