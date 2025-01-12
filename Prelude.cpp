@@ -2727,6 +2727,10 @@ struct SearchLimit {
         auto now = std::chrono::steady_clock::now();
         return std::chrono::duration_cast<std::chrono::milliseconds>(now - searchStart).count() >= searchTime;
     }
+
+    bool stopSearch() {
+        return outOfNodes() || outOfTime();
+    }
 };
 
 template<bool isPV, bool mainThread>
@@ -2985,6 +2989,12 @@ MoveEvaluation search(Board& board,
     return { bestMove, bestEval };
 }
 
+constexpr int incScalar = 1; // Amount of increment to add to hard time limit
+constexpr double softTimeScalar = 0.65; // Scales the soft limit as hardLimit * n
+
+constexpr int asprDelta = 25; // Used as delta size in aspiration window
+constexpr double aspDeltaMultiplier = 1.25; // Scalar to widen aspr window on fail
+
 template<bool mainThread = false>
 MoveEvaluation iterativeDeepening(
     Board& board,
@@ -3007,8 +3017,8 @@ MoveEvaluation iterativeDeepening(
     std::string bestMoveAlgebra = "";
     if (wtime || btime) {
         hardLimit = board.side ? wtime / movesToGo : btime / movesToGo;
-        hardLimit += board.side ? winc : binc;
-        softLimit = hardLimit * 0.65;
+        hardLimit += (board.side ? winc : binc) * incScalar;
+        softLimit = hardLimit * softTimeScalar;
     }
     else if (mtime) {
         hardLimit = mtime;
@@ -3041,9 +3051,29 @@ MoveEvaluation iterativeDeepening(
     Stack* ss = stack;
 
     for (int depth = 1; depth <= maxDepth; depth++) {
-        seldepth = 0;
+        seldepth = depth;
 
-        move = search<true, mainThread>(board, ss, depth, -INF_INT, INF_INT, 0, &sl);
+        // Full search on depth 1, otherwise try with aspiration window
+        if (depth == 1) move = search<true, mainThread>(board, ss, depth, -INF_INT, INF_INT, 0, &sl);
+        else { // From Clarity
+            int alpha = std::max(MATE_SCORE, move.eval - asprDelta);
+            int beta = std::min(-MATE_SCORE, move.eval + asprDelta);
+            int delta = asprDelta;
+            while (true) {
+                move = search<true, mainThread>(board, ss, depth, alpha, beta, 0, &sl);
+                if (sl.stopSearch()) break;
+                if (move.eval >= beta) {
+                    beta = std::min(beta + asprDelta, -MATE_SCORE);
+                }
+                else if (move.eval <= alpha) {
+                    beta = (alpha + beta) / 2;
+                    alpha = std::max(alpha - asprDelta, MATE_SCORE);
+                }
+                else break;
+
+                delta *= aspDeltaMultiplier;
+            }
+        }
 
         if (ISDBG && mainThread) m_assert(!move.move.isNull(), "Returned null move in search");
 
