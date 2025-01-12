@@ -2670,6 +2670,9 @@ constexpr int VALUE_TB = MATE_SCORE - MAX_DEPTH - 1;
 constexpr int VALUE_TB_WIN_IN_MAX_PLY = VALUE_TB - MAX_DEPTH;
 constexpr int VALUE_TB_LOSS_IN_MAX_PLY = -VALUE_TB_WIN_IN_MAX_PLY;
 
+constexpr int razorMargin = 475; // Margin to use for razoring
+constexpr int razorDepthScalar = 300; // Depth scalar to use for razoring
+
 bool isUci = false; // Flag to represent if output should be human or UCI
 
 int seldepth = 0;
@@ -2836,7 +2839,16 @@ MoveEvaluation search(Board& board,
         return { Move(), entry->score };
     }
 
-    // Internal iterative reductions (+ 19 +- 10)
+
+    int staticEval = board.evaluate();
+
+    // Razoring (+9 +- 5)
+    if (staticEval <= alpha - razorMargin - razorDepthScalar * depth * depth) {
+        int value = _qs<false, mainThread>(board, alpha - 1, alpha, sl);
+        if (value < alpha && !isDecisive(value)) return { Move(), value };
+    }
+
+    // Internal iterative reductions (+19 +- 10)
     if (entry->zobristKey != board.zobrist && depth > 3) depth -= 1;
 
     // Mate distance pruning
@@ -2857,13 +2869,12 @@ MoveEvaluation search(Board& board,
     }
 
     if constexpr (!isPV) {
-        // Reverse futility pruning (+ 32 elo +-34)
-        int staticEval = board.evaluate();
+        // Reverse futility pruning (+ 32 +- 34)
         if (staticEval - RFPMargin * depth >= beta && depth < 4 && !board.isInCheck()) {
             return { Move(), staticEval - RFPMargin };
         }
 
-        // Null move pruning (+75 elo +- 33)
+        // Null move pruning (+75 +- 33)
         // Don't prune PV nodes and don't prune king + pawn only
         // King + pawn is likely redundant because the position would already be considered endgame, but removing it seems to lose elo
         if (board.canNullMove() && staticEval >= beta && !board.isInCheck() && popcountll(board.side ? board.white[0] : board.black[0]) + 1 != popcountll(board.side ? board.whitePieces : board.blackPieces)) {
@@ -2900,7 +2911,7 @@ MoveEvaluation search(Board& board,
             continue; // Validate legal moves
         }
 
-        // Calculate reduction factor for late move reduction (+14 elo +-8)
+        // Calculate reduction factor for late move reduction (+14 +- 8)
         // Based on Weiss
         int depthReduction;
         // Captures or promos are not reduced
