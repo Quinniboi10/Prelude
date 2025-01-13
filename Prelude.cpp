@@ -108,6 +108,7 @@ constexpr Color operator~(Color c) {
 enum PieceType : int {
     PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING, NO_PIECE_TYPE
 };
+array<int, 5> kPieceValues = { 100, 316, 328, 493, 982 };
 
 enum Square : int {
     a1, b1, c1, d1, e1, f1, g1, h1,
@@ -160,36 +161,6 @@ enum compiler {
     MSVC, OTHER
 };
 
-struct shifts {
-    static inline int NORTH = 8;
-    static inline int NORTH_EAST = 9;
-    static inline int EAST = 1;
-    static inline int SOUTH_EAST = -7;
-    static inline int SOUTH = -8;
-    static inline int SOUTH_WEST = -9;
-    static inline int WEST = -1;
-    static inline int NORTH_WEST = 7;
-
-    static inline array<int, 8> dirs = { NORTH, NORTH_EAST, EAST, SOUTH_EAST, SOUTH, SOUTH_WEST, WEST, NORTH_WEST };
-    static inline array<int, 4> straightDirs = { NORTH, EAST, SOUTH, WEST };
-    static inline array<int, 4> diagonalDirs = { NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST };
-};
-
-struct indexes {
-    static inline int NORTH = 0;
-    static inline int NORTH_EAST = 1;
-    static inline int EAST = 2;
-    static inline int SOUTH_EAST = 3;
-    static inline int SOUTH = 4;
-    static inline int SOUTH_WEST = 5;
-    static inline int WEST = 6;
-    static inline int NORTH_WEST = 7;
-    static inline int all = 8;
-
-    static inline array<int, 8> dirs = { NORTH, NORTH_EAST, EAST, SOUTH_EAST, SOUTH, SOUTH_WEST, WEST, NORTH_WEST };
-    static inline array<int, 4> straightDirs = { NORTH, EAST, SOUTH, WEST };
-    static inline array<int, 4> diagonalDirs = { NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST };
-};
 
 struct Colors {
     // ANSI codes for colors https://raw.githubusercontent.com/fidian/ansi/master/images/color-codes.png
@@ -247,16 +218,16 @@ class Move {
     // CAPTURE = 14
     // SPECIAL 1 = 13
     // SPECIAL 0 = 12
-public:
+private:
     uint16_t move;
-
-    Move() {
+public:
+    constexpr Move() {
         move = 0;
     }
 
     Move(string in, Board& board);
 
-    Move(u8 startSquare, u8 endSquare, int flags = STANDARD_MOVE) {
+    constexpr Move(u8 startSquare, u8 endSquare, int flags = STANDARD_MOVE) {
         move = startSquare;
         move |= endSquare << 6;
         move |= flags << 12;
@@ -335,17 +306,6 @@ void printBitboard(u64 bitboard) {
     }
     cout << "+---+---+---+---+---+---+---+---+" << endl;
 }
-
-// Old time conversion
-/*string formatTime(u64 timeInMS) {
-    const double hrs = timeInMS / (1000.0 * 60 * 60);
-    const double mins = timeInMS / (1000.0 * 60);
-    const double secs = timeInMS / 1000.0;
-    if (timeInMS > 1000 * 60 * 60) return std::format("{:.4f}h", hrs); // hrs
-    if (timeInMS > 1000 * 60) return std::format("{:.2f}m", mins); // mins
-    if (timeInMS > 1000) return std::format("{:.2f}s", secs); // secs
-    return std::to_string(timeInMS) + "ms"; // ms
-}*/
 
 string formatTime(u64 timeInMS) {
     long long seconds = timeInMS / 1000;
@@ -496,16 +456,16 @@ public:
             u64 positions = 0;
 
             // Horizontal
-            if (!onNEdge) setBit(positions, i + shifts::NORTH, 1);
-            if (!onEEdge) setBit(positions, i + shifts::EAST, 1);
-            if (!onSEdge) setBit(positions, i + shifts::SOUTH, 1);
-            if (!onWEdge) setBit(positions, i + shifts::WEST, 1);
+            if (!onNEdge) setBit(positions, i + NORTH, 1);
+            if (!onEEdge) setBit(positions, i + EAST, 1);
+            if (!onSEdge) setBit(positions, i + SOUTH, 1);
+            if (!onWEdge) setBit(positions, i + WEST, 1);
 
             // Diagonal
-            if (!onNEdge && !onEEdge) setBit(positions, i + shifts::NORTH_EAST, 1);
-            if (!onNEdge && !onWEdge) setBit(positions, i + shifts::NORTH_WEST, 1);
-            if (!onSEdge && !onEEdge) setBit(positions, i + shifts::SOUTH_EAST, 1);
-            if (!onSEdge && !onWEdge) setBit(positions, i + shifts::SOUTH_WEST, 1);
+            if (!onNEdge && !onEEdge) setBit(positions, i + NORTH_EAST, 1);
+            if (!onNEdge && !onWEdge) setBit(positions, i + NORTH_WEST, 1);
+            if (!onSEdge && !onEEdge) setBit(positions, i + SOUTH_EAST, 1);
+            if (!onSEdge && !onWEdge) setBit(positions, i + SOUTH_WEST, 1);
 
             kingMoves[i] = positions;
         }
@@ -572,6 +532,30 @@ constexpr Rank rankOf(Square s) { return Rank(s >> 3); }
 constexpr File fileOf(Square s) { return File(s & 0b111); }
 
 constexpr Rank flipRank(Square s) { return Rank(s ^ 0b111000); }
+
+template<Direction shiftDir>
+u64 shift(u64 bb) {
+    if constexpr (shiftDir < 0) {
+        return bb >> -shiftDir;
+    }
+    return bb << shiftDir;
+}
+
+template<Color c>
+u64 pawnAttacksBB(const int sq) {
+    const u64 pawnBB = 1ULL << sq;
+    if constexpr (c == WHITE) {
+        if (pawnBB & Precomputed::isOnA) return shift<NORTH_EAST>(pawnBB);
+        if (pawnBB & Precomputed::isOnH) return shift<NORTH_WEST>(pawnBB);
+        return shift<NORTH_EAST>(pawnBB) | shift<NORTH_WEST>(pawnBB);
+    }
+    else {
+        if (pawnBB & Precomputed::isOnA) return shift<SOUTH_EAST>(pawnBB);
+        if (pawnBB & Precomputed::isOnH) return shift<SOUTH_WEST>(pawnBB);
+        return shift<SOUTH_EAST>(pawnBB) | shift<SOUTH_WEST>(pawnBB);
+    }
+}
+
 
 // ****** MANY A PROGRAMMER HAS "BORROWED" CODE. I AM NO EXCEPTION ******
 // Original code from https://github.com/nkarve/surge/blob/master/src/tables.cpp
@@ -847,26 +831,23 @@ struct MoveEvaluation {
     Move move;
     int eval;
 
-    MoveEvaluation() {
+    constexpr MoveEvaluation() {
         move = Move();
         eval = -INF_INT;
     }
-    MoveEvaluation(Move m, int eval) {
+    constexpr MoveEvaluation(Move m, int eval) {
         move = m;
         this->eval = eval;
     }
 
-    bool operator>(const MoveEvaluation& other) const { return eval > other.eval; }
-    bool operator<(const MoveEvaluation& other) const { return eval < other.eval; }
-    bool operator>=(const MoveEvaluation& other) const { return eval >= other.eval; }
-    bool operator<=(const MoveEvaluation& other) const { return eval <= other.eval; }
+    constexpr auto operator<=>(const MoveEvaluation& other) const { return eval <=> other.eval; }
 };
 
 struct MoveList {
     array<Move, 218> moves;
     int count;
 
-    MoveList() {
+    constexpr MoveList() {
         count = 0;
     }
 
@@ -1109,6 +1090,7 @@ public:
     bool doubleCheck = false;
     u64 checkMask = 0;
     u64 pinned = 0;
+    array<u64, 2> pinnersPerC;
 
     std::vector<u64> positionHistory;
     u64 zobrist;
@@ -1207,17 +1189,6 @@ public:
         else return KING;
     }
 
-    int getPieceValue(PieceType pt) {
-        switch (pt) {
-        case PAWN: return 100;
-        case KNIGHT: return 300;
-        case BISHOP: return 300;
-        case ROOK: return 500;
-        case QUEEN: return 800;
-        default: return 0;
-        }
-    }
-
     void generatePawnMoves(MoveList& moves) {
         u64 pawns = side ? white[0] : black[0];
 
@@ -1244,7 +1215,6 @@ public:
         u64 pawnDoublePush = side ? (white[0] << 16) : (black[0] >> 16);
         pawnDoublePush &= emptySquares & (side ? (emptySquares << 8) : (emptySquares >> 8));
         pawnDoublePush &= side ? (Precomputed::isOn2 << 16) : (Precomputed::isOn7 >> 16);
-
 
 
         while (pawnDoublePush) {
@@ -1448,8 +1418,8 @@ public:
     }
 
     int evaluateMVVLVA(Move& a) {
-        int victim = getPieceValue(getPiece(a.endSquare()));
-        int attacker = getPieceValue(getPiece(a.startSquare()));
+        int victim = kPieceValues[getPiece(a.endSquare())];
+        int attacker = kPieceValues[getPiece(a.startSquare())];
 
         // Higher victim value and lower attacker value are prioritized
         return (victim * 100) - attacker;
@@ -1457,6 +1427,93 @@ public:
 
     int getHistoryBonus(Move& m) {
         return history[side][m.startSquare()][m.endSquare()];
+    }
+
+    u64 attackersTo(Square sq, u64 occ) {
+        return (getRookAttacks(sq, occ) & pieces(ROOK, QUEEN))
+            | (getBishopAttacks(sq, occ) & pieces(BISHOP, QUEEN))
+            | (pawnAttacksBB<WHITE>(sq) & pieces(BLACK, PAWN))
+            | (pawnAttacksBB<BLACK>(sq) & pieces(WHITE, PAWN))
+            | (Precomputed::knightMoves[sq] & pieces(KNIGHT))
+            | (Precomputed::kingMoves[sq] & pieces(KING));
+    }
+
+    bool see(Move m, int threshold) { // Based on SF
+        // Don't do anything with promo, castle, EP
+        if ((m.typeOf() & ~CAPTURE) != 0) return 0 >= threshold;
+
+        int from = m.startSquare();
+        int to = m.endSquare();
+
+        int swap = kPieceValues[getPiece(to)] - threshold;
+        if (swap <= 0) return false;
+
+        swap = kPieceValues[getPiece(from)] - swap;
+        if (swap <= 0) return true;
+
+        u64 occ = pieces() ^ (1ULL << from) ^ (1ULL << to);
+        Color stm = side;
+        u64 attackers = attackersTo(Square(to), occ);
+        u64 stmAttackers, bb;
+
+        int res = 1;
+
+        while (true) {
+            stm = ~stm;
+            attackers &= occ;
+
+            stmAttackers = attackers & pieces(stm);
+            if (!(stmAttackers)) break;
+
+            if (pinners(~stm) & occ) {
+                stmAttackers &= ~pinned;
+                if (!stmAttackers) break;
+            }
+
+            res ^= 1;
+
+            if ((bb = stmAttackers & pieces(PAWN))) {
+                swap = kPieceValues[PAWN] - swap;
+                if (swap < res) break;
+                occ ^= 1ULL << ctzll(bb); // LSB as a bitboard
+
+                attackers |= getBishopAttacks(Square(to), occ) & pieces(BISHOP, QUEEN);
+            }
+
+            else if ((bb = stmAttackers & pieces(KNIGHT))) {
+                swap = kPieceValues[KNIGHT] - swap;
+                if (swap < res) break;
+                occ ^= 1ULL << ctzll(bb);
+            }
+
+            else if ((bb = stmAttackers & pieces(BISHOP))) {
+                swap = kPieceValues[BISHOP] - swap;
+                if (swap < res) break;
+                occ ^= 1ULL << ctzll(bb);
+
+                attackers |= getBishopAttacks(Square(to), occ) & pieces(BISHOP, QUEEN);
+            }
+
+            else if ((bb = stmAttackers & pieces(ROOK))) {
+                swap = kPieceValues[ROOK] - swap;
+                if (swap < res) break;
+                occ ^= 1ULL << ctzll(bb);
+
+                attackers |= getRookAttacks(Square(to), occ) & pieces(ROOK, QUEEN);
+            }
+
+            else if ((bb = stmAttackers & pieces(QUEEN))) {
+                swap = kPieceValues[QUEEN] - swap;
+                if (swap < res) break;
+                occ ^= 1ULL << ctzll(bb);
+
+                attackers |= getBishopAttacks(Square(to), occ) & pieces(BISHOP, QUEEN)
+                    | getRookAttacks(Square(to), occ) & pieces(ROOK, QUEEN);
+            }
+            else return (attackers & ~pieces(stm)) ? res ^ 1 : res; // King capture so flip side if enemy has attackers
+        }
+
+        return res;
     }
 
     MoveList generateMoves(bool capturesOnly = false) {
@@ -1517,12 +1574,20 @@ public:
         return whitePieces | blackPieces;
     }
 
+    u64 pieces(PieceType pt) {
+        return white[pt] | black[pt];
+    }
+
+    u64 pieces(Color c, PieceType pt) {
+        return c ? white[pt] : black[pt];
+    }
+
     u64 pieces(PieceType p1, PieceType p2) {
         return white[p1] | white[p2] | black[p1] | black[p2];
     }
 
     u64 pieces(Color c) {
-        return (c * whitePieces + ~c * blackPieces);
+        return c ? whitePieces : blackPieces;
     }
 
     bool isEndgame() {
@@ -1561,7 +1626,7 @@ public:
         auto& opponentPieces = checkWhite ? black : white;
 
         // *** SLIDING PIECE ATTACKS ***
-        u64 occupancy = whitePieces | blackPieces;
+        u64 occupancy = pieces();
 
         // Straight Directions (Rooks and Queens)
         if ((opponentPieces[3] | opponentPieces[4]) & getRookAttacks(Square(square), occupancy)) return true;
@@ -1644,12 +1709,17 @@ public:
         u64 rookXrays = getXrayRookAttacks(Square(kingIndex), occ, ourPieces) & enemyRooksQueens;
         u64 bishopXrays = getXrayBishopAttacks(Square(kingIndex), occ, ourPieces) & enemyBishopsQueens;
         u64 pinners = rookXrays | bishopXrays;
+        pinnersPerC[side] = pinners;
 
         pinned = 0;
         while (pinners) {
             pinned |= LINESEG[ctzll(pinners)][kingIndex] & ourPieces;
             pinners &= pinners - 1;
         }
+    }
+
+    u64 pinners(Color c) {
+        return pinnersPerC[c];
     }
 
     bool isLegalMove(Move m) {
@@ -1740,7 +1810,6 @@ public:
         }
         return moves;
     }
-
 
     void display() {
         if (side)
@@ -1962,10 +2031,10 @@ public:
                 case KNIGHT_PROMO_CAPTURE: removePiece(~side, to); placePiece(side, KNIGHT, to); break;
                 case EN_PASSANT:
                     if (side) {
-                        removePiece(BLACK, PAWN, to + shifts::SOUTH);
+                        removePiece(BLACK, PAWN, to + SOUTH);
                     }
                     else {
-                        removePiece(WHITE, PAWN, to + shifts::NORTH);
+                        removePiece(WHITE, PAWN, to + NORTH);
                     }
                     placePiece(side, PAWN, to);
                     break;
@@ -2227,12 +2296,12 @@ public:
 
         ans += side ? " w " : " b ";
 
-        if (readBit(castlingRights, 3)) ans += "K";
-        if (readBit(castlingRights, 2)) ans += "Q";
-        if (readBit(castlingRights, 1)) ans += "k";
-        if (readBit(castlingRights, 0)) ans += "q";
+        if (readBit(castlingRights, 3)) ans += "K ";
+        if (readBit(castlingRights, 2)) ans += "Q ";
+        if (readBit(castlingRights, 1)) ans += "k ";
+        if (readBit(castlingRights, 0)) ans += "q ";
 
-        if (castlingRights) ans += " ";
+        if (!castlingRights) ans += "- ";
 
         if (enPassant) ans += squareToAlgebraic(ctzll(enPassant));
         else ans += "-";
@@ -2245,7 +2314,7 @@ public:
         return ans;
     }
 
-    constexpr int flipIndex(int index) {
+    int flipIndex(int index) {
         // Ensure the index is within [0, 63]
         IFDBG m_assert((index >= 0 && index <= 63), "Invalid index: " + std::to_string(index) + ". Must be between 0 and 63.");
         int rank = index / 8;
@@ -2673,20 +2742,22 @@ constexpr int VALUE_TB_LOSS_IN_MAX_PLY = -VALUE_TB_WIN_IN_MAX_PLY;
 constexpr int razorMargin = 475; // Margin to use for razoring
 constexpr int razorDepthScalar = 300; // Depth scalar to use for razoring
 
+constexpr int seeMargin = -108; // Margin for qsearch SEE pruning
+
 bool isUci = false; // Flag to represent if output should be human or UCI
 
 int seldepth = 0;
 
 
-constexpr bool isWin(int v) {
+bool isWin(int v) {
     return v >= VALUE_TB_WIN_IN_MAX_PLY;
 }
 
-constexpr bool isLoss(int v) {
+bool isLoss(int v) {
     return v <= VALUE_TB_LOSS_IN_MAX_PLY;
 }
 
-constexpr bool isDecisive(int v) { return isWin(v) || isLoss(v); }
+bool isDecisive(int v) { return isWin(v) || isLoss(v); }
 
 struct Stack { // From SF
     Move* pv;
@@ -2737,7 +2808,7 @@ struct SearchLimit {
 };
 
 template<bool isPV, bool mainThread>
-int _qs(Board& board,
+int qsearch(Board& board,
     int alpha,
     int beta,
     SearchLimit* sl) {
@@ -2778,7 +2849,7 @@ int _qs(Board& board,
 
         const Move& m = moves.moves[i];
 
-        if (!board.isLegalMove(m)) continue;
+        if (!board.isLegalMove(m) || !board.see(m, seeMargin)) continue;
 
         Board testBoard = board;
         testBoard.move(m);
@@ -2788,10 +2859,10 @@ int _qs(Board& board,
         int score;
 
         // Principal variation search stuff
-        score = -_qs<isPV, mainThread>(testBoard, -alpha - 1, -alpha, sl);
+        score = -qsearch<isPV, mainThread>(testBoard, -alpha - 1, -alpha, sl);
         // If it fails high or low we search again with the original bounds
         if (score > alpha && score < beta) {
-            score = -_qs<isPV, mainThread>(testBoard, -beta, -alpha, sl);
+            score = -qsearch<isPV, mainThread>(testBoard, -beta, -alpha, sl);
         }
 
         if (score >= beta) {
@@ -2820,7 +2891,7 @@ MoveEvaluation search(Board& board,
     // Only worry about draws and such if the node is a child, otherwise game would be over
     if (ply > 0) {
         if (depth <= 0) {
-            int eval = _qs<isPV, mainThread>(board, alpha, beta, sl);
+            int eval = qsearch<isPV, mainThread>(board, alpha, beta, sl);
             return { Move(), eval };
         }
         else if (board.isDraw()) {
@@ -2844,7 +2915,7 @@ MoveEvaluation search(Board& board,
 
     // Razoring (+9 +- 5)
     if (staticEval <= alpha - razorMargin - razorDepthScalar * depth * depth) {
-        int value = _qs<false, mainThread>(board, alpha - 1, alpha, sl);
+        int value = qsearch<false, mainThread>(board, alpha - 1, alpha, sl);
         if (value < alpha && !isDecisive(value)) return { Move(), value };
     }
 
@@ -3565,7 +3636,7 @@ int main(int argc, char* argv[]) {
     if (argc > 1) {
         string arg1 = argv[1];
         if (arg1 == "bench") {
-            bench(9);
+            bench(11);
         }
         else if (arg1 == "datagen") {
             playGames();
@@ -3753,7 +3824,7 @@ int main(int argc, char* argv[]) {
             currentPos.makeNullMove();
         }
         else if (!parsedcommand.empty() && parsedcommand.at(0) == "bench") {
-            int depth = 9; // Default depth
+            int depth = 11; // Default depth
 
             if (parsedcommand.size() >= 2) {
                 depth = stoi(parsedcommand.at(1));
@@ -3773,6 +3844,13 @@ int main(int argc, char* argv[]) {
         }
         else if (command == "debug.datagen") {
             playGames();
+        }
+        else if (parsedcommand.at(0) == "debug.see") {
+            cout << "SEE evaluation: " << currentPos.see(Move(parsedcommand.at(1), currentPos), 0) << endl;
+        }
+        else if (parsedcommand.at(0) == "debug.attackers") {
+            cout << "Attackers:" << endl;
+            printBitboard(currentPos.attackersTo(Square(parseSquare(parsedcommand.at(1))), ~currentPos.emptySquares));
         }
         else if (command == "debug.searchinfo") {
             cout << threads.size() << " helper threads running" << endl;
