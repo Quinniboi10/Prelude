@@ -2735,12 +2735,14 @@ constexpr int MAX_HISTORY = 16384; // Max history bonus
 constexpr int MATE_SCORE = 99999;
 constexpr int MAX_DEPTH = 255;
 
-constexpr int VALUE_TB = MATE_SCORE - MAX_DEPTH - 1;
-constexpr int VALUE_TB_WIN_IN_MAX_PLY = VALUE_TB - MAX_DEPTH;
-constexpr int VALUE_TB_LOSS_IN_MAX_PLY = -VALUE_TB_WIN_IN_MAX_PLY;
+constexpr int MATE_IN_MAX_PLY = MATE_SCORE - MAX_DEPTH;
+constexpr int MATED_IN_MAX_PLY = -MATE_SCORE + MAX_DEPTH;
 
-constexpr int razorMargin = 475; // Margin to use for razoring
-constexpr int razorDepthScalar = 300; // Depth scalar to use for razoring
+constexpr int RAZOR_MARGIN = 475; // Margin to use for razoring
+constexpr int RAZOR_DEPTH_SCALAR = 300; // Depth scalar to use for razoring
+
+constexpr int PVS_SEE_QUIET_SCALAR = -80;
+constexpr int PVS_SEE_CAPTURE_SCALAR = -30;
 
 constexpr int seeMargin = -108; // Margin for qsearch SEE pruning
 
@@ -2750,11 +2752,11 @@ int seldepth = 0;
 
 
 bool isWin(int v) {
-    return v >= VALUE_TB_WIN_IN_MAX_PLY;
+    return v >= MATE_IN_MAX_PLY;
 }
 
 bool isLoss(int v) {
-    return v <= VALUE_TB_LOSS_IN_MAX_PLY;
+    return v <= MATED_IN_MAX_PLY;
 }
 
 bool isDecisive(int v) { return isWin(v) || isLoss(v); }
@@ -2914,7 +2916,7 @@ MoveEvaluation search(Board& board,
     int staticEval = board.evaluate();
 
     // Razoring (+9 +- 5)
-    if (staticEval <= alpha - razorMargin - razorDepthScalar * depth * depth) {
+    if (staticEval <= alpha - RAZOR_MARGIN - RAZOR_DEPTH_SCALAR * depth * depth) {
         int value = qsearch<false, mainThread>(board, alpha - 1, alpha, sl);
         if (value < alpha && !isDecisive(value)) return { Move(), value };
     }
@@ -2940,7 +2942,7 @@ MoveEvaluation search(Board& board,
     }
 
     if constexpr (!isPV) {
-        // Reverse futility pruning (+ 32 +- 34)
+        // Reverse futility pruning (+32 +- 34)
         if (staticEval - RFPMargin * depth >= beta && depth < 4 && !board.isInCheck()) {
             return { Move(), staticEval - RFPMargin };
         }
@@ -2980,6 +2982,13 @@ MoveEvaluation search(Board& board,
 
         if (!board.isLegalMove(m)) {
             continue; // Validate legal moves
+        }
+
+        if (ply > 0 && bestEval > MATED_IN_MAX_PLY) {
+            // PVS SEE pruning
+            const int seeThreshold = !(m.typeOf() & CAPTURE) ? PVS_SEE_QUIET_SCALAR * depth : PVS_SEE_CAPTURE_SCALAR * depth * depth;
+
+            if (depth <= 8 && movesMade > 0 && !board.see(m, seeThreshold)) continue;
         }
 
         // Calculate reduction factor for late move reduction (+14 +- 8)
