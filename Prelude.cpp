@@ -2982,7 +2982,7 @@ MoveEvaluation search(Board& board,
         testBoard.move(m);
         movesMade++;
 
-        if (!mainThread) nodes++;
+        nodes++;
 
         int eval;
 
@@ -3062,7 +3062,7 @@ constexpr double softTimeScalar = 0.65; // Scales the soft limit as hardLimit * 
 constexpr int asprDelta = 25; // Used as delta size in aspiration window
 constexpr double aspDeltaMultiplier = 1.25; // Scalar to widen aspr window on fail
 
-template<bool mainThread = false>
+template<bool mainThread>
 MoveEvaluation iterativeDeepening(
     Board& board,
     int maxDepth,
