@@ -17,7 +17,7 @@
 */
 
 
-// TODO (Ordered): 
+// TODO (Ordered):
 // More pruning in search
 
 #include <iostream>
@@ -39,31 +39,31 @@
 #include <immintrin.h>
 
 #ifndef EVALFILE
-#define EVALFILE "./nnue.bin"
+    #define EVALFILE "./nnue.bin"
 #endif
 
 #ifdef _MSC_VER
-#define MSVC
-#pragma push_macro("_MSC_VER")
-#undef _MSC_VER
+    #define MSVC
+    #pragma push_macro("_MSC_VER")
+    #undef _MSC_VER
 #endif
 
 #include "./external/incbin.h"
 
 #ifdef MSVC
-#pragma pop_macro("_MSC_VER")
-#undef MSVC
+    #pragma pop_macro("_MSC_VER")
+    #undef MSVC
 #endif
 
 #if !defined(_MSC_VER) || defined(__clang__)
 INCBIN(EVAL, EVALFILE);
 #endif
 
-int getLine(int line) {
-    return line;
-}
+int getLine(int line) { return line; }
 
-#define exit(code) cout << "Exit from line " << getLine(__LINE__) << endl; exit(code);
+#define exit(code) \
+    cout << "Exit from line " << getLine(__LINE__) << endl; \
+    exit(code);
 
 #define ctzll(x) std::countr_zero(x)
 #define popcountll(x) std::popcount(x)
@@ -81,35 +81,41 @@ using std::array;
 using std::cout;
 using std::endl;
 
-#define m_assert(expr, msg) assert(( (void)(msg), (expr) ))
+#define m_assert(expr, msg) assert(((void) (msg), (expr)))
 
 using u64 = uint64_t;
 using u32 = uint32_t;
 using u16 = uint16_t;
-using u8 = uint8_t;
+using u8  = uint8_t;
 
 using i64 = int64_t;
 using i32 = int32_t;
 using i16 = int16_t;
 
-constexpr u64 INF = std::numeric_limits<uint64_t>::max();
+constexpr u64 INF     = std::numeric_limits<uint64_t>::max();
 constexpr int INF_INT = std::numeric_limits<int>::max();
 
 
 enum Color : int {
-    WHITE = 1, BLACK = 0
+    WHITE = 1,
+    BLACK = 0
 };
 
 //Inverts the color (WHITE -> BLACK) and (BLACK -> WHITE)
-constexpr Color operator~(Color c) {
-    return Color(c ^ 1);
-}
+constexpr Color operator~(Color c) { return Color(c ^ 1); }
 
 enum PieceType : int {
-    PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING, NO_PIECE_TYPE
+    PAWN,
+    KNIGHT,
+    BISHOP,
+    ROOK,
+    QUEEN,
+    KING,
+    NO_PIECE_TYPE
 };
-array<int, 5> kPieceValues = { 100, 316, 328, 493, 982 };
+array<int, 5> kPieceValues = {100, 316, 328, 493, 982};
 
+// clang-format off
 enum Square : int {
     a1, b1, c1, d1, e1, f1, g1, h1,
     a2, b2, c2, d2, e2, f2, g2, h2,
@@ -123,9 +129,16 @@ enum Square : int {
 };
 
 enum Direction : int {
-    NORTH = 8, NORTH_EAST = 9, EAST = 1, SOUTH_EAST = -7,
-    SOUTH = -8, SOUTH_WEST = -9, WEST = -1, NORTH_WEST = 7,
-    NORTH_NORTH = 16, SOUTH_SOUTH = -16
+    NORTH = 8,
+    NORTH_EAST = 9,
+    EAST = 1,
+    SOUTH_EAST = -7,
+    SOUTH = -8,
+    SOUTH_WEST = -9,
+    WEST = -1,
+    NORTH_WEST = 7,
+    NORTH_NORTH = 16,
+    SOUTH_SOUTH = -16
 };
 
 enum File : int {
@@ -141,6 +154,7 @@ constexpr Square operator+(Square s, Direction d) { return Square(int(s) + int(d
 constexpr Square operator-(Square s, Direction d) { return Square(int(s) - int(d)); }
 Square& operator+=(Square& s, Direction d) { return s = s + d; }
 Square& operator-=(Square& s, Direction d) { return s = s - d; }
+//clang-format on
 
 static inline const union {
     uint32_t i;
@@ -155,10 +169,6 @@ enum MoveType {
 
 enum flags {
     UNDEFINED, FAILLOW, BETACUTOFF, EXACT
-};
-
-enum compiler {
-    MSVC, OTHER
 };
 
 
@@ -346,8 +356,6 @@ string abbreviateNum(const i64 v) {
 
 class Precomputed {
 public:
-    static array<u64, 64> knightMoves;
-    static array<u64, 64> kingMoves;
     static array<array<array<u64, 64>, 12>, 2> zobrist;
     // EP zobrist is 65 because ctzll of 0 returns 64
     static array<u64, 65> zobristEP;
@@ -411,65 +419,6 @@ public:
             if (rank == 7) isOn8 |= 1ULL << i;
         }
 
-        // *** KNIGHT MOVES ***
-        bool onNEdge;
-        bool onNEdge2;
-        bool onEEdge;
-        bool onEEdge2;
-        bool onSEdge;
-        bool onSEdge2;
-        bool onWEdge;
-        bool onWEdge2;
-
-        for (int i = 0; i < 64; ++i) {
-            onNEdge = i / 8 == 7;
-            onNEdge2 = i / 8 == 7 || i / 8 == 6;
-            onEEdge = i % 8 == 7;
-            onEEdge2 = i % 8 == 7 || i % 8 == 6;
-            onSEdge = i / 8 == 0;
-            onSEdge2 = i / 8 == 0 || i / 8 == 1;
-            onWEdge = i % 8 == 0;
-            onWEdge2 = i % 8 == 0 || i % 8 == 1;
-
-            u64 positions = 0;
-
-            if (!onNEdge2 && !onEEdge) setBit(positions, i + 17, 1); // Up 2, right 1
-            if (!onNEdge && !onEEdge2) setBit(positions, i + 10, 1); // Up 1, right 2
-            if (!onSEdge && !onEEdge2) setBit(positions, i - 6, 1);  // Down 1, right 2
-            if (!onSEdge2 && !onEEdge) setBit(positions, i - 15, 1); // Down 2, right 1
-
-            if (!onSEdge2 && !onWEdge) setBit(positions, i - 17, 1); // Down 2, left 1
-            if (!onSEdge && !onWEdge2) setBit(positions, i - 10, 1); // Down 1, left 2
-            if (!onNEdge && !onWEdge2) setBit(positions, i + 6, 1);  // Up 1, left 2
-            if (!onNEdge2 && !onWEdge) setBit(positions, i + 15, 1); // Up 2, left 1
-
-            knightMoves[i] = positions;
-        }
-
-        // *** KING MOVES ***
-        for (int i = 0; i < 64; ++i) {
-            onNEdge = (1ULL << i) & isOn8;
-            onEEdge = (1ULL << i) & isOnH;
-            onSEdge = (1ULL << i) & isOn1;
-            onWEdge = (1ULL << i) & isOnA;
-
-            u64 positions = 0;
-
-            // Horizontal
-            if (!onNEdge) setBit(positions, i + NORTH, 1);
-            if (!onEEdge) setBit(positions, i + EAST, 1);
-            if (!onSEdge) setBit(positions, i + SOUTH, 1);
-            if (!onWEdge) setBit(positions, i + WEST, 1);
-
-            // Diagonal
-            if (!onNEdge && !onEEdge) setBit(positions, i + NORTH_EAST, 1);
-            if (!onNEdge && !onWEdge) setBit(positions, i + NORTH_WEST, 1);
-            if (!onSEdge && !onEEdge) setBit(positions, i + SOUTH_EAST, 1);
-            if (!onSEdge && !onWEdge) setBit(positions, i + SOUTH_WEST, 1);
-
-            kingMoves[i] = positions;
-        }
-
         // *** MAKE RANDOM ZOBRIST TABLE ****
         std::random_device rd;
 
@@ -504,8 +453,6 @@ public:
     }
 };
 
-array<u64, 64> Precomputed::knightMoves;
-array<u64, 64> Precomputed::kingMoves;
 array<array<array<u64, 64>, 12>, 2> Precomputed::zobrist;
 array<u64, 65> Precomputed::zobristEP;
 array<u64, 16> Precomputed::zobristCastling;
@@ -526,7 +473,6 @@ u64 Precomputed::isOn5;
 u64 Precomputed::isOn6;
 u64 Precomputed::isOn7;
 u64 Precomputed::isOn8;
-
 
 constexpr Rank rankOf(Square s) { return Rank(s >> 3); }
 constexpr File fileOf(Square s) { return File(s & 0b111); }
@@ -556,9 +502,39 @@ u64 pawnAttacksBB(const int sq) {
     }
 }
 
+// Tables from https://github.com/Disservin/chess-library/blob/cf3bd56474168605201a01eb78b3222b8f9e65e4/include/chess.hpp#L780
+static constexpr u64 KnightAttacks[64] = {
+        0x0000000000020400, 0x0000000000050800, 0x00000000000A1100, 0x0000000000142200, 0x0000000000284400,
+        0x0000000000508800, 0x0000000000A01000, 0x0000000000402000, 0x0000000002040004, 0x0000000005080008,
+        0x000000000A110011, 0x0000000014220022, 0x0000000028440044, 0x0000000050880088, 0x00000000A0100010,
+        0x0000000040200020, 0x0000000204000402, 0x0000000508000805, 0x0000000A1100110A, 0x0000001422002214,
+        0x0000002844004428, 0x0000005088008850, 0x000000A0100010A0, 0x0000004020002040, 0x0000020400040200,
+        0x0000050800080500, 0x00000A1100110A00, 0x0000142200221400, 0x0000284400442800, 0x0000508800885000,
+        0x0000A0100010A000, 0x0000402000204000, 0x0002040004020000, 0x0005080008050000, 0x000A1100110A0000,
+        0x0014220022140000, 0x0028440044280000, 0x0050880088500000, 0x00A0100010A00000, 0x0040200020400000,
+        0x0204000402000000, 0x0508000805000000, 0x0A1100110A000000, 0x1422002214000000, 0x2844004428000000,
+        0x5088008850000000, 0xA0100010A0000000, 0x4020002040000000, 0x0400040200000000, 0x0800080500000000,
+        0x1100110A00000000, 0x2200221400000000, 0x4400442800000000, 0x8800885000000000, 0x100010A000000000,
+        0x2000204000000000, 0x0004020000000000, 0x0008050000000000, 0x00110A0000000000, 0x0022140000000000,
+        0x0044280000000000, 0x0088500000000000, 0x0010A00000000000, 0x0020400000000000};
 
-// ****** MANY A PROGRAMMER HAS "BORROWED" CODE. I AM NO EXCEPTION ******
-// Original code from https://github.com/nkarve/surge/blob/master/src/tables.cpp
+    static constexpr u64 KingAttacks[64] = {
+        0x0000000000000302, 0x0000000000000705, 0x0000000000000E0A, 0x0000000000001C14, 0x0000000000003828,
+        0x0000000000007050, 0x000000000000E0A0, 0x000000000000C040, 0x0000000000030203, 0x0000000000070507,
+        0x00000000000E0A0E, 0x00000000001C141C, 0x0000000000382838, 0x0000000000705070, 0x0000000000E0A0E0,
+        0x0000000000C040C0, 0x0000000003020300, 0x0000000007050700, 0x000000000E0A0E00, 0x000000001C141C00,
+        0x0000000038283800, 0x0000000070507000, 0x00000000E0A0E000, 0x00000000C040C000, 0x0000000302030000,
+        0x0000000705070000, 0x0000000E0A0E0000, 0x0000001C141C0000, 0x0000003828380000, 0x0000007050700000,
+        0x000000E0A0E00000, 0x000000C040C00000, 0x0000030203000000, 0x0000070507000000, 0x00000E0A0E000000,
+        0x00001C141C000000, 0x0000382838000000, 0x0000705070000000, 0x0000E0A0E0000000, 0x0000C040C0000000,
+        0x0003020300000000, 0x0007050700000000, 0x000E0A0E00000000, 0x001C141C00000000, 0x0038283800000000,
+        0x0070507000000000, 0x00E0A0E000000000, 0x00C040C000000000, 0x0302030000000000, 0x0705070000000000,
+        0x0E0A0E0000000000, 0x1C141C0000000000, 0x3828380000000000, 0x7050700000000000, 0xE0A0E00000000000,
+        0xC040C00000000000, 0x0203000000000000, 0x0507000000000000, 0x0A0E000000000000, 0x141C000000000000,
+        0x2838000000000000, 0x5070000000000000, 0xA0E0000000000000, 0x40C0000000000000};
+
+
+// Magic code from https://github.com/nkarve/surge/blob/master/src/tables.cpp
 
 constexpr int diagonalOf(Square s) { return 7 + rankOf(s) - fileOf(s); }
 constexpr int antiDiagonalOf(Square s) { return rankOf(s) + fileOf(s); }
@@ -1290,7 +1266,7 @@ public:
 
             currentIndex = ctzll(knightBitboard);
 
-            u64 knightMoves = Precomputed::knightMoves[currentIndex];
+            u64 knightMoves = KnightAttacks[currentIndex];
             knightMoves &= ~ourBitboard;
 
             knightEmptyMoves = knightMoves & emptySquares;
@@ -1387,7 +1363,7 @@ public:
         u64 ourBitboard = side ? whitePieces : blackPieces;
         int currentIndex = ctzll(kingBitboard);
 
-        u64 kingMoves = Precomputed::kingMoves[currentIndex];
+        u64 kingMoves = KingAttacks[currentIndex];
         kingMoves &= ~ourBitboard;
 
 
@@ -1434,8 +1410,8 @@ public:
             | (getBishopAttacks(sq, occ) & pieces(BISHOP, QUEEN))
             | (pawnAttacksBB<WHITE>(sq) & pieces(BLACK, PAWN))
             | (pawnAttacksBB<BLACK>(sq) & pieces(WHITE, PAWN))
-            | (Precomputed::knightMoves[sq] & pieces(KNIGHT))
-            | (Precomputed::kingMoves[sq] & pieces(KING));
+            | (KnightAttacks[sq] & pieces(KNIGHT))
+            | (KingAttacks[sq] & pieces(KING));
     }
 
     bool see(Move m, int threshold) { // Based on SF
@@ -1636,10 +1612,10 @@ public:
 
 
         // *** KNIGHT ATTACKS ***
-        if (opponentPieces[1] & Precomputed::knightMoves[square]) return true;
+        if (opponentPieces[1] & KnightAttacks[square]) return true;
 
         // *** KING ATTACKS ***
-        if (opponentPieces[5] & Precomputed::kingMoves[square]) return true;
+        if (opponentPieces[5] & KingAttacks[square]) return true;
 
 
         // *** PAWN ATTACKS ***
@@ -1676,7 +1652,7 @@ public:
         checkMask = 0; // If no checks, will be set to all 1s later.
 
         // *** KNIGHT ATTACKS ***
-        u64 knightAttacks = Precomputed::knightMoves[kingIndex] & opponentPieces[1];
+        u64 knightAttacks = KnightAttacks[kingIndex] & opponentPieces[1];
         while (knightAttacks) {
             checkMask |= (1ULL << ctzll(knightAttacks));
             knightAttacks &= knightAttacks - 1;
@@ -3613,7 +3589,7 @@ void startThreads(int n, Board& board, std::atomic<bool>& breakFlag) {
 // ****** MAIN ENTRY POINT ******
 int main(int argc, char* argv[]) {
     string command;
-    std::deque<string> parsedcommand;
+    std::deque<string> parsedCommand;
     Board currentPos;
     Precomputed::compute();
     initializeAllDatabases();
@@ -3659,7 +3635,7 @@ int main(int argc, char* argv[]) {
     while (true) {
         std::getline(std::cin, command);
         if (command == "") continue;
-        parsedcommand = split(command, ' ');
+        parsedCommand = split(command, ' ');
         if (command == "uci") {
             isUci = true;
             cout << "id name Prelude" << endl;
@@ -3687,92 +3663,66 @@ int main(int argc, char* argv[]) {
                 }
             }
         }
-        else if (parsedcommand.at(0) == "setoption") {
+        else if (parsedCommand[0] == "setoption") {
             // Assumes setoption name ...
-            if (parsedcommand.at(2) == "Hash") {
-                TT = TranspositionTable(stof(parsedcommand.at(findIndexOf(parsedcommand, "value") + 1)));
+            if (parsedCommand[2] == "Hash") {
+                TT = TranspositionTable(stof(parsedCommand[findIndexOf(parsedCommand, "value") + 1]));
             }
-            else if (parsedcommand.at(2) == "Move" && parsedcommand.at(3) == "Overhead") {
-                moveOverhead = stoi(parsedcommand.at(findIndexOf(parsedcommand, "value") + 1));
+            else if (parsedCommand[2] == "Move" && parsedCommand[3] == "Overhead") {
+                moveOverhead = stoi(parsedCommand[findIndexOf(parsedCommand, "value") + 1]);
             }
-            else if (parsedcommand.at(2) == "Threads") {
-                startThreads(stoi(parsedcommand.at(findIndexOf(parsedcommand, "value") + 1)) - 1, currentPos, breakFlag);
+            else if (parsedCommand[2] == "Threads") {
+                startThreads(stoi(parsedCommand[findIndexOf(parsedCommand, "value") + 1]) - 1, currentPos, breakFlag);
             }
         }
-        else if (!parsedcommand.empty() && parsedcommand.at(0) == "position") { // Handle "position" command
+        else if (!parsedCommand.empty() && parsedCommand[0] == "position") { // Handle "position" command
             currentPos.reset();
-            if (parsedcommand.size() > 3 && parsedcommand.at(2) == "moves") { // "position startpos moves ..."
-                for (size_t i = 3; i < parsedcommand.size(); ++i) {
-                    currentPos.move(parsedcommand.at(i));
+            if (parsedCommand.size() > 3 && parsedCommand[2] == "moves") { // "position startpos moves ..."
+                for (size_t i = 3; i < parsedCommand.size(); ++i) {
+                    currentPos.move(parsedCommand[i]);
                 }
             }
-            else if (parsedcommand.at(1) == "fen") { // "position fen ..."
-                parsedcommand.pop_front(); // Pop 'position'
-                parsedcommand.pop_front(); // Pop 'fen'
-                currentPos.loadFromFEN(parsedcommand);
+            else if (parsedCommand[1] == "fen") { // "position fen ..."
+                parsedCommand.pop_front(); // Pop 'position'
+                parsedCommand.pop_front(); // Pop 'fen'
+                currentPos.loadFromFEN(parsedCommand);
             }
-            if (parsedcommand.size() > 6 && parsedcommand.at(6) == "moves") {
-                for (size_t i = 7; i < parsedcommand.size(); ++i) {
-                    currentPos.move(parsedcommand.at(i));
+            if (parsedCommand.size() > 6 && parsedCommand[6] == "moves") {
+                for (size_t i = 7; i < parsedCommand.size(); ++i) {
+                    currentPos.move(parsedCommand[i]);
                 }
             }
-            else if (parsedcommand.at(1) == "kiwipete") { // "position kiwipete"
-                currentPos.loadFromFEN(split("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1", ' '));
-            }
+            else if (parsedCommand[1] == "kiwipete") currentPos.loadFromFEN(split("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1", ' '));
         }
         else if (command == "d") {
             currentPos.display();
         }
-        else if (parsedcommand.size() > 1 && parsedcommand.at(0) == "move") {
-            currentPos.move(parsedcommand.at(1));
+        else if (parsedCommand.size() > 1 && parsedCommand[0] == "move") {
+            currentPos.move(parsedCommand[1]);
         }
-        else if (!parsedcommand.empty() && parsedcommand.at(0) == "go") { // Handle "go" command
-            // If a search thread is already running, wait for it to finish
+        else if (!parsedCommand.empty() && parsedCommand[0] == "go") { // Handle "go" command
+            // If the main search thread is already running (it shouldn't), wait for it to finish
             stopSearch();
 
-            int maxNodes = -1;
-            int maxSoftNodes = -1;
-            int depth = INF_INT;
+            auto exists = [&](string sub) { return command.find(sub) != string::npos; };
+            auto index = [&](string sub, int offset = 0) { return findIndexOf(parsedCommand, sub) + offset; };
 
-            int wtime = 0;
-            int btime = 0;
+            auto getValueFromUCI = [&](string value, int defaultValue) { return exists(value) ? stoi(parsedCommand[index(value, 1)]) : defaultValue; };
 
-            int mtime = 0;
 
-            int winc = 0;
-            int binc = 0;
+            int depth = getValueFromUCI("depth", INF_INT);
 
-            if (findIndexOf(parsedcommand, "nodes") > 0) {
-                maxNodes = stoi(parsedcommand.at(findIndexOf(parsedcommand, "nodes") + 1));
-            }
+            int maxNodes = getValueFromUCI("nodes", -1);
+            int maxSoftNodes = getValueFromUCI("softnodes", -1);
 
-            if (findIndexOf(parsedcommand, "softnodes") > 0) {
-                maxSoftNodes = stoi(parsedcommand.at(findIndexOf(parsedcommand, "softnodes") + 1));
-            }
+            int wtime = getValueFromUCI("wtime", 0);
+            int btime = getValueFromUCI("btime", 0);
 
-            if (findIndexOf(parsedcommand, "depth") > 0) {
-                depth = stoi(parsedcommand.at(findIndexOf(parsedcommand, "depth") + 1));
-            }
+            int mtime = getValueFromUCI("movetime", 0);
 
-            if (findIndexOf(parsedcommand, "wtime") > 0) {
-                wtime = stoi(parsedcommand.at(findIndexOf(parsedcommand, "wtime") + 1));
-            }
+            int winc = getValueFromUCI("winc", 0);
+            int binc = getValueFromUCI("binc", 0);
 
-            if (findIndexOf(parsedcommand, "btime") > 0) {
-                btime = stoi(parsedcommand.at(findIndexOf(parsedcommand, "btime") + 1));
-            }
-
-            if (findIndexOf(parsedcommand, "movetime") > 0) {
-                mtime = stoi(parsedcommand.at(findIndexOf(parsedcommand, "movetime") + 1));
-            }
-
-            if (findIndexOf(parsedcommand, "winc") > 0) {
-                winc = stoi(parsedcommand.at(findIndexOf(parsedcommand, "winc") + 1));
-            }
-
-            if (findIndexOf(parsedcommand, "binc") > 0) {
-                binc = stoi(parsedcommand.at(findIndexOf(parsedcommand, "binc") + 1));
-            }
 
             searchThread = std::thread(iterativeDeepening<true>,
                 std::ref(currentPos),
@@ -3787,16 +3737,14 @@ int main(int argc, char* argv[]) {
                 maxSoftNodes);
         }
         else if (command == "stop") {
-            breakFlag.store(true);
-            // Optionally, join the search thread to ensure it has stopped
             stopSearch();
         }
         else if (command == "quit") {
-            breakFlag.store(true);
-            // Ensure the search thread is joined before exiting
             stopSearch();
             return 0;
         }
+
+        // ***** DEBUG COMMANDS ******
         else if (command == "debug.gamestate") {
             string bestMoveAlgebra;
             int whiteKing = ctzll(currentPos.white[5]);
@@ -3812,14 +3760,14 @@ int main(int argc, char* argv[]) {
                 cout << moves.moves[i].toString() << endl;
             }
         }
-        else if (parsedcommand.at(0) == "perft") {
-            perft(currentPos, stoi(parsedcommand.at(1)), false);
+        else if (parsedCommand[0] == "perft") {
+            perft(currentPos, stoi(parsedCommand[1]), false);
         }
-        else if (parsedcommand.at(0) == "bulk") {
-            perft(currentPos, stoi(parsedcommand.at(1)), true);
+        else if (parsedCommand[0] == "bulk") {
+            perft(currentPos, stoi(parsedCommand[1]), true);
         }
-        else if (parsedcommand.at(0) == "perftsuite") {
-            perftSuite(parsedcommand.at(1));
+        else if (parsedCommand[0] == "perftsuite") {
+            perftSuite(parsedCommand[1]);
         }
         else if (command == "debug.moves") {
             cout << "All moves (current side to move):" << endl;
@@ -3832,11 +3780,11 @@ int main(int argc, char* argv[]) {
         else if (command == "debug.nullmove") {
             currentPos.makeNullMove();
         }
-        else if (!parsedcommand.empty() && parsedcommand.at(0) == "bench") {
+        else if (!parsedCommand.empty() && parsedCommand[0] == "bench") {
             int depth = 11; // Default depth
 
-            if (parsedcommand.size() >= 2) {
-                depth = stoi(parsedcommand.at(1));
+            if (parsedCommand.size() >= 2) {
+                depth = stoi(parsedCommand[1]);
             }
 
             // Start benchmarking
@@ -3854,12 +3802,12 @@ int main(int argc, char* argv[]) {
         else if (command == "debug.datagen") {
             playGames();
         }
-        else if (parsedcommand.at(0) == "debug.see") {
-            cout << "SEE evaluation: " << currentPos.see(Move(parsedcommand.at(1), currentPos), 0) << endl;
+        else if (parsedCommand[0] == "debug.see") {
+            cout << "SEE evaluation: " << currentPos.see(Move(parsedCommand[1], currentPos), 0) << endl;
         }
-        else if (parsedcommand.at(0) == "debug.attackers") {
+        else if (parsedCommand[0] == "debug.attackers") {
             cout << "Attackers:" << endl;
-            printBitboard(currentPos.attackersTo(Square(parseSquare(parsedcommand.at(1))), ~currentPos.emptySquares));
+            printBitboard(currentPos.attackersTo(Square(parseSquare(parsedCommand[1])), ~currentPos.emptySquares));
         }
         else if (command == "debug.searchinfo") {
             cout << threads.size() << " helper threads running" << endl;
