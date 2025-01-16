@@ -516,22 +516,22 @@ static constexpr u64 KnightAttacks[64] = {
         0x5088008850000000, 0xA0100010A0000000, 0x4020002040000000, 0x0400040200000000, 0x0800080500000000,
         0x1100110A00000000, 0x2200221400000000, 0x4400442800000000, 0x8800885000000000, 0x100010A000000000,
         0x2000204000000000, 0x0004020000000000, 0x0008050000000000, 0x00110A0000000000, 0x0022140000000000,
-        0x0044280000000000, 0x0088500000000000, 0x0010A00000000000, 0x0020400000000000};
+        0x0044280000000000, 0x0088500000000000, 0x0010A00000000000, 0x0020400000000000 };
 
-    static constexpr u64 KingAttacks[64] = {
-        0x0000000000000302, 0x0000000000000705, 0x0000000000000E0A, 0x0000000000001C14, 0x0000000000003828,
-        0x0000000000007050, 0x000000000000E0A0, 0x000000000000C040, 0x0000000000030203, 0x0000000000070507,
-        0x00000000000E0A0E, 0x00000000001C141C, 0x0000000000382838, 0x0000000000705070, 0x0000000000E0A0E0,
-        0x0000000000C040C0, 0x0000000003020300, 0x0000000007050700, 0x000000000E0A0E00, 0x000000001C141C00,
-        0x0000000038283800, 0x0000000070507000, 0x00000000E0A0E000, 0x00000000C040C000, 0x0000000302030000,
-        0x0000000705070000, 0x0000000E0A0E0000, 0x0000001C141C0000, 0x0000003828380000, 0x0000007050700000,
-        0x000000E0A0E00000, 0x000000C040C00000, 0x0000030203000000, 0x0000070507000000, 0x00000E0A0E000000,
-        0x00001C141C000000, 0x0000382838000000, 0x0000705070000000, 0x0000E0A0E0000000, 0x0000C040C0000000,
-        0x0003020300000000, 0x0007050700000000, 0x000E0A0E00000000, 0x001C141C00000000, 0x0038283800000000,
-        0x0070507000000000, 0x00E0A0E000000000, 0x00C040C000000000, 0x0302030000000000, 0x0705070000000000,
-        0x0E0A0E0000000000, 0x1C141C0000000000, 0x3828380000000000, 0x7050700000000000, 0xE0A0E00000000000,
-        0xC040C00000000000, 0x0203000000000000, 0x0507000000000000, 0x0A0E000000000000, 0x141C000000000000,
-        0x2838000000000000, 0x5070000000000000, 0xA0E0000000000000, 0x40C0000000000000};
+static constexpr u64 KingAttacks[64] = {
+    0x0000000000000302, 0x0000000000000705, 0x0000000000000E0A, 0x0000000000001C14, 0x0000000000003828,
+    0x0000000000007050, 0x000000000000E0A0, 0x000000000000C040, 0x0000000000030203, 0x0000000000070507,
+    0x00000000000E0A0E, 0x00000000001C141C, 0x0000000000382838, 0x0000000000705070, 0x0000000000E0A0E0,
+    0x0000000000C040C0, 0x0000000003020300, 0x0000000007050700, 0x000000000E0A0E00, 0x000000001C141C00,
+    0x0000000038283800, 0x0000000070507000, 0x00000000E0A0E000, 0x00000000C040C000, 0x0000000302030000,
+    0x0000000705070000, 0x0000000E0A0E0000, 0x0000001C141C0000, 0x0000003828380000, 0x0000007050700000,
+    0x000000E0A0E00000, 0x000000C040C00000, 0x0000030203000000, 0x0000070507000000, 0x00000E0A0E000000,
+    0x00001C141C000000, 0x0000382838000000, 0x0000705070000000, 0x0000E0A0E0000000, 0x0000C040C0000000,
+    0x0003020300000000, 0x0007050700000000, 0x000E0A0E00000000, 0x001C141C00000000, 0x0038283800000000,
+    0x0070507000000000, 0x00E0A0E000000000, 0x00C040C000000000, 0x0302030000000000, 0x0705070000000000,
+    0x0E0A0E0000000000, 0x1C141C0000000000, 0x3828380000000000, 0x7050700000000000, 0xE0A0E00000000000,
+    0xC040C00000000000, 0x0203000000000000, 0x0507000000000000, 0x0A0E000000000000, 0x141C000000000000,
+    0x2838000000000000, 0x5070000000000000, 0xA0E0000000000000, 0x40C0000000000000 };
 
 
 // Magic code from https://github.com/nkarve/surge/blob/master/src/tables.cpp
@@ -1914,8 +1914,6 @@ public:
         auto from = moveIn.startSquare();
         auto to = moveIn.endSquare();
 
-        std::optional<Board> boardBeforeMove = *this;
-
         IFDBG{
             if ((1ULL << to) & (white[5] | black[5])) {
                 cout << "WARNING: ATTEMPTED CAPTURE OF THE KING. MOVE: " << moveIn.toString() << endl;
@@ -1957,78 +1955,74 @@ public:
             }
         }
 
-        for (int i = 0; i < 6; ++i) {
-            if (readBit(us[i], from)) {
-                MoveType mt = moveIn.typeOf();
+        PieceType pt = getPiece(from);
+        MoveType mt = moveIn.typeOf();
 
-                removePiece(side, i, from);
-                IFDBG m_assert(!readBit(us[i], from), "Position piece moved from was not cleared");
+        removePiece(side, pt, from);
+        IFDBG m_assert(!readBit(us[i], from), "Position piece moved from was not cleared");
 
-                enPassant = 0;
+        enPassant = 0;
 
-                switch (mt) {
-                case STANDARD_MOVE: placePiece(side, i, to); break;
-                case DOUBLE_PUSH:
-                    placePiece(side, i, to);
-                    enPassant = 1ULL << ((side) * (from + 8) + (!side) * (from - 8));
-                    break;
-                case CASTLE_K:
-                    if (from == e1 && to == g1 && readBit(castlingRights, 3)) {
-                        placePiece(side, i, to);
+        switch (mt) {
+        case STANDARD_MOVE: placePiece(side, pt, to); break;
+        case DOUBLE_PUSH:
+            placePiece(side, pt, to);
+            enPassant = 1ULL << ((side) * (from + 8) + (!side) * (from - 8));
+            break;
+        case CASTLE_K:
+            if (from == e1 && to == g1 && readBit(castlingRights, 3)) {
+                placePiece(side, pt, to);
 
-                        removePiece(side, ROOK, h1);
-                        placePiece(side, ROOK, f1);
-                    }
-                    else if (from == e8 && to == g8 && readBit(castlingRights, 1)) {
-                        placePiece(side, i, to);
-
-                        removePiece(side, ROOK, h8);
-                        placePiece(side, ROOK, f8);
-                    }
-                    break;
-                case CASTLE_Q:
-                    if (to == c1 && readBit(castlingRights, 2)) {
-                        placePiece(side, i, to);
-
-                        removePiece(side, ROOK, a1);
-                        placePiece(side, ROOK, d1);
-                    }
-                    else if (to == c8 && readBit(castlingRights, 0)) {
-                        placePiece(side, i, to);
-
-                        removePiece(side, ROOK, a8);
-                        placePiece(side, ROOK, d8);
-                    }
-                    break;
-                case CAPTURE: removePiece(~side, to); placePiece(side, i, to); break;
-                case QUEEN_PROMO_CAPTURE: removePiece(~side, to); placePiece(side, QUEEN, to); break;
-                case ROOK_PROMO_CAPTURE: removePiece(~side, to); placePiece(side, ROOK, to); break;
-                case BISHOP_PROMO_CAPTURE: removePiece(~side, to); placePiece(side, BISHOP, to); break;
-                case KNIGHT_PROMO_CAPTURE: removePiece(~side, to); placePiece(side, KNIGHT, to); break;
-                case EN_PASSANT:
-                    if (side) {
-                        removePiece(BLACK, PAWN, to + SOUTH);
-                    }
-                    else {
-                        removePiece(WHITE, PAWN, to + NORTH);
-                    }
-                    placePiece(side, PAWN, to);
-                    break;
-                case QUEEN_PROMO: placePiece(side, QUEEN, to); break;
-                case ROOK_PROMO: placePiece(side, ROOK, to); break;
-                case BISHOP_PROMO: placePiece(side, BISHOP, to); break;
-                case KNIGHT_PROMO: placePiece(side, KNIGHT, to); break;
-                }
-
-                // Halfmove clock, promo and set en passant
-                if (i == 0 || readBit(blackPieces | whitePieces, to)) halfMoveClock = 0; // Reset halfmove clock on capture or pawn move
-                else halfMoveClock++;
-
-                break;
+                removePiece(side, ROOK, h1);
+                placePiece(side, ROOK, f1);
             }
+            else if (from == e8 && to == g8 && readBit(castlingRights, 1)) {
+                placePiece(side, pt, to);
+
+                removePiece(side, ROOK, h8);
+                placePiece(side, ROOK, f8);
+            }
+            break;
+        case CASTLE_Q:
+            if (to == c1 && readBit(castlingRights, 2)) {
+                placePiece(side, pt, to);
+
+                removePiece(side, ROOK, a1);
+                placePiece(side, ROOK, d1);
+            }
+            else if (to == c8 && readBit(castlingRights, 0)) {
+                placePiece(side, pt, to);
+
+                removePiece(side, ROOK, a8);
+                placePiece(side, ROOK, d8);
+            }
+            break;
+        case CAPTURE: removePiece(~side, to); placePiece(side, pt, to); break;
+        case QUEEN_PROMO_CAPTURE: removePiece(~side, to); placePiece(side, QUEEN, to); break;
+        case ROOK_PROMO_CAPTURE: removePiece(~side, to); placePiece(side, ROOK, to); break;
+        case BISHOP_PROMO_CAPTURE: removePiece(~side, to); placePiece(side, BISHOP, to); break;
+        case KNIGHT_PROMO_CAPTURE: removePiece(~side, to); placePiece(side, KNIGHT, to); break;
+        case EN_PASSANT:
+            if (side) {
+                removePiece(BLACK, PAWN, to + SOUTH);
+            }
+            else {
+                removePiece(WHITE, PAWN, to + NORTH);
+            }
+            placePiece(side, PAWN, to);
+            break;
+        case QUEEN_PROMO: placePiece(side, QUEEN, to); break;
+        case ROOK_PROMO: placePiece(side, ROOK, to); break;
+        case BISHOP_PROMO: placePiece(side, BISHOP, to); break;
+        case KNIGHT_PROMO: placePiece(side, KNIGHT, to); break;
         }
 
-        // Remove castling rights (very unoptimized)
+        // Halfmove clock, promo and set en passant
+        if (pt == PAWN || readBit(~emptySquares, to)) halfMoveClock = 0; // Reset halfmove clock on capture or pawn move
+        else halfMoveClock++;
+
+
+        // Remove castling rights
         if (castlingRights) {
             int from = moveIn.startSquare();
             int to = moveIn.endSquare();
@@ -2050,91 +2044,6 @@ public:
 
         recompute();
         updateCheckPin();
-
-        // Broken code is bad. Don't use it (unless you fix it first)
-        /*IFDBG{
-            int kingIndex = ctzll(side == BLACK ? white[5] : black[5]);
-            auto& board = boardBeforeMove;
-
-            bool badCastle = false;
-            if (moveIn.typeOf() == CASTLE_K || moveIn.typeOf() == CASTLE_Q) {
-                bool kingside = (moveIn.typeOf() == CASTLE_K);
-                int rightsIndex = board->side ? (kingside ? 3 : 2) : (kingside ? 1 : 0);
-                if (!readBit(board->castlingRights, rightsIndex)) badCastle = true;
-                if (isInCheck()) badCastle = true;
-                u64 occupied = board->whitePieces | board->blackPieces;
-                if (board->side) {
-                    if (kingside) {
-                        if ((occupied & ((1ULL << f1) | (1ULL << g1))) != 0) badCastle = true;
-                        if (isUnderAttack(true, f1) || isUnderAttack(true, g1)) badCastle = true;
-                    }
-                    else {
-                        if ((occupied & ((1ULL << b1) | (1ULL << c1) | (1ULL << d1))) != 0) badCastle = true;
-                        if (isUnderAttack(true, d1) || isUnderAttack(true, c1)) badCastle = true;
-                    }
-                }
-                else {
-                    if (kingside) {
-                        if ((occupied & ((1ULL << f8) | (1ULL << g8))) != 0) badCastle = true;
-                        if (isUnderAttack(false, f8) || isUnderAttack(false, g8)) badCastle = true;
-                    }
-                    else {
-                        if ((occupied & ((1ULL << b8) | (1ULL << c8) | (1ULL << d8))) != 0) badCastle = true;
-                        if (isUnderAttack(false, d8) || isUnderAttack(false, c8)) badCastle = true;
-                    }
-                }
-            }
-
-            // Update move history is false when checking EP moves, which is done by making move
-            if ((isUnderAttack(side == BLACK, kingIndex) || badCastle) && updateMoveHistory) {
-                cout << "WARNING: ATTEMPTED ILLEGAL MOVE. MOVE: " << moveIn.toString() << endl;
-                cout << "MOVE TYPE: " << std::bitset<4>(moveIn.typeOf()) << endl;
-                board->display();
-
-                Transposition* TTEntry = TT.getEntry(board->zobrist);
-                if (TTEntry->zobristKey == zobrist && TTEntry->bestMove == moveIn) cout << "MOVE WAS FROM TT." << endl;
-                cout << "MOVE WAS NOT FROM TT." << endl;
-
-                int whiteKing = ctzll(board->white[5]);
-                int blackKing = ctzll(board->black[5]);
-                cout << "Is in check (white): " << board->isUnderAttack(WHITE, whiteKing) << endl;
-                cout << "Is in check (black): " << board->isUnderAttack(BLACK, blackKing) << endl;
-                cout << "En passant square: " << (ctzll(enPassant) < 64 ? squareToAlgebraic(ctzll(board->enPassant)) : "-") << endl;
-                cout << "Castling rights: " << std::bitset<4>(board->castlingRights) << endl;
-
-                cout << "White pawns: " << popcountll(board->white[0]) << endl;
-                cout << "White knigts: " << popcountll(board->white[1]) << endl;
-                cout << "White bishops: " << popcountll(board->white[2]) << endl;
-                cout << "White rooks: " << popcountll(board->white[3]) << endl;
-                cout << "White queens: " << popcountll(board->white[4]) << endl;
-                cout << "White king: " << popcountll(board->white[5]) << endl;
-                cout << endl;
-                cout << "Black pawns: " << popcountll(board->black[0]) << endl;
-                cout << "Black knigts: " << popcountll(board->black[1]) << endl;
-                cout << "Black bishops: " << popcountll(board->black[2]) << endl;
-                cout << "Black rooks: " << popcountll(board->black[3]) << endl;
-                cout << "Black queens: " << popcountll(board->black[4]) << endl;
-                cout << "Black king: " << popcountll(board->black[5]) << endl;
-                cout << endl;
-
-                cout << "Each bitboard for STM" << endl;
-                auto& stm = board->side ? board->white : board->black;
-                printBitboard(stm[0]);
-                printBitboard(stm[1]);
-                printBitboard(stm[2]);
-                printBitboard(stm[3]);
-                printBitboard(stm[4]);
-                printBitboard(stm[5]);
-
-                MoveList moves = board->generateLegalMoves();
-                moves.sortByString(*this);
-                cout << "Legal moves (" << moves.count << "):" << endl;
-                for (int i = 0; i < moves.count; ++i) {
-                    cout << moves.moves[i].toString() << endl;
-                }
-                exit(-1);
-            }
-        }*/
 
         // Castling
         zobrist ^= Precomputed::zobristCastling[castlingRights];
