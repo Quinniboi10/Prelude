@@ -1959,7 +1959,7 @@ public:
         MoveType mt = moveIn.typeOf();
 
         removePiece(side, pt, from);
-        IFDBG m_assert(!readBit(us[i], from), "Position piece moved from was not cleared");
+        IFDBG m_assert(!readBit(us[pt], from), "Position piece moved from was not cleared");
 
         enPassant = 0;
 
