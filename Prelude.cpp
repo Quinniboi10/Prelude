@@ -927,7 +927,8 @@ public:
 constexpr i16 inputQuantizationValue = 255;
 constexpr i16 hiddenQuantizationValue = 64;
 constexpr i16 evalScale = 400;
-constexpr size_t HL_SIZE = 1024;
+constexpr size_t HL_SIZE = 128;
+constexpr size_t OUTPUT_BUCKETS = 8;
 
 constexpr int ReLU = 0;
 constexpr int CReLU = 1;
@@ -942,8 +943,8 @@ class NNUE {
 public:
     alignas(32) array<i16, HL_SIZE * 768> weightsToHL;
     alignas(32) array<i16, HL_SIZE> hiddenLayerBias;
-    alignas(32) array<i16, HL_SIZE * 2> weightsToOut;
-    i16 outputBias;
+    alignas(32) array<array<i16, HL_SIZE * 2>, OUTPUT_BUCKETS> weightsToOut;
+    array<i16, OUTPUT_BUCKETS> outputBias;
 
     constexpr i16 ReLU(const i16 x) {
         if (x < 0) return 0;
@@ -996,8 +997,8 @@ public:
 
         hiddenLayerBias.fill(0);
 
-        weightsToOut.fill(1);
-        outputBias = 0;
+        for (auto& w : weightsToOut) w.fill(1);
+        outputBias.fill(0);
     }
 
     void loadNetwork(const std::string& filepath) {
@@ -1019,11 +1020,15 @@ public:
 
         // Load weightsToOut
         for (size_t i = 0; i < weightsToOut.size(); ++i) {
-            weightsToOut[i] = read_little_endian<int16_t>(stream);
+            for (size_t j = 0; j < weightsToOut[i].size(); j++) {
+                weightsToOut[i][j] = read_little_endian<int16_t>(stream);
+            }
         }
 
         // Load outputBias
-        outputBias = read_little_endian<int16_t>(stream);
+        for (size_t i = 0; i < outputBias.size(); ++i) {
+            outputBias[i] = read_little_endian<int16_t>(stream);
+        }
 
         cout << "Network loaded successfully from " << filepath << endl;
         std::cerr << "WARNING: You are using MSVC, this means that your nnue was NOT embedded into the exe." << endl;
@@ -2314,6 +2319,9 @@ public:
 
 // Returns the output of the NN
 int NNUE::forwardPass(Board* board) {
+    const int divisor = 32 / OUTPUT_BUCKETS;
+    const int outputBucket = (popcountll(board->pieces()) - 2) / divisor;
+
     // Determine the side to move and the opposite side
     Color stm = board->side;
 
@@ -2326,12 +2334,12 @@ int NNUE::forwardPass(Board* board) {
     if constexpr (activation != ::SCReLU) {
         for (int i = 0; i < HL_SIZE; i++) {
             // First HL_SIZE weights are for STM
-            if constexpr (activation == ::ReLU) eval += ReLU(accumulatorSTM[i]) * weightsToOut[i];
-            if constexpr (activation == ::CReLU) eval += CReLU(accumulatorSTM[i]) * weightsToOut[i];
+            if constexpr (activation == ::ReLU) eval += ReLU(accumulatorSTM[i]) * weightsToOut[outputBucket][i];
+            if constexpr (activation == ::CReLU) eval += CReLU(accumulatorSTM[i]) * weightsToOut[outputBucket][i];
 
             // Last HL_SIZE weights are for OPP
-            if constexpr (activation == ::ReLU) eval += ReLU(accumulatorOPP[i]) * weightsToOut[HL_SIZE + i];
-            if constexpr (activation == ::CReLU) eval += CReLU(accumulatorOPP[i]) * weightsToOut[HL_SIZE + i];
+            if constexpr (activation == ::ReLU) eval += ReLU(accumulatorOPP[i]) * weightsToOut[outputBucket][HL_SIZE + i];
+            if constexpr (activation == ::CReLU) eval += CReLU(accumulatorOPP[i]) * weightsToOut[outputBucket][HL_SIZE + i];
         }
     }
     else {
@@ -2343,8 +2351,8 @@ int NNUE::forwardPass(Board* board) {
             const __m256i us = _mm256_load_si256(reinterpret_cast<const __m256i*>(&accumulatorSTM[16 * i])); // Load from accumulator
             const __m256i them = _mm256_load_si256(reinterpret_cast<const __m256i*>(&accumulatorOPP[16 * i]));
 
-            const __m256i us_weights = _mm256_load_si256(reinterpret_cast<const __m256i*>(&weightsToOut[16 * i])); // Load from net
-            const __m256i them_weights = _mm256_load_si256(reinterpret_cast<const __m256i*>(&weightsToOut[HL_SIZE + 16 * i]));
+            const __m256i us_weights = _mm256_load_si256(reinterpret_cast<const __m256i*>(&weightsToOut[outputBucket][16 * i])); // Load from net
+            const __m256i them_weights = _mm256_load_si256(reinterpret_cast<const __m256i*>(&weightsToOut[outputBucket][HL_SIZE + 16 * i]));
 
             const __m256i us_clamped = _mm256_min_epi16(_mm256_max_epi16(us, vec_zero), vec_qa);
             const __m256i them_clamped = _mm256_min_epi16(_mm256_max_epi16(them, vec_zero), vec_qa);
@@ -2366,7 +2374,7 @@ int NNUE::forwardPass(Board* board) {
     // Dequantization
     if constexpr (activation == ::SCReLU) eval /= inputQuantizationValue;
 
-    eval += outputBias;
+    eval += outputBias[outputBucket];
 
     // Apply output bias and scale the result
     return (eval * evalScale) / (inputQuantizationValue * hiddenQuantizationValue);
