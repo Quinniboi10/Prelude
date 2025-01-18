@@ -1,0 +1,7 @@
+# VS Code config
+.vscode
+
+# Engine build
+*.o
+Prelude.exe # Can't do Prelude* or it ignores the main C++ file
+Prelude
