@@ -18,7 +18,19 @@
 
 
 // TODO (Ordered):
-// More pruning in search
+// NMP depth based reduction and eval reduction
+// LMP
+// History malus
+// Increasing LMR on non pv nodes
+// Decrease LMR when a move is giving check
+// RFP improving
+// LMP improving
+// Futility pruning
+// 3 fold LMR
+// Split up board class, don't do things like accumulator updates inside move
+
+// Known optimizations:
+// In big move function, the fused changes add branching that could potentially be optimized out (unknown if compiler does this)
 
 #include <iostream>
 #include <string>
@@ -245,8 +257,8 @@ public:
 
     string toString();
 
-    int startSquare() { return move & 0b111111; }
-    int endSquare() { return (move >> 6) & 0b111111; }
+    Square startSquare() { return Square(move & 0b111111); }
+    Square endSquare() { return Square((move >> 6) & 0b111111); }
 
     MoveType typeOf() { return MoveType(move >> 12); } // Return the flag bits
 
@@ -504,19 +516,19 @@ u64 pawnAttacksBB(const int sq) {
 
 // Tables from https://github.com/Disservin/chess-library/blob/cf3bd56474168605201a01eb78b3222b8f9e65e4/include/chess.hpp#L780
 static constexpr u64 KnightAttacks[64] = {
-        0x0000000000020400, 0x0000000000050800, 0x00000000000A1100, 0x0000000000142200, 0x0000000000284400,
-        0x0000000000508800, 0x0000000000A01000, 0x0000000000402000, 0x0000000002040004, 0x0000000005080008,
-        0x000000000A110011, 0x0000000014220022, 0x0000000028440044, 0x0000000050880088, 0x00000000A0100010,
-        0x0000000040200020, 0x0000000204000402, 0x0000000508000805, 0x0000000A1100110A, 0x0000001422002214,
-        0x0000002844004428, 0x0000005088008850, 0x000000A0100010A0, 0x0000004020002040, 0x0000020400040200,
-        0x0000050800080500, 0x00000A1100110A00, 0x0000142200221400, 0x0000284400442800, 0x0000508800885000,
-        0x0000A0100010A000, 0x0000402000204000, 0x0002040004020000, 0x0005080008050000, 0x000A1100110A0000,
-        0x0014220022140000, 0x0028440044280000, 0x0050880088500000, 0x00A0100010A00000, 0x0040200020400000,
-        0x0204000402000000, 0x0508000805000000, 0x0A1100110A000000, 0x1422002214000000, 0x2844004428000000,
-        0x5088008850000000, 0xA0100010A0000000, 0x4020002040000000, 0x0400040200000000, 0x0800080500000000,
-        0x1100110A00000000, 0x2200221400000000, 0x4400442800000000, 0x8800885000000000, 0x100010A000000000,
-        0x2000204000000000, 0x0004020000000000, 0x0008050000000000, 0x00110A0000000000, 0x0022140000000000,
-        0x0044280000000000, 0x0088500000000000, 0x0010A00000000000, 0x0020400000000000 };
+    0x0000000000020400, 0x0000000000050800, 0x00000000000A1100, 0x0000000000142200, 0x0000000000284400,
+    0x0000000000508800, 0x0000000000A01000, 0x0000000000402000, 0x0000000002040004, 0x0000000005080008,
+    0x000000000A110011, 0x0000000014220022, 0x0000000028440044, 0x0000000050880088, 0x00000000A0100010,
+    0x0000000040200020, 0x0000000204000402, 0x0000000508000805, 0x0000000A1100110A, 0x0000001422002214,
+    0x0000002844004428, 0x0000005088008850, 0x000000A0100010A0, 0x0000004020002040, 0x0000020400040200,
+    0x0000050800080500, 0x00000A1100110A00, 0x0000142200221400, 0x0000284400442800, 0x0000508800885000,
+    0x0000A0100010A000, 0x0000402000204000, 0x0002040004020000, 0x0005080008050000, 0x000A1100110A0000,
+    0x0014220022140000, 0x0028440044280000, 0x0050880088500000, 0x00A0100010A00000, 0x0040200020400000,
+    0x0204000402000000, 0x0508000805000000, 0x0A1100110A000000, 0x1422002214000000, 0x2844004428000000,
+    0x5088008850000000, 0xA0100010A0000000, 0x4020002040000000, 0x0400040200000000, 0x0800080500000000,
+    0x1100110A00000000, 0x2200221400000000, 0x4400442800000000, 0x8800885000000000, 0x100010A000000000,
+    0x2000204000000000, 0x0004020000000000, 0x0008050000000000, 0x00110A0000000000, 0x0022140000000000,
+    0x0044280000000000, 0x0088500000000000, 0x0010A00000000000, 0x0020400000000000 };
 
 static constexpr u64 KingAttacks[64] = {
     0x0000000000000302, 0x0000000000000705, 0x0000000000000E0A, 0x0000000000001C14, 0x0000000000003828,
@@ -1829,52 +1841,97 @@ public:
         cout << "Current key: 0x" << std::hex << std::uppercase << zobrist << std::dec << endl;
     }
 
+    // Used for quiets, can assume all moving pieces are friendly
+    void addSubAccumulator(Square add, PieceType addPT, Square subtract, PieceType subPT) {
+        // Extract the features
+        int addFeatureWhite = NNUE::feature(WHITE, side, addPT, add);
+        int addFeatureBlack = NNUE::feature(BLACK, side, addPT, add);
+        
+        int subFeatureWhite = NNUE::feature(WHITE, side, subPT, subtract);
+        int subFeatureBlack = NNUE::feature(BLACK, side, subPT, subtract);
+
+        // Accumulate weights in the hidden layer
+        for (int i = 0; i < HL_SIZE; i++) {
+            whiteAccum[i] += nn.weightsToHL[addFeatureWhite * HL_SIZE + i];
+            blackAccum[i] += nn.weightsToHL[addFeatureBlack * HL_SIZE + i];
+            
+            whiteAccum[i] -= nn.weightsToHL[subFeatureWhite * HL_SIZE + i];
+            blackAccum[i] -= nn.weightsToHL[subFeatureBlack * HL_SIZE + i];
+        }
+    }
+
+    // Add and sub1 should both be friendly, other pieces are captured
+    void addSubSubAccumulator(Square add, PieceType addPT, Square sub1, PieceType sub1PT, Square sub2, PieceType sub2PT) {
+        // Extract the features
+        int addFeatureWhite = NNUE::feature(WHITE, side, addPT, add);
+        int addFeatureBlack = NNUE::feature(BLACK, side, addPT, add);
+        
+        int sub1FeatureWhite = NNUE::feature(WHITE, side, sub1PT, sub1);
+        int sub1FeatureBlack = NNUE::feature(BLACK, side, sub1PT, sub1);
+
+        int sub2FeatureWhite = NNUE::feature(WHITE, ~side, sub2PT, sub2);
+        int sub2FeatureBlack = NNUE::feature(BLACK, ~side, sub2PT, sub2);
+
+        // Accumulate weights in the hidden layer
+        for (int i = 0; i < HL_SIZE; i++) {
+            whiteAccum[i] += nn.weightsToHL[addFeatureWhite * HL_SIZE + i];
+            blackAccum[i] += nn.weightsToHL[addFeatureBlack * HL_SIZE + i];
+            
+            whiteAccum[i] -= nn.weightsToHL[sub1FeatureWhite * HL_SIZE + i];
+            blackAccum[i] -= nn.weightsToHL[sub1FeatureBlack * HL_SIZE + i];
+            
+            whiteAccum[i] -= nn.weightsToHL[sub2FeatureWhite * HL_SIZE + i];
+            blackAccum[i] -= nn.weightsToHL[sub2FeatureBlack * HL_SIZE + i];
+        }
+    }
+
+    // Castling only, all friendly
+    void addAddSubSubAccumulator(Square add1, PieceType add1PT, Square add2, PieceType add2PT, Square sub1, PieceType sub1PT, Square sub2, PieceType sub2PT) {
+        // Extract the features
+        int add1FeatureWhite = NNUE::feature(WHITE, side, add1PT, add1);
+        int add1FeatureBlack = NNUE::feature(BLACK, side, add1PT, add1);
+        
+        int add2FeatureWhite = NNUE::feature(WHITE, side, add2PT, add2);
+        int add2FeatureBlack = NNUE::feature(BLACK, side, add2PT, add2);
+        
+        int sub1FeatureWhite = NNUE::feature(WHITE, side, sub1PT, sub1);
+        int sub1FeatureBlack = NNUE::feature(BLACK, side, sub1PT, sub1);
+
+        int sub2FeatureWhite = NNUE::feature(WHITE, side, sub2PT, sub2);
+        int sub2FeatureBlack = NNUE::feature(BLACK, side, sub2PT, sub2);
+
+        // Accumulate weights in the hidden layer
+        for (int i = 0; i < HL_SIZE; i++) {
+            whiteAccum[i] += nn.weightsToHL[add1FeatureWhite * HL_SIZE + i];
+            blackAccum[i] += nn.weightsToHL[add1FeatureBlack * HL_SIZE + i];
+            
+            whiteAccum[i] += nn.weightsToHL[add2FeatureWhite * HL_SIZE + i];
+            blackAccum[i] += nn.weightsToHL[add2FeatureBlack * HL_SIZE + i];
+            
+            whiteAccum[i] -= nn.weightsToHL[sub1FeatureWhite * HL_SIZE + i];
+            blackAccum[i] -= nn.weightsToHL[sub1FeatureBlack * HL_SIZE + i];
+            
+            whiteAccum[i] -= nn.weightsToHL[sub2FeatureWhite * HL_SIZE + i];
+            blackAccum[i] -= nn.weightsToHL[sub2FeatureBlack * HL_SIZE + i];
+        }
+    }
+
     void placePiece(Color c, int pt, int square) {
         auto& us = c ? white : black;
 
         setBit(us[pt], square, 1);
         zobrist ^= Precomputed::zobrist[c][pt][square];
-
-        // Extract the feature
-        int inputFeatureWhite = NNUE::feature(WHITE, c, PieceType(pt), Square(square));
-        int inputFeatureBlack = NNUE::feature(BLACK, c, PieceType(pt), Square(square));
-
-        // Accumulate weights in the hidden layer
-        for (int i = 0; i < HL_SIZE; i++) {
-            whiteAccum[i] += nn.weightsToHL[inputFeatureWhite * HL_SIZE + i];
-            blackAccum[i] += nn.weightsToHL[inputFeatureBlack * HL_SIZE + i];
-        }
     }
 
     void removePiece(Color c, int pt, int square) {
         auto& us = c ? white : black;
         zobrist ^= Precomputed::zobrist[c][pt][square];
 
-        // Extract the feature
-        int inputFeatureWhite = NNUE::feature(WHITE, c, getPiece(square), Square(square));
-        int inputFeatureBlack = NNUE::feature(BLACK, c, getPiece(square), Square(square));
-
-        // Accumulate weights in the hidden layer
-        for (int i = 0; i < HL_SIZE; i++) {
-            whiteAccum[i] -= nn.weightsToHL[inputFeatureWhite * HL_SIZE + i];
-            blackAccum[i] -= nn.weightsToHL[inputFeatureBlack * HL_SIZE + i];
-        }
-
         setBit(us[pt], square, 0);
     }
 
     void removePiece(Color c, int square) {
         zobrist ^= Precomputed::zobrist[c][getPiece(square)][square];
-
-        // Extract the feature
-        int inputFeatureWhite = NNUE::feature(WHITE, c, getPiece(square), Square(square));
-        int inputFeatureBlack = NNUE::feature(BLACK, c, getPiece(square), Square(square));
-
-        // Accumulate weights in the hidden layer
-        for (int i = 0; i < HL_SIZE; i++) {
-            whiteAccum[i] -= nn.weightsToHL[inputFeatureWhite * HL_SIZE + i];
-            blackAccum[i] -= nn.weightsToHL[inputFeatureBlack * HL_SIZE + i];
-        }
 
         clearIndex(c, square);
     }
@@ -1916,8 +1973,8 @@ public:
 
         fromNull = false;
 
-        auto from = moveIn.startSquare();
-        auto to = moveIn.endSquare();
+        Square from = moveIn.startSquare();
+        Square to = moveIn.endSquare();
 
         IFDBG{
             if ((1ULL << to) & (white[5] | black[5])) {
@@ -1969,57 +2026,69 @@ public:
         enPassant = 0;
 
         switch (mt) {
-        case STANDARD_MOVE: placePiece(side, pt, to); break;
+        case STANDARD_MOVE: placePiece(side, pt, to); addSubAccumulator(to, pt, from, pt); break;
         case DOUBLE_PUSH:
             placePiece(side, pt, to);
             enPassant = 1ULL << ((side) * (from + 8) + (!side) * (from - 8));
+            addSubAccumulator(to, pt, from, pt);
             break;
         case CASTLE_K:
-            if (from == e1 && to == g1 && readBit(castlingRights, 3)) {
+            if (side == WHITE) {
                 placePiece(side, pt, to);
 
                 removePiece(side, ROOK, h1);
                 placePiece(side, ROOK, f1);
+
+                addAddSubSubAccumulator(g1, KING, f1, ROOK, e1, KING, h1, ROOK);
             }
-            else if (from == e8 && to == g8 && readBit(castlingRights, 1)) {
+            else {
                 placePiece(side, pt, to);
 
                 removePiece(side, ROOK, h8);
                 placePiece(side, ROOK, f8);
+
+                addAddSubSubAccumulator(g8, KING, f8, ROOK, e8, KING, h8, ROOK);
             }
             break;
         case CASTLE_Q:
-            if (to == c1 && readBit(castlingRights, 2)) {
+            if (side == WHITE) {
                 placePiece(side, pt, to);
 
                 removePiece(side, ROOK, a1);
                 placePiece(side, ROOK, d1);
+
+                addAddSubSubAccumulator(c1, KING, d1, ROOK, e1, KING, a1, ROOK);
             }
-            else if (to == c8 && readBit(castlingRights, 0)) {
+            else {
                 placePiece(side, pt, to);
 
                 removePiece(side, ROOK, a8);
                 placePiece(side, ROOK, d8);
+
+                addAddSubSubAccumulator(c8, KING, d8, ROOK, e8, KING, a8, ROOK);
             }
             break;
-        case CAPTURE: removePiece(~side, to); placePiece(side, pt, to); break;
-        case QUEEN_PROMO_CAPTURE: removePiece(~side, to); placePiece(side, QUEEN, to); break;
-        case ROOK_PROMO_CAPTURE: removePiece(~side, to); placePiece(side, ROOK, to); break;
-        case BISHOP_PROMO_CAPTURE: removePiece(~side, to); placePiece(side, BISHOP, to); break;
-        case KNIGHT_PROMO_CAPTURE: removePiece(~side, to); placePiece(side, KNIGHT, to); break;
+        case CAPTURE: addSubSubAccumulator(to, pt, from, pt, to, getPiece(to)), removePiece(~side, to); placePiece(side, pt, to); break;
+        case QUEEN_PROMO_CAPTURE: addSubSubAccumulator(to, QUEEN, from, pt, to, getPiece(to)); removePiece(~side, to); placePiece(side, QUEEN, to); break;
+        case ROOK_PROMO_CAPTURE: addSubSubAccumulator(to, ROOK, from, pt, to, getPiece(to)); removePiece(~side, to); placePiece(side, ROOK, to); break;
+        case BISHOP_PROMO_CAPTURE: addSubSubAccumulator(to, BISHOP, from, pt, to, getPiece(to)); removePiece(~side, to); placePiece(side, BISHOP, to); break;
+        case KNIGHT_PROMO_CAPTURE: addSubSubAccumulator(to, KNIGHT, from, pt, to, getPiece(to)); removePiece(~side, to); placePiece(side, KNIGHT, to); break;
         case EN_PASSANT:
             if (side) {
                 removePiece(BLACK, PAWN, to + SOUTH);
+                addSubSubAccumulator(to, pt, from, pt, to + SOUTH, PAWN);
             }
             else {
                 removePiece(WHITE, PAWN, to + NORTH);
+                addSubSubAccumulator(to, pt, from, pt, to + NORTH, PAWN);
             }
             placePiece(side, PAWN, to);
+
             break;
-        case QUEEN_PROMO: placePiece(side, QUEEN, to); break;
-        case ROOK_PROMO: placePiece(side, ROOK, to); break;
-        case BISHOP_PROMO: placePiece(side, BISHOP, to); break;
-        case KNIGHT_PROMO: placePiece(side, KNIGHT, to); break;
+        case QUEEN_PROMO: placePiece(side, QUEEN, to); addSubAccumulator(to, QUEEN, from, pt); break;
+        case ROOK_PROMO: placePiece(side, ROOK, to); addSubAccumulator(to, ROOK, from, pt); break;
+        case BISHOP_PROMO: placePiece(side, BISHOP, to); addSubAccumulator(to, BISHOP, from, pt); break;
+        case KNIGHT_PROMO: placePiece(side, KNIGHT, to); addSubAccumulator(to, KNIGHT, from, pt); break;
         }
 
         // Halfmove clock, promo and set en passant
@@ -2029,8 +2098,6 @@ public:
 
         // Remove castling rights
         if (castlingRights) {
-            int from = moveIn.startSquare();
-            int to = moveIn.endSquare();
             if (from == a1 || to == a1) setBit(castlingRights, 2, 0);
             if (from == h1 || to == h1) setBit(castlingRights, 3, 0);
             if (from == e1) { // King moved
@@ -2621,8 +2688,9 @@ void perftSuite(const string& filePath) {
 
 
 // ****** SEARCH FUNCTIONS ******
-constexpr int RFPMargin = 75;
-constexpr int NMPReduction = 3; // NMP depth reduction
+constexpr int RFP_MARGIN = 75;
+constexpr int NMP_REDUCTION = 3; // NMP depth reduction
+constexpr int NMP_REDUCTION_DIVISOR = 3; // Subtract depth/n from NMP depth
 constexpr int MAX_HISTORY = 16384; // Max history bonus
 
 constexpr int MATE_SCORE = 99999;
@@ -2637,7 +2705,7 @@ constexpr int RAZOR_DEPTH_SCALAR = 300; // Depth scalar to use for razoring
 constexpr int PVS_SEE_QUIET_SCALAR = -80;
 constexpr int PVS_SEE_CAPTURE_SCALAR = -30;
 
-constexpr int seeMargin = -108; // Margin for qsearch SEE pruning
+constexpr int SEE_MARGIN = -108; // Margin for qsearch SEE pruning
 
 bool isUci = false; // Flag to represent if output should be human or UCI
 
@@ -2744,7 +2812,7 @@ int qsearch(Board& board,
 
         const Move& m = moves.moves[i];
 
-        if (!board.isLegalMove(m) || !board.see(m, seeMargin)) continue;
+        if (!board.isLegalMove(m) || !board.see(m, SEE_MARGIN)) continue;
 
         Board testBoard = board;
         testBoard.move(m);
@@ -2836,8 +2904,8 @@ MoveEvaluation search(Board& board,
 
     if constexpr (!isPV) {
         // Reverse futility pruning (+32 +- 34)
-        if (staticEval - RFPMargin * depth >= beta && depth < 4 && !board.isInCheck()) {
-            return { Move(), staticEval - RFPMargin };
+        if (staticEval - RFP_MARGIN * depth >= beta && depth < 4 && !board.isInCheck()) {
+            return { Move(), staticEval - RFP_MARGIN };
         }
 
         // Null move pruning (+75 +- 33)
@@ -2846,7 +2914,7 @@ MoveEvaluation search(Board& board,
         if (board.canNullMove() && staticEval >= beta && !board.isInCheck() && popcountll(board.side ? board.white[0] : board.black[0]) + 1 != popcountll(board.side ? board.whitePieces : board.blackPieces)) {
             Board testBoard = board;
             testBoard.makeNullMove();
-            int eval = -search<false, mainThread>(testBoard, ss + 1, depth - NMPReduction, -beta, -beta + 1, ply + 1, sl).eval;
+            int eval = -search<false, mainThread>(testBoard, ss + 1, depth - NMP_REDUCTION, -beta, -beta + 1, ply + 1, sl).eval;
             if (eval >= beta) {
                 return { Move(), eval };
             }
