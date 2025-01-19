@@ -29,8 +29,47 @@
 // 3 fold LMR
 // Split up board class, don't do things like accumulator updates inside move
 
-// Known optimizations:
-// In big move function, the fused changes add branching that could potentially be optimized out (unknown if compiler does this)
+
+
+
+
+// ************ CONFIG ************
+// ****** SEARCH ******
+constexpr int RFP_MARGIN = 75;
+constexpr int NMP_REDUCTION = 3; // NMP depth reduction
+constexpr int NMP_REDUCTION_DIVISOR = 3; // Subtract depth/n from NMP depth
+constexpr int MAX_HISTORY = 16384; // Max history bonus
+
+constexpr int MATE_SCORE = 99999;
+constexpr int MAX_PLY = 255;
+
+constexpr int MATE_IN_MAX_PLY = MATE_SCORE - MAX_PLY;
+constexpr int MATED_IN_MAX_PLY = -MATE_SCORE + MAX_PLY;
+
+constexpr int RAZOR_MARGIN = 475; // Margin to use for razoring
+constexpr int RAZOR_DEPTH_SCALAR = 300; // Depth scalar to use for razoring
+
+constexpr int PVS_SEE_QUIET_SCALAR = -80;
+constexpr int PVS_SEE_CAPTURE_SCALAR = -30;
+
+constexpr int SEE_MARGIN = -108; // Margin for qsearch SEE pruning
+
+constexpr int INC_SCALAR = 1; // Amount of increment to add to hard time limit
+constexpr double SOFT_TIME_SCALAR = 0.65; // Scales the soft limit as hardLimit * n
+
+constexpr int ASPR_DELTA = 25; // Used as delta size in aspiration window
+constexpr double ASP_DELTA_MULTIPLIER = 1.25; // Scalar to widen aspr window on fail
+
+
+// ****** DATA GEN ******
+constexpr int targetPositions = 1'000'000'000; // Number of positions to generate
+constexpr int datagenInfoInterval = 1; // How often (in games) to send progress report to console
+constexpr int saveEveryN = 1; // Save every n positions, if the best move is capture or a side is in check, it will save as soon as possible
+constexpr int clearBufferEvery = 1'000; // Push output buffer to file every n data points
+constexpr int randMoves = 8; // Number of random halfmoves before data gen begins
+constexpr int nodesPerMove = 5000; // Soft nodes per move
+constexpr int maxNodesPerMove = 100'000; // Hard nodes per move
+
 
 #include <iostream>
 #include <string>
@@ -2281,7 +2320,7 @@ public:
     }
 
     int evaluate() { // Returns evaluation in centipawns as side to move
-        return nn.forwardPass(this);
+        return std::clamp(nn.forwardPass(this), -MATE_SCORE, MATE_SCORE);
 
         // Code below here can be used when there are 2 NNUEs
         int matEval = 0;
@@ -2688,25 +2727,6 @@ void perftSuite(const string& filePath) {
 
 
 // ****** SEARCH FUNCTIONS ******
-constexpr int RFP_MARGIN = 75;
-constexpr int NMP_REDUCTION = 3; // NMP depth reduction
-constexpr int NMP_REDUCTION_DIVISOR = 3; // Subtract depth/n from NMP depth
-constexpr int MAX_HISTORY = 16384; // Max history bonus
-
-constexpr int MATE_SCORE = 99999;
-constexpr int MAX_DEPTH = 255;
-
-constexpr int MATE_IN_MAX_PLY = MATE_SCORE - MAX_DEPTH;
-constexpr int MATED_IN_MAX_PLY = -MATE_SCORE + MAX_DEPTH;
-
-constexpr int RAZOR_MARGIN = 475; // Margin to use for razoring
-constexpr int RAZOR_DEPTH_SCALAR = 300; // Depth scalar to use for razoring
-
-constexpr int PVS_SEE_QUIET_SCALAR = -80;
-constexpr int PVS_SEE_CAPTURE_SCALAR = -30;
-
-constexpr int SEE_MARGIN = -108; // Margin for qsearch SEE pruning
-
 bool isUci = false; // Flag to represent if output should be human or UCI
 
 int seldepth = 0;
@@ -3027,7 +3047,7 @@ MoveEvaluation search(Board& board,
 
     if (!movesMade) {
         if (board.isInCheck()) {
-            return { Move(), -MATE_SCORE };
+            return { Move(), -MATE_SCORE + ply };
         }
         return { Move(), 0 };
     }
@@ -3035,17 +3055,8 @@ MoveEvaluation search(Board& board,
     // Uses entry that was already fetched above
     *entry = Transposition(board.zobrist, bestMove, flag, bestEval, depth);
 
-    // Clamp to prevent detecting mate
-    bestEval = std::clamp(bestEval, -MATE_SCORE + MAX_DEPTH, MATE_SCORE - MAX_DEPTH);
-
     return { bestMove, bestEval };
 }
-
-constexpr int incScalar = 1; // Amount of increment to add to hard time limit
-constexpr double softTimeScalar = 0.65; // Scales the soft limit as hardLimit * n
-
-constexpr int asprDelta = 25; // Used as delta size in aspiration window
-constexpr double aspDeltaMultiplier = 1.25; // Scalar to widen aspr window on fail
 
 template<bool mainThread>
 MoveEvaluation iterativeDeepening(
@@ -3069,8 +3080,8 @@ MoveEvaluation iterativeDeepening(
     std::string bestMoveAlgebra = "";
     if (wtime || btime) {
         hardLimit = board.side ? wtime / movesToGo : btime / movesToGo;
-        hardLimit += (board.side ? winc : binc) * incScalar;
-        softLimit = hardLimit * softTimeScalar;
+        hardLimit += (board.side ? winc : binc) * INC_SCALAR;
+        softLimit = hardLimit * SOFT_TIME_SCALAR;
     }
     else if (mtime) {
         hardLimit = mtime;
@@ -3096,10 +3107,9 @@ MoveEvaluation iterativeDeepening(
 
     softLimit = std::min(softLimit, hardLimit);
 
-
     SearchLimit sl = SearchLimit(std::chrono::steady_clock::now(), &breakFlag, hardLimit, maxNodes);
 
-    Stack stack[MAX_DEPTH];
+    Stack stack[MAX_PLY];
     Stack* ss = stack;
 
     for (int depth = 1; depth <= maxDepth; depth++) {
@@ -3108,9 +3118,9 @@ MoveEvaluation iterativeDeepening(
         // Full search on depth 1, otherwise try with aspiration window
         if (depth == 1) move = search<true, mainThread>(board, ss, depth, -INF_INT, INF_INT, 0, &sl);
         else { // From Clarity
-            int alpha = std::max(-MATE_SCORE, move.eval - asprDelta);
-            int beta = std::min(MATE_SCORE, move.eval + asprDelta);
-            int delta = asprDelta;
+            int alpha = std::max(-MATE_SCORE, move.eval - ASPR_DELTA);
+            int beta = std::min(MATE_SCORE, move.eval + ASPR_DELTA);
+            int delta = ASPR_DELTA;
             while (true) {
                 move = search<true, mainThread>(board, ss, depth, alpha, beta, 0, &sl);
                 if (sl.stopSearch()) break;
@@ -3123,7 +3133,7 @@ MoveEvaluation iterativeDeepening(
                 }
                 else break;
 
-                delta *= aspDeltaMultiplier;
+                delta *= ASP_DELTA_MULTIPLIER;
             }
         }
 
@@ -3145,9 +3155,9 @@ MoveEvaluation iterativeDeepening(
         }
 
         bool isMate = false;
+        int mateDist = (MATE_SCORE - std::abs(bestMove.eval)) / 2 + 1;
 
-        // The -MAX_DEPTH is in the case of unsound search, earlier mates will be prefered
-        if (std::abs(bestMove.eval) >= MATE_SCORE - MAX_DEPTH) isMate = true;
+        if (std::abs(bestMove.eval) >= MATE_IN_MAX_PLY) isMate = true;
 
         string ans;
 
@@ -3169,10 +3179,12 @@ MoveEvaluation iterativeDeepening(
             break;
         }
 
+        // This is the code to handle UCI
         if (isUci && mainThread) {
             ans = "info depth " + std::to_string(depth) + " nodes " + std::to_string(nodes) + " nps " + std::to_string(nps) + " time " + std::to_string((int)(elapsedNs / 1e6)) + " hashfull " + std::to_string((int)(TTused / (double)sampleSize * 1000));
             if (isMate) {
-                ans += " score mate " + std::to_string((bestMove.eval > 0) ? (depth / 2) : -(depth / 2));
+                ans += " score mate ";
+                ans += ((bestMove.eval < 0) ? "-" : "") + std::to_string(mateDist);
             }
             else {
                 ans += " score cp " + std::to_string(bestMove.eval);
@@ -3185,7 +3197,14 @@ MoveEvaluation iterativeDeepening(
         else if (mainThread) {
             cout << std::fixed << std::setprecision(2);
             const double hashPercent = TTused / (double)sampleSize * 100;
-            const string fancyEval = (bestMove.eval > 0 ? '+' : '\0') + std::format("{:.2f}", bestMove.eval / 100.0);
+            string fancyEval = "";
+            if (isMate) {
+                if (bestMove.eval < 0) fancyEval = "-";
+                fancyEval += "M" + std::to_string(mateDist);
+            }
+            else {
+                fancyEval = (bestMove.eval > 0 ? '+' : '\0') + std::format("{:.2f}", bestMove.eval / 100.0);
+            }
             cout << padStr(std::to_string(depth) + "/" + std::to_string(seldepth), 9);
             cout << Colors::grey;
             cout << padStr(formatTime((int)(elapsedNs / 1e6)), 7);
@@ -3335,14 +3354,6 @@ void bench(int depth) {
 }
 
 // ****** DATA GEN ******
-constexpr int targetPositions = 1'000'000'000; // Number of positions to generate
-constexpr int datagenInfoInterval = 1; // How often (in games) to send progress report to console
-constexpr int saveEveryN = 1; // Save every n positions, if the best move is capture or a side is in check, it will save as soon as possible
-constexpr int clearBufferEvery = 1'000; // Push output buffer to file every n data points
-constexpr int randMoves = 8; // Number of random halfmoves before data gen begins
-constexpr int nodesPerMove = 5000; // Soft nodes per move
-constexpr int maxNodesPerMove = 100'000; // Hard nodes per move
-
 struct DataUnit {
     string data = ""; // This can be changed to use different data methods later
 
@@ -3564,11 +3575,6 @@ void startThreads(int n, Board& board, std::atomic<bool>& breakFlag) {
     killThreads.store(false);
 
     for (int i = 0; i < n; i++) threads.push_back(std::thread(runWorker, std::ref(board), std::ref(breakFlag), std::ref(killThreads)));
-
-
-    for (auto& t : threads) {
-        t.detach();
-    }
 }
 
 // ****** MAIN ENTRY POINT ******
