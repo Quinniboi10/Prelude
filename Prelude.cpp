@@ -2934,7 +2934,7 @@ MoveEvaluation search(Board& board,
         if (board.canNullMove() && staticEval >= beta && !board.isInCheck() && popcountll(board.side ? board.white[0] : board.black[0]) + 1 != popcountll(board.side ? board.whitePieces : board.blackPieces)) {
             Board testBoard = board;
             testBoard.makeNullMove();
-            int eval = -search<false, mainThread>(testBoard, ss + 1, depth - NMP_REDUCTION, -beta, -beta + 1, ply + 1, sl).eval;
+            int eval = -search<false, mainThread>(testBoard, ss + 1, depth - NMP_REDUCTION - depth / NMP_REDUCTION_DIVISOR, -beta, -beta + 1, ply + 1, sl).eval;
             if (eval >= beta) {
                 return { Move(), eval };
             }
