@@ -18,7 +18,6 @@
 
 
 // TODO (Ordered):
-// NMP depth based reduction and eval reduction
 // LMP
 // History malus
 // Increasing LMR on non pv nodes
@@ -27,6 +26,7 @@
 // LMP improving
 // Futility pruning
 // 3 fold LMR
+// NMP eval reduction
 // Split up board class, don't do things like accumulator updates inside move
 
 
