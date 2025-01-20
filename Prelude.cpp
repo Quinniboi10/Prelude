@@ -18,6 +18,7 @@
 
 
 // TODO (Ordered):
+// Switch to new Stockfish IS_LITTLE_ENDIAN code that doesn't involve undefined behaviorx
 // LMP
 // History malus
 // Increasing LMR on non pv nodes
@@ -30,45 +31,45 @@
 // Split up board class, don't do things like accumulator updates inside move
 
 
-
-
-
 // ************ CONFIG ************
 // ****** SEARCH ******
-constexpr int RFP_MARGIN = 75;
-constexpr int NMP_REDUCTION = 3; // NMP depth reduction
-constexpr int NMP_REDUCTION_DIVISOR = 3; // Subtract depth/n from NMP depth
-constexpr int MAX_HISTORY = 16384; // Max history bonus
+constexpr int RFP_MARGIN            = 75;
+constexpr int NMP_REDUCTION         = 3;      // NMP depth reduction
+constexpr int NMP_REDUCTION_DIVISOR = 3;      // Subtract depth/n from NMP depth
+constexpr int MAX_HISTORY           = 16384;  // Max history bonus
 
 constexpr int MATE_SCORE = 99999;
-constexpr int MAX_PLY = 255;
+constexpr int MAX_PLY    = 255;
 
-constexpr int MATE_IN_MAX_PLY = MATE_SCORE - MAX_PLY;
+constexpr int MATE_IN_MAX_PLY  = MATE_SCORE - MAX_PLY;
 constexpr int MATED_IN_MAX_PLY = -MATE_SCORE + MAX_PLY;
 
-constexpr int RAZOR_MARGIN = 475; // Margin to use for razoring
-constexpr int RAZOR_DEPTH_SCALAR = 300; // Depth scalar to use for razoring
+constexpr int MIN_MOVES_BEFORE_LMP = 7;  // Only does LMP if moves search >= n * depth * depth
+constexpr int MAX_DEPTH_FOR_LMP    = 5;  // Only does late move pruning if depth <= n
 
-constexpr int PVS_SEE_QUIET_SCALAR = -80;
+constexpr int RAZOR_MARGIN       = 475;  // Margin to use for razoring
+constexpr int RAZOR_DEPTH_SCALAR = 300;  // Depth scalar to use for razoring
+
+constexpr int PVS_SEE_QUIET_SCALAR   = -80;
 constexpr int PVS_SEE_CAPTURE_SCALAR = -30;
 
-constexpr int SEE_MARGIN = -108; // Margin for qsearch SEE pruning
+constexpr int SEE_MARGIN = -108;  // Margin for qsearch SEE pruning
 
-constexpr int INC_SCALAR = 1; // Amount of increment to add to hard time limit
-constexpr double SOFT_TIME_SCALAR = 0.65; // Scales the soft limit as hardLimit * n
+constexpr int    INC_SCALAR       = 1;     // Amount of increment to add to hard time limit
+constexpr double SOFT_TIME_SCALAR = 0.65;  // Scales the soft limit as hardLimit * n
 
-constexpr int ASPR_DELTA = 25; // Used as delta size in aspiration window
-constexpr double ASP_DELTA_MULTIPLIER = 1.25; // Scalar to widen aspr window on fail
+constexpr int    ASPR_DELTA           = 25;    // Used as delta size in aspiration window
+constexpr double ASP_DELTA_MULTIPLIER = 1.25;  // Scalar to widen aspr window on fail
 
 
 // ****** DATA GEN ******
-constexpr int targetPositions = 1'000'000'000; // Number of positions to generate
-constexpr int datagenInfoInterval = 1; // How often (in games) to send progress report to console
-constexpr int saveEveryN = 1; // Save every n positions, if the best move is capture or a side is in check, it will save as soon as possible
-constexpr int clearBufferEvery = 1'000; // Push output buffer to file every n data points
-constexpr int randMoves = 8; // Number of random halfmoves before data gen begins
-constexpr int nodesPerMove = 5000; // Soft nodes per move
-constexpr int maxNodesPerMove = 100'000; // Hard nodes per move
+constexpr int targetPositions     = 1'000'000'000;  // Number of positions to generate
+constexpr int datagenInfoInterval = 1;  // How often (in games) to send progress report to console
+constexpr int saveEveryN = 1;  // Save every n positions or as soon as position passes filtering
+constexpr int clearBufferEvery = 1'000;    // Push output buffer to file every n data points
+constexpr int randMoves        = 8;        // Number of random halfmoves before data gen begins
+constexpr int nodesPerMove     = 5000;     // Soft nodes per move
+constexpr int maxNodesPerMove  = 100'000;  // Hard nodes per move
 
 
 #include <iostream>
@@ -215,7 +216,7 @@ static inline const bool IS_LITTLE_ENDIAN = (Le.c[0] == 4);
 
 // Names binary encoding flags from Move class
 enum MoveType {
-    STANDARD_MOVE = 0, DOUBLE_PUSH = 0b1, CASTLE_K = 0b10, CASTLE_Q = 0b11, CAPTURE = 0b100, EN_PASSANT = 0b101, KNIGHT_PROMO = 0b1000, BISHOP_PROMO = 0b1001, ROOK_PROMO = 0b1010, QUEEN_PROMO = 0b1011, KNIGHT_PROMO_CAPTURE = 0b1100, BISHOP_PROMO_CAPTURE = 0b1101, ROOK_PROMO_CAPTURE = 0b1110, QUEEN_PROMO_CAPTURE = 0b1111
+    STANDARD_MOVE = 0, DOUBLE_PUSH = 0b1, CASTLE_K = 0b10, CASTLE_Q = 0b11, CAPTURE = 0b100, EN_PASSANT = 0b101, PROMOTION = 0b1000, KNIGHT_PROMO = 0b1000, BISHOP_PROMO = 0b1001, ROOK_PROMO = 0b1010, QUEEN_PROMO = 0b1011, KNIGHT_PROMO_CAPTURE = 0b1100, BISHOP_PROMO_CAPTURE = 0b1101, ROOK_PROMO_CAPTURE = 0b1110, QUEEN_PROMO_CAPTURE = 0b1111
 };
 
 enum flags {
@@ -306,6 +307,15 @@ public:
     MoveType typeOf() { return MoveType(move >> 12); } // Return the flag bits
 
     bool isNull() { return move == 0; }
+
+    // This should return false if
+    // Move is a capture of any kind
+    // Move is a queen promotion
+    // Move is a knight promotion
+    bool isQuiet() { return (typeOf() & CAPTURE) == 0 && 
+        typeOf() != QUEEN_PROMO &&
+        typeOf() != KNIGHT_PROMO
+        ; }
 
     bool operator==(const Move other) const {
         return move == other.move;
@@ -1584,29 +1594,32 @@ public:
 
         // Classify moves
         for (Move move : allMoves) {
-            if (move.typeOf() & CAPTURE) {
-                captures.add(move);
-            }
-            else if (!capturesOnly) {
+            if (move.isQuiet()) {
                 quietMoves.add(move);
+            }
+            else {
+                captures.add(move);
             }
         }
 
         Transposition* TTEntry = TT.getEntry(zobrist);
         if (TTEntry->zobristKey == zobrist && allMoves.find(TTEntry->bestMove) != -1) {
-            prioritizedMoves.add(TTEntry->bestMove);
+            prioritizedMoves.add(TTEntry->bestMove); // This move CAN be used in qsearch
+        }
+        
+        std::stable_sort(captures.moves.begin(), captures.moves.begin() + captures.count, [&](Move a, Move b) { return evaluateMVVLVA(a) > evaluateMVVLVA(b); });
+
+        for (Move m : captures) {
+            prioritizedMoves.add(m);
         }
 
-
-        std::stable_sort(captures.moves.begin(), captures.moves.begin() + captures.count, [&](Move a, Move b) { return evaluateMVVLVA(a) > evaluateMVVLVA(b); });
+        if (capturesOnly) {
+            return prioritizedMoves;
+        }
 
         std::stable_sort(quietMoves.moves.begin(), quietMoves.moves.begin() + quietMoves.count, [&](Move a, Move b) { return getHistoryBonus(a) > getHistoryBonus(b); });
 
 
-        // Combine moves in the prioritized order
-        for (Move m : captures) {
-            prioritizedMoves.add(m);
-        }
         for (Move m : quietMoves) {
             prioritizedMoves.add(m);
         }
@@ -2938,6 +2951,9 @@ MoveEvaluation search(Board& board,
     }
 
     if constexpr (!isPV) {
+        // Late move pruning
+
+
         // Reverse futility pruning (+32 +- 34)
         if (staticEval - RFP_MARGIN * depth >= beta && depth < 4 && !board.isInCheck()) {
             return { Move(), staticEval - RFP_MARGIN };
@@ -2976,6 +2992,9 @@ MoveEvaluation search(Board& board,
 
         if (!board.isLegalMove(m)) {
             continue; // Validate legal moves
+        }
+        if (!isPV && !isDecisive(bestEval) && !board.isInCheck() && movesMade >= MIN_MOVES_BEFORE_LMP + depth * depth && depth <= MAX_DEPTH_FOR_LMP && m.isQuiet()) {
+            continue; // Skip quiets for late move pruning
         }
 
         if (ply > 0 && bestEval > MATED_IN_MAX_PLY) {
@@ -3614,6 +3633,7 @@ int main(int argc, char* argv[]) {
             searchThread.join();
         }
         if (killWorkers) {
+            killThreads.store(true);
             for (auto& t : threads) {
                 if (t.joinable()) {
                     t.join();
