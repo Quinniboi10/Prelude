@@ -164,7 +164,7 @@ enum PieceType : int {
     KING,
     NO_PIECE_TYPE
 };
-array<int, 5> kPieceValues = {100, 316, 328, 493, 982};
+array<int, 5> PIECE_VALUES = {100, 316, 328, 493, 982};
 
 // clang-format off
 enum Square : int {
@@ -211,7 +211,7 @@ static inline const union {
     uint32_t i;
     char     c[4];
 } Le = { 0x01020304 };
-static inline const bool IsLittleEndian = (Le.c[0] == 4);
+static inline const bool IS_LITTLE_ENDIAN = (Le.c[0] == 4);
 
 // Names binary encoding flags from Move class
 enum MoveType {
@@ -219,50 +219,54 @@ enum MoveType {
 };
 
 enum flags {
-    UNDEFINED, FAILLOW, BETACUTOFF, EXACT
+    UNDEFINED, FAIL_LOW, BETA_CUTOFF, EXACT
 };
 
 
 struct Colors {
     // ANSI codes for colors https://raw.githubusercontent.com/fidian/ansi/master/images/color-codes.png
-    constexpr static const string reset = "\033[0m";
+    constexpr static string RESET = "\033[0m";
 
     // Basic colors
-    constexpr static const string black = "\033[30m";
-    constexpr static const string red = "\033[31m";
-    constexpr static const string green = "\033[32m";
-    constexpr static const string yellow = "\033[33m";
-    constexpr static const string blue = "\033[34m";
-    constexpr static const string magenta = "\033[35m";
-    constexpr static const string cyan = "\033[36m";
-    constexpr static const string white = "\033[37m";
+    constexpr static string BLACK = "\033[30m";
+    constexpr static string RED = "\033[31m";
+    constexpr static string GREEN = "\033[32m";
+    constexpr static string YELLOW = "\033[33m";
+    constexpr static string BLUE = "\033[34m";
+    constexpr static string MAGENTA = "\033[35m";
+    constexpr static string CYAN = "\033[36m";
+    constexpr static string WHITE = "\033[37m";
 
     // Bright colors
-    constexpr static const string bright_black = "\033[90m";
-    constexpr static const string bright_red = "\033[91m";
-    constexpr static const string bright_green = "\033[92m";
-    constexpr static const string bright_yellow = "\033[93m";
-    constexpr static const string bright_blue = "\033[94m";
-    constexpr static const string bright_magenta = "\033[95m";
-    constexpr static const string bright_cyan = "\033[96m";
-    constexpr static const string bright_white = "\033[97m";
+    constexpr static string BRIGHT_BLACK = "\033[90m";
+    constexpr static string BRIGHT_RED = "\033[91m";
+    constexpr static string BRIGHT_GREEN = "\033[92m";
+    constexpr static string BRIGHT_YELLOW = "\033[93m";
+    constexpr static string BRIGHT_BLUE = "\033[94m";
+    constexpr static string BRIGHT_MAGENTA = "\033[95m";
+    constexpr static string BRIGHT_GYAN = "\033[96m";
+    constexpr static string BRIGHT_WHITE = "\033[97m";
 
-    constexpr static const string grey = bright_black;
+    constexpr static string GREY = BRIGHT_BLACK;
 };
 
-static int parseSquare(const string& square) {
-    return (square.at(1) - '1') * 8 + (square.at(0) - 'a'); // Calculate the index of any square
+// Takes square (h8) and converts it into a bitboard index (64)
+static int parseSquare(const string square) {
+    return (square.at(1) - '1') * 8 + (square.at(0) - 'a');
 }
 
+// Takes a square (64) and converts into algebraic notation (h8)
 static string squareToAlgebraic(int sq) {
     return string(1, 'a' + (sq % 8)) + string(1, '1' + (sq / 8));
 };
 
+// Returns true if the given index is 1
 template <typename BitboardType>
 static bool readBit(BitboardType bitboard, int index) {
     return (bitboard & (1ULL << index)) != 0;
 }
 
+// Set the bit in the given bitboard to 1 or 0
 template <typename BitboardType>
 static void setBit(BitboardType& bitboard, int index, bool value) {
     if (value) bitboard |= (1ULL << index);
@@ -301,13 +305,14 @@ public:
 
     MoveType typeOf() { return MoveType(move >> 12); } // Return the flag bits
 
-    bool isNull() { return !move; }
+    bool isNull() { return move == 0; }
 
     bool operator==(const Move other) const {
         return move == other.move;
     }
 };
 
+// Split a string into a deque given a deliminer to split by
 std::deque<string> split(const string& s, char delim) {
     std::deque<string> result;
     std::stringstream ss(s);
@@ -319,16 +324,18 @@ std::deque<string> split(const string& s, char delim) {
     return result;
 }
 
+// Find how much to pad a string with a minimum padding of 2 spaces
 int getPadding(string str, int targetLen) {
     targetLen -= str.length();
     return std::max(targetLen, 2);
 }
 
+// Pads a string to a given length
 template<typename objType>
 string padStr(objType obj, int targetLen) {
     std::string objStr;
     if constexpr (std::is_same_v<objType, std::string> || std::is_same_v<objType, std::basic_string<char>>) {
-        objStr = obj; // Strings make everything explode
+        objStr = obj; // Strings make everything explode if you call to_string
     }
     else {
         objStr = std::to_string(obj); // Convert other types
@@ -340,11 +347,7 @@ string padStr(objType obj, int targetLen) {
     return objStr;
 }
 
-template<typename objType>
-int getLength(objType obj) {
-    return std::to_string(obj).length();
-}
-
+// Find the index of the string in the given array (used for UCI input parsing)
 template<typename arrType>
 int findIndexOf(const arrType arr, string entry) {
     auto it = std::find(arr.begin(), arr.end(), entry);
@@ -354,6 +357,7 @@ int findIndexOf(const arrType arr, string entry) {
     return -1; // Not found
 }
 
+// Print a bitboard (for debugging individual bitboards)
 void printBitboard(u64 bitboard) {
     for (int rank = 7; rank >= 0; --rank) {
         cout << "+---+---+---+---+---+---+---+---+" << endl;
@@ -368,6 +372,7 @@ void printBitboard(u64 bitboard) {
     cout << "+---+---+---+---+---+---+---+---+" << endl;
 }
 
+// Fancy formats a time
 string formatTime(u64 timeInMS) {
     long long seconds = timeInMS / 1000;
     long long hours = seconds / 3600;
@@ -384,6 +389,7 @@ string formatTime(u64 timeInMS) {
     return result;
 }
 
+// Formats a number with commas
 string formatNum(i64 v) {
     auto s = std::to_string(v);
 
@@ -397,6 +403,7 @@ string formatNum(i64 v) {
     return s;
 }
 
+// Abbreviates a number into a string (1.00 gnodes instead of 1,000,000,000 nodes)
 string abbreviateNum(const i64 v) {
     if (v > 1000000000) return std::format("{:.2f} g", v / 1000000000.0);
     if (v > 1000000) return std::format("{:.2f} m", v / 1000000.0);
@@ -405,6 +412,7 @@ string abbreviateNum(const i64 v) {
     return std::to_string(v) + " ";
 }
 
+// Class with precomputed constants
 class Precomputed {
 public:
     static array<array<array<u64, 64>, 12>, 2> zobrist;
@@ -525,11 +533,13 @@ u64 Precomputed::isOn6;
 u64 Precomputed::isOn7;
 u64 Precomputed::isOn8;
 
+// Returns the rank or file of the given square
 constexpr Rank rankOf(Square s) { return Rank(s >> 3); }
 constexpr File fileOf(Square s) { return File(s & 0b111); }
 
 constexpr Rank flipRank(Square s) { return Rank(s ^ 0b111000); }
 
+// Shift the bitboard in the given diection
 template<Direction shiftDir>
 u64 shift(u64 bb) {
     if constexpr (shiftDir < 0) {
@@ -538,6 +548,7 @@ u64 shift(u64 bb) {
     return bb << shiftDir;
 }
 
+// Returns the pawn attack of a piece on the given square
 template<Color c>
 u64 pawnAttacksBB(const int sq) {
     const u64 pawnBB = 1ULL << sq;
@@ -853,7 +864,7 @@ void initializeAllDatabases() {
 }
 
 // Back to my code from here and below
-
+// Stores a move with an evaluation
 struct MoveEvaluation {
     Move move;
     int eval;
@@ -876,6 +887,14 @@ struct MoveList {
 
     constexpr MoveList() {
         count = 0;
+    }
+
+    auto begin() {
+        return moves.begin();
+    }
+
+    auto end() {
+        return moves.begin() + count;
     }
 
     void add(Move m) {
@@ -1026,7 +1045,7 @@ public:
     inline IntType read_little_endian(std::istream& stream) {
         IntType result;
 
-        if (IsLittleEndian)
+        if (IS_LITTLE_ENDIAN)
             stream.read(reinterpret_cast<char*>(&result), sizeof(IntType));
         else
         {
@@ -1450,8 +1469,8 @@ public:
     }
 
     int evaluateMVVLVA(Move& a) {
-        int victim = kPieceValues[getPiece(a.endSquare())];
-        int attacker = kPieceValues[getPiece(a.startSquare())];
+        int victim = PIECE_VALUES[getPiece(a.endSquare())];
+        int attacker = PIECE_VALUES[getPiece(a.startSquare())];
 
         // Higher victim value and lower attacker value are prioritized
         return (victim * 100) - attacker;
@@ -1477,10 +1496,10 @@ public:
         int from = m.startSquare();
         int to = m.endSquare();
 
-        int swap = kPieceValues[getPiece(to)] - threshold;
+        int swap = PIECE_VALUES[getPiece(to)] - threshold;
         if (swap <= 0) return false;
 
-        swap = kPieceValues[getPiece(from)] - swap;
+        swap = PIECE_VALUES[getPiece(from)] - swap;
         if (swap <= 0) return true;
 
         u64 occ = pieces() ^ (1ULL << from) ^ (1ULL << to);
@@ -1505,7 +1524,7 @@ public:
             res ^= 1;
 
             if ((bb = stmAttackers & pieces(PAWN))) {
-                swap = kPieceValues[PAWN] - swap;
+                swap = PIECE_VALUES[PAWN] - swap;
                 if (swap < res) break;
                 occ ^= 1ULL << ctzll(bb); // LSB as a bitboard
 
@@ -1513,13 +1532,13 @@ public:
             }
 
             else if ((bb = stmAttackers & pieces(KNIGHT))) {
-                swap = kPieceValues[KNIGHT] - swap;
+                swap = PIECE_VALUES[KNIGHT] - swap;
                 if (swap < res) break;
                 occ ^= 1ULL << ctzll(bb);
             }
 
             else if ((bb = stmAttackers & pieces(BISHOP))) {
-                swap = kPieceValues[BISHOP] - swap;
+                swap = PIECE_VALUES[BISHOP] - swap;
                 if (swap < res) break;
                 occ ^= 1ULL << ctzll(bb);
 
@@ -1527,7 +1546,7 @@ public:
             }
 
             else if ((bb = stmAttackers & pieces(ROOK))) {
-                swap = kPieceValues[ROOK] - swap;
+                swap = PIECE_VALUES[ROOK] - swap;
                 if (swap < res) break;
                 occ ^= 1ULL << ctzll(bb);
 
@@ -1535,7 +1554,7 @@ public:
             }
 
             else if ((bb = stmAttackers & pieces(QUEEN))) {
-                swap = kPieceValues[QUEEN] - swap;
+                swap = PIECE_VALUES[QUEEN] - swap;
                 if (swap < res) break;
                 occ ^= 1ULL << ctzll(bb);
 
@@ -1564,9 +1583,7 @@ public:
         // Queen moves are part of bishop/rook moves
 
         // Classify moves
-        for (int i = 0; i < allMoves.count; ++i) {
-            Move& move = allMoves.moves[i];
-
+        for (Move move : allMoves) {
             if (move.typeOf() & CAPTURE) {
                 captures.add(move);
             }
@@ -1587,11 +1604,11 @@ public:
 
 
         // Combine moves in the prioritized order
-        for (int i = 0; i < captures.count; ++i) {
-            prioritizedMoves.add(captures.moves[i]);
+        for (Move m : captures) {
+            prioritizedMoves.add(m);
         }
-        for (int i = 0; i < quietMoves.count; ++i) {
-            prioritizedMoves.add(quietMoves.moves[i]);
+        for (Move m : quietMoves) {
+            prioritizedMoves.add(m);
         }
 
         return prioritizedMoves;
@@ -1869,7 +1886,7 @@ public:
                 else if (readBit(black[4], i)) currentPiece = 'q';
                 else if (readBit(black[5], i)) currentPiece = 'k';
 
-                cout << "| " << ((1ULL << i) & whitePieces ? Colors::yellow : Colors::blue) << currentPiece << Colors::reset << " ";
+                cout << "| " << ((1ULL << i) & whitePieces ? Colors::YELLOW : Colors::BLUE) << currentPiece << Colors::RESET << " ";
             }
             cout << "| " << rank + 1 << endl;
         }
@@ -2049,8 +2066,8 @@ public:
                 MoveList moves = generateLegalMoves();
                 moves.sortByString(*this);
                 cout << "Legal moves (" << moves.count << "):" << endl;
-                for (int i = 0; i < moves.count; ++i) {
-                    cout << moves.moves[i].toString() << endl;
+                for (Move m : moves) {
+                    cout << m.toString() << endl;
                 }
                 exit(-1);
             }
@@ -2562,9 +2579,9 @@ u64 _bulk(Board& board, int depth) {
 
     MoveList moves = board.generateLegalMoves();
     u64 localNodes = 0;
-    for (int i = 0; i < moves.count; ++i) {
+    for (Move m : moves) {
         Board testBoard = board;
-        testBoard.move(moves.moves[i]);
+        testBoard.move(m);
         localNodes += _bulk(testBoard, depth - 1);
     }
     return localNodes;
@@ -2577,9 +2594,9 @@ u64 _perft(Board& board, int depth) {
 
     MoveList moves = board.generateLegalMoves();
     u64 localNodes = 0;
-    for (int i = 0; i < moves.count; ++i) {
+    for (Move m : moves) {
         Board testBoard = board;
-        testBoard.move(moves.moves[i]);
+        testBoard.move(m);
         localNodes += _perft(testBoard, depth - 1);
     }
     return localNodes;
@@ -2596,12 +2613,12 @@ void perft(Board& board, int depth, bool bulk) {
     u64 localNodes = 0;
     u64 movesThisIter = 0;
 
-    for (int i = 0; i < moves.count; ++i) {
+    for (Move m : moves) {
         Board testBoard = board;
-        testBoard.move(moves.moves[i]);
+        testBoard.move(m);
         movesThisIter = bulk ? _bulk(testBoard, depth - 1) : _perft(testBoard, depth - 1);
         localNodes += movesThisIter;
-        cout << moves.moves[i].toString() << ": " << movesThisIter << endl;
+        cout << m.toString() << ": " << movesThisIter << endl;
     }
 
     int nps = (int)(((double)localNodes) / (std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count()) * 1000000000);
@@ -2811,8 +2828,8 @@ int qsearch(Board& board,
 
     if (!isPV && entry->zobristKey == board.zobrist && (
         entry->flag == EXACT // Exact score
-        || (entry->flag == BETACUTOFF && entry->score >= beta) // Lower bound, fail high
-        || (entry->flag == FAILLOW && entry->score <= alpha) // Upper bound, fail low
+        || (entry->flag == BETA_CUTOFF && entry->score >= beta) // Lower bound, fail high
+        || (entry->flag == FAIL_LOW && entry->score <= alpha) // Upper bound, fail low
         )) {
         return entry->score;
     }
@@ -2820,17 +2837,15 @@ int qsearch(Board& board,
     MoveList moves = board.generateMoves(true);
     Move bestMove;
 
-    int flag = FAILLOW;
+    int flag = FAIL_LOW;
 
-    for (int i = 0; i < moves.count; ++i) {
+    for (Move m : moves) {
         if (sl->breakFlag->load() && !bestMove.isNull()) break;
         if (sl->outOfNodes()) break;
         if (mainThread && nodes % 2048 == 0 && sl->outOfTime()) {
             sl->breakFlag->store(true);
             break;
         }
-
-        const Move& m = moves.moves[i];
 
         if (!board.isLegalMove(m) || !board.see(m, SEE_MARGIN)) continue;
 
@@ -2887,8 +2902,8 @@ MoveEvaluation search(Board& board,
 
     if (!isPV && ply > 0 && entry->zobristKey == board.zobrist && entry->depth >= depth && (
         entry->flag == EXACT // Exact score
-        || (entry->flag == BETACUTOFF && entry->score >= beta) // Lower bound, fail high
-        || (entry->flag == FAILLOW && entry->score <= alpha) // Upper bound, fail low
+        || (entry->flag == BETA_CUTOFF && entry->score >= beta) // Lower bound, fail high
+        || (entry->flag == FAIL_LOW && entry->score <= alpha) // Upper bound, fail low
         )) {
         return { Move(), entry->score };
     }
@@ -2946,11 +2961,11 @@ MoveEvaluation search(Board& board,
     Move bestMove;
     int bestEval = -INF_INT;
 
-    int flag = FAILLOW;
+    int flag = FAIL_LOW;
 
     int movesMade = 0;
 
-    for (int i = 0; i < moves.count; ++i) {
+    for (Move m : moves) {
         // Break checks
         if (sl->breakFlag->load() && !bestMove.isNull()) break;
         if (sl->outOfNodes()) break;
@@ -2958,8 +2973,6 @@ MoveEvaluation search(Board& board,
             sl->breakFlag->store(true);
             break;
         }
-
-        Move& m = moves.moves[i];
 
         if (!board.isLegalMove(m)) {
             continue; // Validate legal moves
@@ -3019,7 +3032,7 @@ MoveEvaluation search(Board& board,
 
         // Fail high
         if (eval >= beta) {
-            flag = BETACUTOFF;
+            flag = BETA_CUTOFF;
         }
 
         if (alpha >= beta) {
@@ -3206,19 +3219,19 @@ MoveEvaluation iterativeDeepening(
                 fancyEval = (bestMove.eval > 0 ? '+' : '\0') + std::format("{:.2f}", bestMove.eval / 100.0);
             }
             cout << padStr(std::to_string(depth) + "/" + std::to_string(seldepth), 9);
-            cout << Colors::grey;
+            cout << Colors::GREY;
             cout << padStr(formatTime((int)(elapsedNs / 1e6)), 7);
             cout << padStr(abbreviateNum(nodes) + "nodes", 15);
             cout << padStr(abbreviateNum(nps) + "nps", 14);
-            cout << Colors::cyan;
+            cout << Colors::CYAN;
             cout << "TT: ";
-            cout << Colors::grey;
+            cout << Colors::GREY;
             cout << padStr(std::format("{:.1f}%", hashPercent), 9);
-            cout << Colors::bright_green;
+            cout << Colors::BRIGHT_GREEN;
             cout << padStr(fancyEval, 7);
-            cout << Colors::blue;
+            cout << Colors::BLUE;
             cout << bestMoveAlgebra;
-            cout << Colors::reset << std::defaultfloat << std::setprecision(6) << endl;
+            cout << Colors::RESET << std::defaultfloat << std::setprecision(6) << endl;
         }
 
         lastInfo = std::chrono::steady_clock::now();
@@ -3747,8 +3760,8 @@ int main(int argc, char* argv[]) {
             MoveList moves = currentPos.generateLegalMoves();
             moves.sortByString(currentPos);
             cout << "Legal moves (" << moves.count << "):" << endl;
-            for (int i = 0; i < moves.count; ++i) {
-                cout << moves.moves[i].toString() << endl;
+            for (Move m : moves) {
+                cout << m.toString() << endl;
             }
         }
         else if (parsedCommand[0] == "perft") {
@@ -3764,8 +3777,8 @@ int main(int argc, char* argv[]) {
             cout << "All moves (current side to move):" << endl;
             auto moves = currentPos.generateMoves();
             moves.sortByString(currentPos);
-            for (int i = 0; i < moves.count; ++i) {
-                cout << moves.moves[i].toString() << endl;
+            for (Move m : moves) {
+                cout << m.toString() << endl;
             }
         }
         else if (command == "debug.nullmove") {
