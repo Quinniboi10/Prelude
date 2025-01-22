@@ -18,8 +18,7 @@
 
 
 // TODO (Ordered):
-// Switch to new Stockfish IS_LITTLE_ENDIAN code that doesn't involve undefined behaviorx
-// LMP
+// Switch to new Stockfish IS_LITTLE_ENDIAN code that doesn't involve undefined behavior
 // History malus
 // Increasing LMR on non pv nodes
 // Decrease LMR when a move is giving check
@@ -575,7 +574,7 @@ u64 pawnAttacksBB(const int sq) {
 }
 
 // Tables from https://github.com/Disservin/chess-library/blob/cf3bd56474168605201a01eb78b3222b8f9e65e4/include/chess.hpp#L780
-static constexpr u64 KnightAttacks[64] = {
+static constexpr u64 KNIGHT_ATTACKS[64] = {
     0x0000000000020400, 0x0000000000050800, 0x00000000000A1100, 0x0000000000142200, 0x0000000000284400,
     0x0000000000508800, 0x0000000000A01000, 0x0000000000402000, 0x0000000002040004, 0x0000000005080008,
     0x000000000A110011, 0x0000000014220022, 0x0000000028440044, 0x0000000050880088, 0x00000000A0100010,
@@ -590,7 +589,7 @@ static constexpr u64 KnightAttacks[64] = {
     0x2000204000000000, 0x0004020000000000, 0x0008050000000000, 0x00110A0000000000, 0x0022140000000000,
     0x0044280000000000, 0x0088500000000000, 0x0010A00000000000, 0x0020400000000000 };
 
-static constexpr u64 KingAttacks[64] = {
+static constexpr u64 KING_ATTACKS[64] = {
     0x0000000000000302, 0x0000000000000705, 0x0000000000000E0A, 0x0000000000001C14, 0x0000000000003828,
     0x0000000000007050, 0x000000000000E0A0, 0x000000000000C040, 0x0000000000030203, 0x0000000000070507,
     0x00000000000E0A0E, 0x00000000001C141C, 0x0000000000382838, 0x0000000000705070, 0x0000000000E0A0E0,
@@ -1138,7 +1137,6 @@ public:
 
     u64 blackPieces;
     u64 whitePieces;
-    u64 emptySquares;
 
     uint64_t enPassant;
     u8 castlingRights;
@@ -1235,8 +1233,6 @@ public:
         whitePieces = white[0] | white[1] | white[2] | white[3] | white[4] | white[5];
         blackPieces = black[0] | black[1] | black[2] | black[3] | black[4] | black[5];
 
-        emptySquares = ~(whitePieces | blackPieces);
-
         positionHistory.push_back(zobrist);
     }
 
@@ -1251,230 +1247,175 @@ public:
     }
 
     void generatePawnMoves(MoveList& moves) {
-        u64 pawns = side ? white[0] : black[0];
+        int backShift = 0; // How much to shift a position by to get back to the original
 
-        u64 pawnPushes = side ? (white[0] << 8) : (black[0] >> 8);
-        pawnPushes &= emptySquares;
-        int currentIndex;
+        u64 pawns = pieces(side, PAWN);
+
+        u64 pawnPushes = side ? (shift<NORTH>(pawns)) : (shift<SOUTH>(pawns));
+        pawnPushes &= ~pieces();
+        int currentSquare;
 
         u64 pawnCaptureRight = pawns & ~(Precomputed::isOnH);
-        pawnCaptureRight = side ? (pawnCaptureRight << 9) : (pawnCaptureRight >> 7);
-        pawnCaptureRight &= side ? blackPieces : whitePieces;
+        pawnCaptureRight = side ? (shift<NORTH_EAST>(pawnCaptureRight)) : (shift<SOUTH_EAST>(pawnCaptureRight));
+        u64 pawnCaptureRightEP = pawnCaptureRight & enPassant;
+        pawnCaptureRight &= pieces(~side);
 
         u64 pawnCaptureLeft = pawns & ~(Precomputed::isOnA);
-        pawnCaptureLeft = side ? (pawnCaptureLeft << 7) : (pawnCaptureLeft >> 9);
-        pawnCaptureLeft &= side ? blackPieces : whitePieces;
+        pawnCaptureLeft = side ? (shift<NORTH_WEST>(pawnCaptureLeft)) : (shift<SOUTH_WEST>(pawnCaptureLeft));
+        u64 pawnCaptureLeftEP = pawnCaptureLeft & enPassant;
+        pawnCaptureLeft &= pieces(~side);
 
-        u64 pawnCaptureRightEP = pawns & ~(Precomputed::isOnH);
-        pawnCaptureRightEP = side ? (pawnCaptureRightEP << 9) : (pawnCaptureRightEP >> 7);
-        pawnCaptureRightEP &= enPassant;
+        u64 pawnDoublePush = side ? (shift<NORTH>(pawnPushes)) : (shift<SOUTH>(pawnPushes));
+        pawnDoublePush &= side ? Precomputed::isOn4 : Precomputed::isOn5;
+        pawnDoublePush &= ~pieces();
 
-        u64 pawnCaptureLeftEP = pawns & ~(Precomputed::isOnA);
-        pawnCaptureLeftEP = side ? (pawnCaptureLeftEP << 7) : (pawnCaptureLeftEP >> 9);
-        pawnCaptureLeftEP &= enPassant;
-
-        u64 pawnDoublePush = side ? (white[0] << 16) : (black[0] >> 16);
-        pawnDoublePush &= emptySquares & (side ? (emptySquares << 8) : (emptySquares >> 8));
-        pawnDoublePush &= side ? (Precomputed::isOn2 << 16) : (Precomputed::isOn7 >> 16);
-
-
+        backShift = side ? SOUTH_SOUTH : NORTH_NORTH;
         while (pawnDoublePush) {
-            currentIndex = ctzll(pawnDoublePush);
-            moves.add(Move((side) * (currentIndex - 16) + (!side) * (currentIndex + 16), currentIndex, DOUBLE_PUSH));
+            currentSquare = ctzll(pawnDoublePush);
+            moves.add(Move(currentSquare + backShift, currentSquare, DOUBLE_PUSH));
 
             pawnDoublePush &= pawnDoublePush - 1;
         }
-
+        
+        backShift = side ? SOUTH : NORTH;
         while (pawnPushes) {
-            currentIndex = ctzll(pawnPushes);
-            if ((1ULL << currentIndex) & (Precomputed::isOn1 | Precomputed::isOn8)) {
-                moves.add(Move((side) * (currentIndex - 8) + (!side) * (currentIndex + 8), currentIndex, QUEEN_PROMO));
-                moves.add(Move((side) * (currentIndex - 8) + (!side) * (currentIndex + 8), currentIndex, ROOK_PROMO));
-                moves.add(Move((side) * (currentIndex - 8) + (!side) * (currentIndex + 8), currentIndex, BISHOP_PROMO));
-                moves.add(Move((side) * (currentIndex - 8) + (!side) * (currentIndex + 8), currentIndex, KNIGHT_PROMO));
+            currentSquare = ctzll(pawnPushes);
+            if ((1ULL << currentSquare) & (Precomputed::isOn1 | Precomputed::isOn8)) {
+                moves.add(Move(currentSquare + backShift, currentSquare, QUEEN_PROMO));
+                moves.add(Move(currentSquare + backShift, currentSquare, ROOK_PROMO));
+                moves.add(Move(currentSquare + backShift, currentSquare, BISHOP_PROMO));
+                moves.add(Move(currentSquare + backShift, currentSquare, KNIGHT_PROMO));
             }
-            else moves.add(Move((side) * (currentIndex - 8) + (!side) * (currentIndex + 8), currentIndex));
+            else moves.add(Move(currentSquare + backShift, currentSquare));
 
             pawnPushes &= pawnPushes - 1;
         }
 
+        backShift = side ? SOUTH_WEST : NORTH_WEST;
         while (pawnCaptureRight) {
-            currentIndex = ctzll(pawnCaptureRight);
-            if ((1ULL << currentIndex) & (Precomputed::isOn1 | Precomputed::isOn8)) {
-                moves.add(Move((side) * (currentIndex - 9) + (!side) * (currentIndex + 7), currentIndex, QUEEN_PROMO_CAPTURE));
-                moves.add(Move((side) * (currentIndex - 9) + (!side) * (currentIndex + 7), currentIndex, ROOK_PROMO_CAPTURE));
-                moves.add(Move((side) * (currentIndex - 9) + (!side) * (currentIndex + 7), currentIndex, BISHOP_PROMO_CAPTURE));
-                moves.add(Move((side) * (currentIndex - 9) + (!side) * (currentIndex + 7), currentIndex, KNIGHT_PROMO_CAPTURE));
+            currentSquare = ctzll(pawnCaptureRight);
+            if ((1ULL << currentSquare) & (Precomputed::isOn1 | Precomputed::isOn8)) {
+                moves.add(Move(currentSquare + backShift, currentSquare, QUEEN_PROMO_CAPTURE));
+                moves.add(Move(currentSquare + backShift, currentSquare, ROOK_PROMO_CAPTURE));
+                moves.add(Move(currentSquare + backShift, currentSquare, BISHOP_PROMO_CAPTURE));
+                moves.add(Move(currentSquare + backShift, currentSquare, KNIGHT_PROMO_CAPTURE));
             }
-            else moves.add(Move((side) * (currentIndex - 9) + (!side) * (currentIndex + 7), currentIndex, CAPTURE));
+            else moves.add(Move(currentSquare + backShift, currentSquare, CAPTURE));
 
             pawnCaptureRight &= pawnCaptureRight - 1;
         }
 
+        backShift = side ? SOUTH_EAST : NORTH_EAST;
         while (pawnCaptureLeft) {
-            currentIndex = ctzll(pawnCaptureLeft);
-            if ((1ULL << currentIndex) & (Precomputed::isOn1 | Precomputed::isOn8)) {
-                moves.add(Move((side) * (currentIndex - 7) + (!side) * (currentIndex + 9), currentIndex, QUEEN_PROMO_CAPTURE));
-                moves.add(Move((side) * (currentIndex - 7) + (!side) * (currentIndex + 9), currentIndex, ROOK_PROMO_CAPTURE));
-                moves.add(Move((side) * (currentIndex - 7) + (!side) * (currentIndex + 9), currentIndex, BISHOP_PROMO_CAPTURE));
-                moves.add(Move((side) * (currentIndex - 7) + (!side) * (currentIndex + 9), currentIndex, KNIGHT_PROMO_CAPTURE));
+            currentSquare = ctzll(pawnCaptureLeft);
+            if ((1ULL << currentSquare) & (Precomputed::isOn1 | Precomputed::isOn8)) {
+                moves.add(Move(currentSquare + backShift, currentSquare, QUEEN_PROMO_CAPTURE));
+                moves.add(Move(currentSquare + backShift, currentSquare, ROOK_PROMO_CAPTURE));
+                moves.add(Move(currentSquare + backShift, currentSquare, BISHOP_PROMO_CAPTURE));
+                moves.add(Move(currentSquare + backShift, currentSquare, KNIGHT_PROMO_CAPTURE));
             }
-            else moves.add(Move((side) * (currentIndex - 7) + (!side) * (currentIndex + 9), currentIndex, CAPTURE));
+            else moves.add(Move(currentSquare + backShift, currentSquare, CAPTURE));
 
             pawnCaptureLeft &= pawnCaptureLeft - 1;
         }
-
-        while (pawnCaptureRightEP) {
-            currentIndex = ctzll(pawnCaptureRightEP);
-            moves.add(Move((side) * (currentIndex - 9) + (!side) * (currentIndex + 7), currentIndex, EN_PASSANT));
-
-            pawnCaptureRightEP &= pawnCaptureRightEP - 1;
-        }
-
-        while (pawnCaptureLeftEP) {
-            currentIndex = ctzll(pawnCaptureLeftEP);
-            moves.add(Move((side) * (currentIndex - 7) + (!side) * (currentIndex + 9), currentIndex, EN_PASSANT));
+        
+        if (pawnCaptureLeftEP) {
+            currentSquare = ctzll(pawnCaptureLeftEP);
+            moves.add(Move(currentSquare + backShift, currentSquare, EN_PASSANT));
 
             pawnCaptureLeftEP &= pawnCaptureLeftEP - 1;
+        }
+
+        backShift = side ? SOUTH_WEST : NORTH_WEST;
+        if (pawnCaptureRightEP) {
+            currentSquare = ctzll(pawnCaptureRightEP);
+            moves.add(Move(currentSquare + backShift, currentSquare, EN_PASSANT));
+
+            pawnCaptureRightEP &= pawnCaptureRightEP - 1;
         }
     }
 
     void generateKnightMoves(MoveList& moves) {
-        int currentIndex;
+        u64 knightBB = pieces(side, KNIGHT);
+        u64 ourBitboard = pieces(side);
 
-        u64 knightBitboard = side ? white[1] : black[1];
-        u64 ourBitboard = side ? whitePieces : blackPieces;
+        while (knightBB > 0) {
+            int currentSquare = ctzll(knightBB);
 
-        while (knightBitboard > 0) {
-            u64 knightEmptyMoves = 0;
-            u64 knightCaptures = 0;
-
-            currentIndex = ctzll(knightBitboard);
-
-            u64 knightMoves = KnightAttacks[currentIndex];
+            u64 knightMoves = KNIGHT_ATTACKS[currentSquare];
             knightMoves &= ~ourBitboard;
 
-            knightEmptyMoves = knightMoves & emptySquares;
-            knightCaptures = knightMoves & ~(emptySquares | ourBitboard);
-
-            while (knightEmptyMoves > 0) {
-                moves.add(Move(currentIndex, ctzll(knightEmptyMoves)));
-                knightEmptyMoves &= knightEmptyMoves - 1;
+            while (knightMoves > 0) {
+                int to = ctzll(knightMoves);
+                moves.add(Move(currentSquare, to, ((1ULL << to) & pieces()) ? CAPTURE : STANDARD_MOVE));
+                knightMoves &= knightMoves - 1;
             }
-
-            while (knightCaptures > 0) {
-                moves.add(Move(currentIndex, ctzll(knightCaptures), CAPTURE));
-                knightCaptures &= knightCaptures - 1;
-            }
-            knightBitboard &= knightBitboard - 1; // Clear least significant bit
+            knightBB &= knightBB - 1;
         }
     }
 
     void generateBishopMoves(MoveList& moves) {
-        int currentIndex;
+        u64 bishopBB = pieces(side, BISHOP, QUEEN);
+        u64 ourBitboard = pieces(side);
 
-        u64 bishopBitboard = side ? (white[2] | white[4]) : (black[2] | black[4]);
-        u64 ourBitboard = side ? whitePieces : blackPieces;
+        while (bishopBB > 0) {
+            int currentSquare = ctzll(bishopBB);
 
-        u64 occupancy = whitePieces | blackPieces;
+            u64 bishopMoves = getBishopAttacks(Square(currentSquare), pieces());
+            bishopMoves &= ~ourBitboard;
 
-        u64 moveMask;
-
-        while (bishopBitboard > 0) {
-            currentIndex = ctzll(bishopBitboard);
-
-            moveMask = getBishopAttacks(Square(currentIndex), occupancy);
-
-            moveMask &= ~ourBitboard;
-
-            u64 emptyMoves = moveMask & emptySquares;
-            u64 captures = moveMask & ~(emptySquares | ourBitboard);
-
-            // Make move with each legal move in mask
-            while (emptyMoves > 0) {
-                int maskIndex = ctzll(emptyMoves);
-                moves.add(Move(currentIndex, maskIndex));
-                emptyMoves &= emptyMoves - 1;
+            while (bishopMoves > 0) {
+                int to = ctzll(bishopMoves);
+                moves.add(Move(currentSquare, to, ((1ULL << to) & pieces()) ? CAPTURE : STANDARD_MOVE));
+                bishopMoves &= bishopMoves - 1;
             }
-            while (captures > 0) {
-                int maskIndex = ctzll(captures);
-                moves.add(Move(currentIndex, maskIndex, CAPTURE));
-                captures &= captures - 1;
-            }
-
-            bishopBitboard &= bishopBitboard - 1; // Clear least significant bit
+            bishopBB &= bishopBB - 1;
         }
     }
 
     void generateRookMoves(MoveList& moves) {
-        int currentIndex;
+        u64 rookBB = pieces(side, ROOK, QUEEN);
+        u64 ourBitboard = pieces(side);
 
-        u64 rookBitboard = side ? (white[3] | white[4]) : (black[3] | black[4]);
-        u64 ourBitboard = side ? whitePieces : blackPieces;
+        while (rookBB > 0) {
+            int currentSquare = ctzll(rookBB);
 
-        u64 occupancy = whitePieces | blackPieces;
+            u64 rookMoves = getRookAttacks(Square(currentSquare), pieces());
+            rookMoves &= ~ourBitboard;
 
-        u64 moveMask;
-
-        while (rookBitboard > 0) {
-            currentIndex = ctzll(rookBitboard);
-
-            moveMask = getRookAttacks(Square(currentIndex), occupancy);
-
-            moveMask &= ~ourBitboard;
-
-            u64 emptyMoves = moveMask & emptySquares;
-            u64 captures = moveMask & ~(emptySquares | ourBitboard);
-
-            // Make move with each legal move in mask
-            while (emptyMoves > 0) {
-                int maskIndex = ctzll(emptyMoves);
-                moves.add(Move(currentIndex, maskIndex));
-                emptyMoves &= emptyMoves - 1;
+            while (rookMoves > 0) {
+                int to = ctzll(rookMoves);
+                moves.add(Move(currentSquare, to, ((1ULL << to) & pieces()) ? CAPTURE : STANDARD_MOVE));
+                rookMoves &= rookMoves - 1;
             }
-            while (captures > 0) {
-                int maskIndex = ctzll(captures);
-                moves.add(Move(currentIndex, maskIndex, CAPTURE));
-                captures &= captures - 1;
-            }
-
-            rookBitboard &= rookBitboard - 1; // Clear least significant bit
+            rookBB &= rookBB - 1;
         }
     }
 
     void generateKingMoves(MoveList& moves) {
-        u64 kingBitboard = side ? white[5] : black[5];
-        IFDBG m_assert(kingBitboard, "King bitboard is 0");
-        u64 ourBitboard = side ? whitePieces : blackPieces;
-        int currentIndex = ctzll(kingBitboard);
+        u64 ourBitboard = pieces(side);
 
-        u64 kingMoves = KingAttacks[currentIndex];
+        int kingSquare = ctzll(pieces(side, KING));
+
+        u64 kingMoves = KING_ATTACKS[kingSquare];
         kingMoves &= ~ourBitboard;
 
-
-        u64 emptyMoves = kingMoves & emptySquares;
-        u64 captures = kingMoves & ~(emptySquares | ourBitboard);
-
-        // Make move with each legal move in mask
-        while (emptyMoves > 0) {
-            int maskIndex = ctzll(emptyMoves);
-            moves.add(Move(currentIndex, maskIndex));
-            emptyMoves &= emptyMoves - 1;
-        }
-        while (captures > 0) {
-            int maskIndex = ctzll(captures);
-            moves.add(Move(currentIndex, maskIndex, CAPTURE));
-            captures &= captures - 1;
+        while (kingMoves > 0) {
+            int to = ctzll(kingMoves);
+            moves.add(Move(kingSquare, to, ((1ULL << to) & pieces()) ? CAPTURE : STANDARD_MOVE));
+            kingMoves &= kingMoves - 1;
         }
 
-        // Castling moves
-        if (side && currentIndex == e1) {
-            moves.add(Move(e1, g1, CASTLE_K));
-            moves.add(Move(e1, c1, CASTLE_Q));
-        }
-        else if (!side && currentIndex == e8) {
-            moves.add(Move(e8, g8, CASTLE_K));
-            moves.add(Move(e8, c8, CASTLE_Q));
+        if (!isInCheck()) {
+            // Castling moves
+            if (side && kingSquare == e1) {
+                moves.add(Move(e1, g1, CASTLE_K));
+                moves.add(Move(e1, c1, CASTLE_Q));
+            }
+            else if (!side && kingSquare == e8) {
+                moves.add(Move(e8, g8, CASTLE_K));
+                moves.add(Move(e8, c8, CASTLE_Q));
+            }
         }
     }
 
@@ -1495,8 +1436,8 @@ public:
             | (getBishopAttacks(sq, occ) & pieces(BISHOP, QUEEN))
             | (pawnAttacksBB<WHITE>(sq) & pieces(BLACK, PAWN))
             | (pawnAttacksBB<BLACK>(sq) & pieces(WHITE, PAWN))
-            | (KnightAttacks[sq] & pieces(KNIGHT))
-            | (KingAttacks[sq] & pieces(KING));
+            | (KNIGHT_ATTACKS[sq] & pieces(KNIGHT))
+            | (KING_ATTACKS[sq] & pieces(KING));
     }
 
     bool see(Move m, int threshold) { // Based on SF
@@ -1643,9 +1584,13 @@ public:
     u64 pieces(Color c, PieceType pt) {
         return c ? white[pt] : black[pt];
     }
-
+    
     u64 pieces(PieceType p1, PieceType p2) {
         return white[p1] | white[p2] | black[p1] | black[p2];
+    }
+
+    u64 pieces(Color c, PieceType p1, PieceType p2) {
+        return c ? (white[p1] | white[p2]) : (black[p1] | black[p2]);
     }
 
     u64 pieces(Color c) {
@@ -1653,7 +1598,7 @@ public:
     }
 
     bool isEndgame() {
-        return popcountll(~emptySquares) < 9;
+        return popcountll(pieces()) < 9;
     }
 
     bool canNullMove() {
@@ -1676,43 +1621,32 @@ public:
 
     // Returns if STM is in check
     bool isInCheck() {
-        // Check mask is all 1s to allow all moves when no checks are given
-        return ~checkMask;
+        return ~checkMask != 0;
     }
 
     bool isUnderAttack(int square) {
         return isUnderAttack(side, square);
     }
 
-    bool isUnderAttack(bool checkWhite, int square) {
-        auto& opponentPieces = checkWhite ? black : white;
-
+    bool isUnderAttack(Color side, int square) {
         // *** SLIDING PIECE ATTACKS ***
-        u64 occupancy = pieces();
-
         // Straight Directions (Rooks and Queens)
-        if ((opponentPieces[3] | opponentPieces[4]) & getRookAttacks(Square(square), occupancy)) return true;
+        if (pieces(~side, ROOK, QUEEN) & getRookAttacks(Square(square), pieces())) return true;
 
         // Diagonal Directions (Bishops and Queens)
-        if ((opponentPieces[2] | opponentPieces[4]) & getBishopAttacks(Square(square), occupancy)) return true;
+        if (pieces(~side, BISHOP, QUEEN) & getBishopAttacks(Square(square), pieces())) return true;
 
 
         // *** KNIGHT ATTACKS ***
-        if (opponentPieces[1] & KnightAttacks[square]) return true;
+        if (pieces(~side, KNIGHT) & KNIGHT_ATTACKS[square]) return true;
 
         // *** KING ATTACKS ***
-        if (opponentPieces[5] & KingAttacks[square]) return true;
+        if (pieces(~side, KING) & KING_ATTACKS[square]) return true;
 
 
         // *** PAWN ATTACKS ***
-        if (checkWhite) {
-            if ((opponentPieces[0] & (1ULL << (square + 7))) && (square % 8 != 0)) return true;
-            if ((opponentPieces[0] & (1ULL << (square + 9))) && (square % 8 != 7)) return true;
-        }
-        else {
-            if ((opponentPieces[0] & (1ULL << (square - 7))) && (square % 8 != 7)) return true;
-            if ((opponentPieces[0] & (1ULL << (square - 9))) && (square % 8 != 0)) return true;
-        }
+        if (side == WHITE) return (pawnAttacksBB<WHITE>(square) & pieces(BLACK, PAWN)) != 0;
+        else return (pawnAttacksBB<BLACK>(square) & pieces(WHITE, PAWN)) != 0;
 
         return false;
     }
@@ -1725,20 +1659,19 @@ public:
     void updateCheckPin() {
         int kingIndex = ctzll(side ? white[5] : black[5]);
 
-        u64 occ = whitePieces | blackPieces;
-        u64 ourPieces = side ? whitePieces : blackPieces;
+        u64 ourPieces = pieces(side);
         auto& opponentPieces = side ? black : white;
-        u64 enemyRooksQueens = side ? (black[3] | black[4]) : (white[3] | white[4]);
-        u64 enemyBishopsQueens = side ? (black[2] | black[4]) : (white[2] | white[4]);
+        u64 enemyRookQueens = pieces(~side, ROOK, QUEEN);
+        u64 enemyBishopQueens = pieces(~side, BISHOP, QUEEN);
 
         // Direct attacks for potential checks
-        u64 rookChecks = getRookAttacks(Square(kingIndex), occ) & enemyRooksQueens;
-        u64 bishopChecks = getBishopAttacks(Square(kingIndex), occ) & enemyBishopsQueens;
+        u64 rookChecks = getRookAttacks(Square(kingIndex), pieces()) & enemyRookQueens;
+        u64 bishopChecks = getBishopAttacks(Square(kingIndex), pieces()) & enemyBishopQueens;
         u64 checks = rookChecks | bishopChecks;
         checkMask = 0; // If no checks, will be set to all 1s later.
 
         // *** KNIGHT ATTACKS ***
-        u64 knightAttacks = KnightAttacks[kingIndex] & opponentPieces[1];
+        u64 knightAttacks = KNIGHT_ATTACKS[kingIndex] & opponentPieces[1];
         while (knightAttacks) {
             checkMask |= (1ULL << ctzll(knightAttacks));
             knightAttacks &= knightAttacks - 1;
@@ -1768,8 +1701,8 @@ public:
         if (!checkMask) checkMask = INF; // If no checks, set to all ones
 
         // ****** PIN STUFF HERE ******
-        u64 rookXrays = getXrayRookAttacks(Square(kingIndex), occ, ourPieces) & enemyRooksQueens;
-        u64 bishopXrays = getXrayBishopAttacks(Square(kingIndex), occ, ourPieces) & enemyBishopsQueens;
+        u64 rookXrays = getXrayRookAttacks(Square(kingIndex), pieces(), ourPieces) & enemyRookQueens;
+        u64 bishopXrays = getXrayBishopAttacks(Square(kingIndex), pieces(), ourPieces) & enemyBishopQueens;
         u64 pinners = rookXrays | bishopXrays;
         pinnersPerC[side] = pinners;
 
@@ -1801,21 +1734,21 @@ public:
             if (side) {
                 if (kingside) {
                     if ((occupied & ((1ULL << f1) | (1ULL << g1))) != 0) return false;
-                    if (isUnderAttack(true, f1) || isUnderAttack(true, g1)) return false;
+                    if (isUnderAttack(WHITE, f1) || isUnderAttack(WHITE, g1)) return false;
                 }
                 else {
                     if ((occupied & ((1ULL << b1) | (1ULL << c1) | (1ULL << d1))) != 0) return false;
-                    if (isUnderAttack(true, d1) || isUnderAttack(true, c1)) return false;
+                    if (isUnderAttack(WHITE, d1) || isUnderAttack(WHITE, c1)) return false;
                 }
             }
             else {
                 if (kingside) {
                     if ((occupied & ((1ULL << f8) | (1ULL << g8))) != 0) return false;
-                    if (isUnderAttack(false, f8) || isUnderAttack(false, g8)) return false;
+                    if (isUnderAttack(BLACK, f8) || isUnderAttack(BLACK, g8)) return false;
                 }
                 else {
                     if ((occupied & ((1ULL << b8) | (1ULL << c8) | (1ULL << d8))) != 0) return false;
-                    if (isUnderAttack(false, d8) || isUnderAttack(false, c8)) return false;
+                    if (isUnderAttack(BLACK, d8) || isUnderAttack(BLACK, c8)) return false;
                 }
             }
         }
@@ -1825,16 +1758,14 @@ public:
 
         // King moves
         if (king & (1ULL << from)) {
-            u64 lastKing = king;
             u64& pieces = side ? whitePieces : blackPieces;
-            u64 lastPieces = pieces;
 
             pieces ^= king;
-            king = 0;
+            king ^= 1ULL << kingIndex;
 
             bool ans = !isUnderAttack(side, to);
-            pieces = lastPieces;
-            king = lastKing;
+            king ^= 1ULL << kingIndex;
+            pieces ^= king;
             return ans;
         }
 
@@ -2161,7 +2092,7 @@ public:
         }
 
         // Halfmove clock, promo and set en passant
-        if (pt == PAWN || readBit(~emptySquares, to)) halfMoveClock = 0; // Reset halfmove clock on capture or pawn move
+        if (pt == PAWN || readBit(pieces(), to)) halfMoveClock = 0; // Reset halfmove clock on capture or pawn move
         else halfMoveClock++;
 
 
@@ -2322,12 +2253,13 @@ public:
 
         ans += side ? " w " : " b ";
 
-        if (readBit(castlingRights, 3)) ans += "K ";
-        if (readBit(castlingRights, 2)) ans += "Q ";
-        if (readBit(castlingRights, 1)) ans += "k ";
-        if (readBit(castlingRights, 0)) ans += "q ";
+        if (readBit(castlingRights, 3)) ans += "K";
+        if (readBit(castlingRights, 2)) ans += "Q";
+        if (readBit(castlingRights, 1)) ans += "k";
+        if (readBit(castlingRights, 0)) ans += "q";
 
-        if (!castlingRights) ans += "- ";
+        if (castlingRights == 0) ans += "- ";
+        else ans += " ";
 
         if (enPassant) ans += squareToAlgebraic(ctzll(enPassant));
         else ans += "-";
@@ -2756,6 +2688,28 @@ void perftSuite(const string& filePath) {
 }
 
 
+struct PvList {
+		array<Move, MAX_PLY> moves;
+		u32 length;
+
+		void update(Move move, const PvList &child) {
+			moves[0] = move;
+			std::copy(child.moves.begin(), child.moves.begin() + child.length, moves.begin() + 1);
+
+			length = child.length + 1;
+
+			IFDBG assert(length == 1 || moves[0] != moves[1]);
+		}
+
+		auto& operator=(const PvList &other) {
+			std::copy(other.moves.begin(), other.moves.begin() + other.length, moves.begin());
+			length = other.length;
+
+			return *this;
+		}
+	};
+
+
 // ****** SEARCH FUNCTIONS ******
 bool isUci = false; // Flag to represent if output should be human or UCI
 
@@ -2772,18 +2726,8 @@ bool isLoss(int v) {
 
 bool isDecisive(int v) { return isWin(v) || isLoss(v); }
 
-struct Stack { // From SF
-    Move* pv;
-    int ply;
-    Move currentMove;
-    Move excludedMove;
-    int staticEval;
-    int statScore;
-    int moveCount;
-    int cutoffCnt;
-    bool isCheck;
-    bool ttPv;
-    bool ttHit;
+struct Stack {
+    PvList pv;
 };
 
 struct SearchLimit {
@@ -3831,7 +3775,7 @@ int main(int argc, char* argv[]) {
         }
         else if (parsedCommand[0] == "debug.attackers") {
             cout << "Attackers:" << endl;
-            printBitboard(currentPos.attackersTo(Square(parseSquare(parsedCommand[1])), ~currentPos.emptySquares));
+            printBitboard(currentPos.attackersTo(Square(parseSquare(parsedCommand[1])), currentPos.pieces()));
         }
         else if (command == "debug.searchinfo") {
             cout << threads.size() << " helper threads running" << endl;
