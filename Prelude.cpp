@@ -298,23 +298,25 @@ public:
         move |= flags << 12;
     }
 
-    string toString();
+    string toString() const;
 
-    Square startSquare() { return Square(move & 0b111111); }
-    Square endSquare() { return Square((move >> 6) & 0b111111); }
+    Square startSquare() const { return Square(move & 0b111111); }
+    Square endSquare() const { return Square((move >> 6) & 0b111111); }
 
-    MoveType typeOf() { return MoveType(move >> 12); } // Return the flag bits
+    MoveType typeOf() const { return MoveType(move >> 12); } // Return the flag bits
 
-    bool isNull() { return move == 0; }
+    bool isNull() const { return move == 0; }
 
     // This should return false if
     // Move is a capture of any kind
     // Move is a queen promotion
     // Move is a knight promotion
-    bool isQuiet() { return (typeOf() & CAPTURE) == 0 && 
-        typeOf() != QUEEN_PROMO &&
-        typeOf() != KNIGHT_PROMO
-        ; }
+    bool isQuiet() const {
+        return (typeOf() & CAPTURE) == 0 &&
+            typeOf() != QUEEN_PROMO &&
+            typeOf() != KNIGHT_PROMO
+            ;
+    }
 
     bool operator==(const Move other) const {
         return move == other.move;
@@ -418,7 +420,7 @@ string abbreviateNum(const i64 v) {
     if (v > 1000000) return std::format("{:.2f} m", v / 1000000.0);
     if (v > 1000) return std::format("{:.2f} k", v / 1000.0);
 
-    return std::to_string(v) + " ";
+    return std::to_string(v);
 }
 
 // Class with precomputed constants
@@ -429,64 +431,23 @@ public:
     static array<u64, 65> zobristEP;
     static array<u64, 16> zobristCastling;
     static array<u64, 2> zobristSide;
-    static u64 isOnA;
-    static u64 isOnB;
-    static u64 isOnC;
-    static u64 isOnD;
-    static u64 isOnE;
-    static u64 isOnF;
-    static u64 isOnG;
-    static u64 isOnH;
-    static u64 isOn1;
-    static u64 isOn2;
-    static u64 isOn3;
-    static u64 isOn4;
-    static u64 isOn5;
-    static u64 isOn6;
-    static u64 isOn7;
-    static u64 isOn8;
+    constexpr static u64 isOnA = 0x101010101010101;
+    constexpr static u64 isOnB = 0x202020202020202;
+    constexpr static u64 isOnC = 0x404040404040404;
+    constexpr static u64 isOnD = 0x808080808080808;
+    constexpr static u64 isOnE = 0x1010101010101010;
+    constexpr static u64 isOnF = 0x2020202020202020;
+    constexpr static u64 isOnG = 0x4040404040404040;
+    constexpr static u64 isOnH = 0x8080808080808080;
+    constexpr static u64 isOn1 = 0xff;
+    constexpr static u64 isOn2 = 0xff00;
+    constexpr static u64 isOn3 = 0xff0000;
+    constexpr static u64 isOn4 = 0xff000000;
+    constexpr static u64 isOn5 = 0xff00000000;
+    constexpr static u64 isOn6 = 0xff0000000000;
+    constexpr static u64 isOn7 = 0xff000000000000;
+    constexpr static u64 isOn8 = 0xff00000000000000;
     static void compute() {
-        // *** FILE AND COL ARRAYS ***
-        isOnA = 0;
-        isOnB = 0;
-        isOnC = 0;
-        isOnD = 0;
-        isOnE = 0;
-        isOnF = 0;
-        isOnG = 0;
-        isOnH = 0;
-        isOn1 = 0;
-        isOn2 = 0;
-        isOn3 = 0;
-        isOn4 = 0;
-        isOn5 = 0;
-        isOn6 = 0;
-        isOn7 = 0;
-        isOn8 = 0;
-
-        for (int i = 0; i < 64; ++i) {
-            int file = i % 8; // File index (0 = A, 1 = B, ..., 7 = H)
-            if (file == 0) isOnA |= 1ULL << i;
-            if (file == 1) isOnB |= 1ULL << i;
-            if (file == 2) isOnC |= 1ULL << i;
-            if (file == 3) isOnD |= 1ULL << i;
-            if (file == 4) isOnE |= 1ULL << i;
-            if (file == 5) isOnF |= 1ULL << i;
-            if (file == 6) isOnG |= 1ULL << i;
-            if (file == 7) isOnH |= 1ULL << i;
-
-            // Fill ranks (1-8)
-            int rank = i / 8; // Rank index (0 = 1, 1 = 2, ..., 7 = 8)
-            if (rank == 0) isOn1 |= 1ULL << i;
-            if (rank == 1) isOn2 |= 1ULL << i;
-            if (rank == 2) isOn3 |= 1ULL << i;
-            if (rank == 3) isOn4 |= 1ULL << i;
-            if (rank == 4) isOn5 |= 1ULL << i;
-            if (rank == 5) isOn6 |= 1ULL << i;
-            if (rank == 6) isOn7 |= 1ULL << i;
-            if (rank == 7) isOn8 |= 1ULL << i;
-        }
-
         // *** MAKE RANDOM ZOBRIST TABLE ****
         std::random_device rd;
 
@@ -508,7 +469,7 @@ public:
             square = dist(engine);
         }
 
-        // If no EP square, set it to 0
+        // If no EP square, set it to 0 (for trifold reasons)
         zobristEP[64] = 0;
 
         for (auto& castlingValue : zobristCastling) {
@@ -525,22 +486,6 @@ array<array<array<u64, 64>, 12>, 2> Precomputed::zobrist;
 array<u64, 65> Precomputed::zobristEP;
 array<u64, 16> Precomputed::zobristCastling;
 array<u64, 2> Precomputed::zobristSide;
-u64 Precomputed::isOnA;
-u64 Precomputed::isOnB;
-u64 Precomputed::isOnC;
-u64 Precomputed::isOnD;
-u64 Precomputed::isOnE;
-u64 Precomputed::isOnF;
-u64 Precomputed::isOnG;
-u64 Precomputed::isOnH;
-u64 Precomputed::isOn1;
-u64 Precomputed::isOn2;
-u64 Precomputed::isOn3;
-u64 Precomputed::isOn4;
-u64 Precomputed::isOn5;
-u64 Precomputed::isOn6;
-u64 Precomputed::isOn7;
-u64 Precomputed::isOn8;
 
 // Returns the rank or file of the given square
 constexpr Rank rankOf(Square s) { return Rank(s >> 3); }
@@ -1113,7 +1058,7 @@ public:
         std::cerr << "WARNING: You are using MSVC, this means that your nnue was NOT embedded into the exe." << endl;
     }
 
-    int forwardPass(Board* board);
+    int forwardPass(const Board* board);
 };
 
 
@@ -1276,7 +1221,7 @@ public:
 
             pawnDoublePush &= pawnDoublePush - 1;
         }
-        
+
         backShift = side ? SOUTH : NORTH;
         while (pawnPushes) {
             currentSquare = ctzll(pawnPushes);
@@ -1318,7 +1263,7 @@ public:
 
             pawnCaptureLeft &= pawnCaptureLeft - 1;
         }
-        
+
         if (pawnCaptureLeftEP) {
             currentSquare = ctzll(pawnCaptureLeftEP);
             moves.add(Move(currentSquare + backShift, currentSquare, EN_PASSANT));
@@ -1547,7 +1492,7 @@ public:
         if (TTEntry->zobristKey == zobrist && allMoves.find(TTEntry->bestMove) != -1) {
             prioritizedMoves.add(TTEntry->bestMove); // This move CAN be used in qsearch
         }
-        
+
         std::stable_sort(captures.moves.begin(), captures.moves.begin() + captures.count, [&](Move a, Move b) { return evaluateMVVLVA(a) > evaluateMVVLVA(b); });
 
         for (Move m : captures) {
@@ -1573,35 +1518,35 @@ public:
         return Square(c * (white[pt]) + ~c * (black[pt]));
     }
 
-    u64 pieces() {
+    u64 pieces() const {
         return whitePieces | blackPieces;
     }
 
-    u64 pieces(PieceType pt) {
+    u64 pieces(PieceType pt) const {
         return white[pt] | black[pt];
     }
 
-    u64 pieces(Color c, PieceType pt) {
+    u64 pieces(Color c, PieceType pt) const {
         return c ? white[pt] : black[pt];
     }
-    
-    u64 pieces(PieceType p1, PieceType p2) {
+
+    u64 pieces(PieceType p1, PieceType p2) const {
         return white[p1] | white[p2] | black[p1] | black[p2];
     }
 
-    u64 pieces(Color c, PieceType p1, PieceType p2) {
+    u64 pieces(Color c, PieceType p1, PieceType p2) const {
         return c ? (white[p1] | white[p2]) : (black[p1] | black[p2]);
     }
 
-    u64 pieces(Color c) {
+    u64 pieces(Color c) const {
         return c ? whitePieces : blackPieces;
     }
 
-    bool isEndgame() {
+    bool isEndgame() const {
         return popcountll(pieces()) < 9;
     }
 
-    bool canNullMove() {
+    bool canNullMove() const {
         return !fromNull && !isEndgame() && !isInCheck();
     }
 
@@ -1611,7 +1556,7 @@ public:
     }
 
     // Uses 2fold check
-    bool isDraw() {
+    bool isDraw() const {
         if (halfMoveClock >= 100) return true;
         if (std::count(positionHistory.begin(), positionHistory.end(), zobrist) >= 2) {
             return true;
@@ -1620,15 +1565,15 @@ public:
     }
 
     // Returns if STM is in check
-    bool isInCheck() {
+    bool isInCheck() const {
         return ~checkMask != 0;
     }
 
-    bool isUnderAttack(int square) {
+    bool isUnderAttack(int square) const {
         return isUnderAttack(side, square);
     }
 
-    bool isUnderAttack(Color side, int square) {
+    bool isUnderAttack(Color side, int square) const {
         // *** SLIDING PIECE ATTACKS ***
         // Straight Directions (Rooks and Queens)
         if (pieces(~side, ROOK, QUEEN) & getRookAttacks(Square(square), pieces())) return true;
@@ -1651,7 +1596,7 @@ public:
         return false;
     }
 
-    bool aligned(int from, int to, int test) {
+    bool aligned(int from, int to, int test) const {
         return (LINE[from][to] & (1ULL << test));
     }
 
@@ -1713,11 +1658,11 @@ public:
         }
     }
 
-    u64 pinners(Color c) {
+    u64 pinners(Color c) const {
         return pinnersPerC[c];
     }
 
-    bool isLegalMove(Move m) {
+    bool isLegalMove(const Move m) {
         int from = m.startSquare();
         int to = m.endSquare();
 
@@ -1804,7 +1749,7 @@ public:
         return moves;
     }
 
-    void display() {
+    void display() const {
         if (side)
             cout << "White's turn" << endl;
         else
@@ -1846,7 +1791,7 @@ public:
         // Extract the features
         int addFeatureWhite = NNUE::feature(WHITE, side, addPT, add);
         int addFeatureBlack = NNUE::feature(BLACK, side, addPT, add);
-        
+
         int subFeatureWhite = NNUE::feature(WHITE, side, subPT, subtract);
         int subFeatureBlack = NNUE::feature(BLACK, side, subPT, subtract);
 
@@ -1854,7 +1799,7 @@ public:
         for (int i = 0; i < HL_SIZE; i++) {
             whiteAccum[i] += nn.weightsToHL[addFeatureWhite * HL_SIZE + i];
             blackAccum[i] += nn.weightsToHL[addFeatureBlack * HL_SIZE + i];
-            
+
             whiteAccum[i] -= nn.weightsToHL[subFeatureWhite * HL_SIZE + i];
             blackAccum[i] -= nn.weightsToHL[subFeatureBlack * HL_SIZE + i];
         }
@@ -1865,7 +1810,7 @@ public:
         // Extract the features
         int addFeatureWhite = NNUE::feature(WHITE, side, addPT, add);
         int addFeatureBlack = NNUE::feature(BLACK, side, addPT, add);
-        
+
         int sub1FeatureWhite = NNUE::feature(WHITE, side, sub1PT, sub1);
         int sub1FeatureBlack = NNUE::feature(BLACK, side, sub1PT, sub1);
 
@@ -1876,10 +1821,10 @@ public:
         for (int i = 0; i < HL_SIZE; i++) {
             whiteAccum[i] += nn.weightsToHL[addFeatureWhite * HL_SIZE + i];
             blackAccum[i] += nn.weightsToHL[addFeatureBlack * HL_SIZE + i];
-            
+
             whiteAccum[i] -= nn.weightsToHL[sub1FeatureWhite * HL_SIZE + i];
             blackAccum[i] -= nn.weightsToHL[sub1FeatureBlack * HL_SIZE + i];
-            
+
             whiteAccum[i] -= nn.weightsToHL[sub2FeatureWhite * HL_SIZE + i];
             blackAccum[i] -= nn.weightsToHL[sub2FeatureBlack * HL_SIZE + i];
         }
@@ -1890,10 +1835,10 @@ public:
         // Extract the features
         int add1FeatureWhite = NNUE::feature(WHITE, side, add1PT, add1);
         int add1FeatureBlack = NNUE::feature(BLACK, side, add1PT, add1);
-        
+
         int add2FeatureWhite = NNUE::feature(WHITE, side, add2PT, add2);
         int add2FeatureBlack = NNUE::feature(BLACK, side, add2PT, add2);
-        
+
         int sub1FeatureWhite = NNUE::feature(WHITE, side, sub1PT, sub1);
         int sub1FeatureBlack = NNUE::feature(BLACK, side, sub1PT, sub1);
 
@@ -1904,13 +1849,13 @@ public:
         for (int i = 0; i < HL_SIZE; i++) {
             whiteAccum[i] += nn.weightsToHL[add1FeatureWhite * HL_SIZE + i];
             blackAccum[i] += nn.weightsToHL[add1FeatureBlack * HL_SIZE + i];
-            
+
             whiteAccum[i] += nn.weightsToHL[add2FeatureWhite * HL_SIZE + i];
             blackAccum[i] += nn.weightsToHL[add2FeatureBlack * HL_SIZE + i];
-            
+
             whiteAccum[i] -= nn.weightsToHL[sub1FeatureWhite * HL_SIZE + i];
             blackAccum[i] -= nn.weightsToHL[sub1FeatureBlack * HL_SIZE + i];
-            
+
             whiteAccum[i] -= nn.weightsToHL[sub2FeatureWhite * HL_SIZE + i];
             blackAccum[i] -= nn.weightsToHL[sub2FeatureBlack * HL_SIZE + i];
         }
@@ -2202,7 +2147,7 @@ public:
         updateAccum();
     }
 
-    string exportToFEN() {
+    string exportToFEN() const {
         string ans = "";
 
         int blankSquares = 0;
@@ -2272,7 +2217,7 @@ public:
         return ans;
     }
 
-    int flipIndex(int index) {
+    int flipIndex(const int index) const {
         // Ensure the index is within [0, 63]
         IFDBG m_assert((index >= 0 && index <= 63), "Invalid index: " + std::to_string(index) + ". Must be between 0 and 63.");
         int rank = index / 8;
@@ -2281,7 +2226,7 @@ public:
         return mirrored_rank * 8 + file;
     }
 
-    int evaluate() { // Returns evaluation in centipawns as side to move
+    int evaluate() const { // Returns evaluation in centipawns as side to move
         return std::clamp(nn.forwardPass(this), -MATE_SCORE, MATE_SCORE);
 
         // Code below here can be used when there are 2 NNUEs
@@ -2386,15 +2331,15 @@ public:
 
 
 // Returns the output of the NN
-int NNUE::forwardPass(Board* board) {
+int NNUE::forwardPass(const Board* board) {
     const int divisor = 32 / OUTPUT_BUCKETS;
     const int outputBucket = (popcountll(board->pieces()) - 2) / divisor;
 
     // Determine the side to move and the opposite side
     Color stm = board->side;
 
-    Accumulator& accumulatorSTM = stm ? board->whiteAccum : board->blackAccum;
-    Accumulator& accumulatorOPP = ~stm ? board->whiteAccum : board->blackAccum;
+    const Accumulator& accumulatorSTM = stm ? board->whiteAccum : board->blackAccum;
+    const Accumulator& accumulatorOPP = ~stm ? board->whiteAccum : board->blackAccum;
 
     // Accumulate output for STM and OPP using separate weight segments
     i64 eval = 0;
@@ -2449,7 +2394,7 @@ int NNUE::forwardPass(Board* board) {
 }
 
 
-string Move::toString() {
+string Move::toString() const {
     int start = startSquare();
     int end = endSquare();
 
@@ -2689,25 +2634,25 @@ void perftSuite(const string& filePath) {
 
 
 struct PvList {
-		array<Move, MAX_PLY> moves;
-		u32 length;
+    array<Move, MAX_PLY> moves;
+    u32 length;
 
-		void update(Move move, const PvList &child) {
-			moves[0] = move;
-			std::copy(child.moves.begin(), child.moves.begin() + child.length, moves.begin() + 1);
+    void update(Move move, const PvList& child) {
+        moves[0] = move;
+        std::copy(child.moves.begin(), child.moves.begin() + child.length, moves.begin() + 1);
 
-			length = child.length + 1;
+        length = child.length + 1;
 
-			IFDBG assert(length == 1 || moves[0] != moves[1]);
-		}
+        IFDBG assert(length == 1 || moves[0] != moves[1]);
+    }
 
-		auto& operator=(const PvList &other) {
-			std::copy(other.moves.begin(), other.moves.begin() + other.length, moves.begin());
-			length = other.length;
+    auto& operator=(const PvList& other) {
+        std::copy(other.moves.begin(), other.moves.begin() + other.length, moves.begin());
+        length = other.length;
 
-			return *this;
-		}
-	};
+        return *this;
+    }
+};
 
 
 // ****** SEARCH FUNCTIONS ******
@@ -2990,6 +2935,9 @@ MoveEvaluation search(Board& board,
                 // This flag seems to lose elo, should be re-tested later on.
                 //flag = EXACT;
                 alpha = bestEval;
+                if constexpr (isPV) {
+                    ss->pv.update(m, (ss + 1)->pv);
+                }
             }
         }
 
@@ -3036,7 +2984,7 @@ MoveEvaluation search(Board& board,
 
 template<bool mainThread>
 MoveEvaluation iterativeDeepening(
-    Board& board,
+    Board board,
     int maxDepth,
     std::atomic<bool>& breakFlag,
     int wtime = 0,
@@ -3053,7 +3001,6 @@ MoveEvaluation iterativeDeepening(
     int hardLimit = 0;
     int softLimit = 0;
     auto start = std::chrono::steady_clock::now();
-    std::string bestMoveAlgebra = "";
     if (wtime || btime) {
         hardLimit = board.side ? wtime / movesToGo : btime / movesToGo;
         hardLimit += (board.side ? winc : binc) * INC_SCALAR;
@@ -3122,8 +3069,6 @@ MoveEvaluation iterativeDeepening(
         // Discard searches that return null or illegal moves, usually caused by TT corruption or exiting search early before any search cycle has fisnished
         if (!move.move.isNull() && board.isLegalMove(move.move)) bestMove = move;
 
-        bestMoveAlgebra = bestMove.move.toString();
-
         int TTused = 0;
         int sampleSize = TT.size > 2000 ? 2000 : TT.size;
         for (int i = 0; i < sampleSize; i++) {
@@ -3166,7 +3111,11 @@ MoveEvaluation iterativeDeepening(
                 ans += " score cp " + std::to_string(bestMove.eval);
             }
 
-            ans += " pv " + bestMoveAlgebra;
+            ans += " pv";
+
+            for (int i = 0; i < stack[0].pv.length; i++) {
+                ans += " " + stack[0].pv.moves[i].toString();
+            }
 
             cout << ans << endl;
         }
@@ -3193,20 +3142,22 @@ MoveEvaluation iterativeDeepening(
             cout << Colors::BRIGHT_GREEN;
             cout << padStr(fancyEval, 7);
             cout << Colors::BLUE;
-            cout << bestMoveAlgebra;
+            for (int i = 0; i < stack[0].pv.length; i++) {
+                cout << " " + stack[0].pv.moves[i].toString();
+            }
             cout << Colors::RESET << std::defaultfloat << std::setprecision(6) << endl;
         }
 
         lastInfo = std::chrono::steady_clock::now();
     }
 
-    if (mainThread && isUci) std::cout << "bestmove " << bestMoveAlgebra << std::endl;
+    if (mainThread && isUci) std::cout << "bestmove " << stack[0].pv.moves[0].toString() << std::endl;
     if (mainThread) breakFlag.store(true);
     return bestMove;
 }
 
 // Run a worker/helper thread to fill TT
-void runWorker(Board& board, std::atomic<bool>& breakFlag, std::atomic<bool>& killFlag) {
+void runWorker(Board board, std::atomic<bool>& breakFlag, std::atomic<bool>& killFlag) {
     IFDBG cout << "New thread created" << endl;
     while (true) {
         if (killFlag.load()) return;
@@ -3215,7 +3166,7 @@ void runWorker(Board& board, std::atomic<bool>& breakFlag, std::atomic<bool>& ki
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
         iterativeDeepening<false>(
-            std::ref(board), // Board
+            board, // Board
             INF_INT, // Depth
             std::ref(breakFlag), // Breakflag
             0, // Wtime
@@ -3486,7 +3437,7 @@ void playGames() {
 
         while (!board.isGameOver()) {
             MoveEvaluation bestMove = iterativeDeepening<false>(
-                std::ref(board), // Board
+                board, // Board
                 INF_INT, // Depth
                 std::ref(breakFlag), // Breakflag
                 0, // Wtime
@@ -3550,7 +3501,7 @@ void startThreads(int n, Board& board, std::atomic<bool>& breakFlag) {
     threads.clear();
     killThreads.store(false);
 
-    for (int i = 0; i < n; i++) threads.push_back(std::thread(runWorker, std::ref(board), std::ref(breakFlag), std::ref(killThreads)));
+    for (int i = 0; i < n; i++) threads.push_back(std::thread(runWorker, board, std::ref(breakFlag), std::ref(killThreads)));
 }
 
 // ****** MAIN ENTRY POINT ******
@@ -3693,7 +3644,7 @@ int main(int argc, char* argv[]) {
 
 
             searchThread = std::thread(iterativeDeepening<true>,
-                std::ref(currentPos),
+                currentPos,
                 depth,
                 std::ref(breakFlag),
                 wtime,
