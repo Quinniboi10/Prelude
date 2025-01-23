@@ -64,11 +64,10 @@ constexpr double ASP_DELTA_MULTIPLIER = 1.25;  // Scalar to widen aspr window on
 // ****** DATA GEN ******
 constexpr int targetPositions     = 1'000'000'000;  // Number of positions to generate
 constexpr int datagenInfoInterval = 1;  // How often (in games) to send progress report to console
-constexpr int saveEveryN = 1;  // Save every n positions or as soon as position passes filtering
-constexpr int clearBufferEvery = 1'000;    // Push output buffer to file every n data points
-constexpr int randMoves        = 8;        // Number of random halfmoves before data gen begins
-constexpr int nodesPerMove     = 5000;     // Soft nodes per move
-constexpr int maxNodesPerMove  = 100'000;  // Hard nodes per move
+constexpr int clearBufferEvery    = 1'000;    // Push output buffer to file every n data points
+constexpr int randMoves           = 8;        // Number of random halfmoves before data gen begins
+constexpr int nodesPerMove        = 5000;     // Soft nodes per move
+constexpr int maxNodesPerMove     = 100'000;  // Hard nodes per move
 
 
 #include <iostream>
@@ -80,6 +79,7 @@ constexpr int maxNodesPerMove  = 100'000;  // Hard nodes per move
 #include <array>
 #include <bitset>
 #include <algorithm>
+#include <filesystem>
 #include <cassert>
 #include <optional>
 #include <thread>
@@ -225,29 +225,29 @@ enum flags {
 
 struct Colors {
     // ANSI codes for colors https://raw.githubusercontent.com/fidian/ansi/master/images/color-codes.png
-    constexpr static string RESET = "\033[0m";
+    static constexpr string RESET = "\033[0m";
 
     // Basic colors
-    constexpr static string BLACK = "\033[30m";
-    constexpr static string RED = "\033[31m";
-    constexpr static string GREEN = "\033[32m";
-    constexpr static string YELLOW = "\033[33m";
-    constexpr static string BLUE = "\033[34m";
-    constexpr static string MAGENTA = "\033[35m";
-    constexpr static string CYAN = "\033[36m";
-    constexpr static string WHITE = "\033[37m";
+    static constexpr string BLACK = "\033[30m";
+    static constexpr string RED = "\033[31m";
+    static constexpr string GREEN = "\033[32m";
+    static constexpr string YELLOW = "\033[33m";
+    static constexpr string BLUE = "\033[34m";
+    static constexpr string MAGENTA = "\033[35m";
+    static constexpr string CYAN = "\033[36m";
+    static constexpr string WHITE = "\033[37m";
 
     // Bright colors
-    constexpr static string BRIGHT_BLACK = "\033[90m";
-    constexpr static string BRIGHT_RED = "\033[91m";
-    constexpr static string BRIGHT_GREEN = "\033[92m";
-    constexpr static string BRIGHT_YELLOW = "\033[93m";
-    constexpr static string BRIGHT_BLUE = "\033[94m";
-    constexpr static string BRIGHT_MAGENTA = "\033[95m";
-    constexpr static string BRIGHT_GYAN = "\033[96m";
-    constexpr static string BRIGHT_WHITE = "\033[97m";
+    static constexpr string BRIGHT_BLACK = "\033[90m";
+    static constexpr string BRIGHT_RED = "\033[91m";
+    static constexpr string BRIGHT_GREEN = "\033[92m";
+    static constexpr string BRIGHT_YELLOW = "\033[93m";
+    static constexpr string BRIGHT_BLUE = "\033[94m";
+    static constexpr string BRIGHT_MAGENTA = "\033[95m";
+    static constexpr string BRIGHT_GYAN = "\033[96m";
+    static constexpr string BRIGHT_WHITE = "\033[97m";
 
-    constexpr static string GREY = BRIGHT_BLACK;
+    static constexpr string GREY = BRIGHT_BLACK;
 };
 
 // Takes square (h8) and converts it into a bitboard index (64)
@@ -431,22 +431,22 @@ public:
     static array<u64, 65> zobristEP;
     static array<u64, 16> zobristCastling;
     static array<u64, 2> zobristSide;
-    constexpr static u64 isOnA = 0x101010101010101;
-    constexpr static u64 isOnB = 0x202020202020202;
-    constexpr static u64 isOnC = 0x404040404040404;
-    constexpr static u64 isOnD = 0x808080808080808;
-    constexpr static u64 isOnE = 0x1010101010101010;
-    constexpr static u64 isOnF = 0x2020202020202020;
-    constexpr static u64 isOnG = 0x4040404040404040;
-    constexpr static u64 isOnH = 0x8080808080808080;
-    constexpr static u64 isOn1 = 0xff;
-    constexpr static u64 isOn2 = 0xff00;
-    constexpr static u64 isOn3 = 0xff0000;
-    constexpr static u64 isOn4 = 0xff000000;
-    constexpr static u64 isOn5 = 0xff00000000;
-    constexpr static u64 isOn6 = 0xff0000000000;
-    constexpr static u64 isOn7 = 0xff000000000000;
-    constexpr static u64 isOn8 = 0xff00000000000000;
+    static constexpr u64 isOnA = 0x101010101010101;
+    static constexpr u64 isOnB = 0x202020202020202;
+    static constexpr u64 isOnC = 0x404040404040404;
+    static constexpr u64 isOnD = 0x808080808080808;
+    static constexpr u64 isOnE = 0x1010101010101010;
+    static constexpr u64 isOnF = 0x2020202020202020;
+    static constexpr u64 isOnG = 0x4040404040404040;
+    static constexpr u64 isOnH = 0x8080808080808080;
+    static constexpr u64 isOn1 = 0xff;
+    static constexpr u64 isOn2 = 0xff00;
+    static constexpr u64 isOn3 = 0xff0000;
+    static constexpr u64 isOn4 = 0xff000000;
+    static constexpr u64 isOn5 = 0xff00000000;
+    static constexpr u64 isOn6 = 0xff0000000000;
+    static constexpr u64 isOn7 = 0xff000000000000;
+    static constexpr u64 isOn8 = 0xff00000000000000;
     static void compute() {
         // *** MAKE RANDOM ZOBRIST TABLE ****
         std::random_device rd;
@@ -3284,6 +3284,14 @@ void bench(int depth) {
 }
 
 // ****** DATA GEN ******
+[[nodiscard]] u16 signedToUnsigned(i16 a) {
+    u16 r;
+    std::memcpy(&r, &a, sizeof(u16));
+    if (r & 0x8000) r ^= 0x7FFF; // Flip value bits if negative
+    r = (r << 1) | (r >> 15); // Store sign bit at bit 0
+    return r;
+}
+
 struct DataUnit {
     string data = ""; // This can be changed to use different data methods later
 
@@ -3350,25 +3358,17 @@ string makeFileName() {
     return "data-" + std::format("{:04}-{:02}-{:02}", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday) + "-" + randomStr + ".preludedata";
 }
 
-void writeToFile(const string& filePath, const std::vector<DataUnit>& data) {
-    // Open the file in write mode, should make a new file every time if using random u64 filename, but will append otherwise
-    std::ofstream outFile(filePath, std::ios::app);
-
-    // Check if the file was opened successfully
-    if (!outFile.is_open()) {
-        std::cerr << "Error: Could not open the file " << filePath << " for writing." << std::endl;
-        exit(-1);
-    }
-
+void writeToFile(std::ofstream& outFile, const std::vector<DataUnit>& data) {
     for (const auto& dataUnit : data) {
         outFile << dataUnit.data << endl;
     }
-
-    outFile.close();
+    outFile.flush();
 }
 
 void playGames() {
-    string filePath = makeFileName(); // Should be added as a cli param later
+    string filePath = "./data/" + makeFileName();
+
+    if (!std::filesystem::is_directory("./data/")) std::filesystem::create_directory("./data/");        
 
     std::atomic<bool> breakFlag(false);
     Board board;
@@ -3381,13 +3381,6 @@ void playGames() {
     int cachedPositions = 0;
     int savedPositions = 0;
     int totalPositions = 0;
-
-    int saveEveryN = ::saveEveryN + (::saveEveryN % 2 == 0); // Force to be odd to get equal white/black positions
-
-    saveEveryN = std::max(saveEveryN, 1);
-
-    if (saveEveryN > 1) cout << "Saving every " << saveEveryN << " positions" << endl;
-    else cout << "Saving every position" << endl;
 
     auto clear = []() {
 #if defined(_WIN32) || defined(_WIN64) 
@@ -3407,21 +3400,32 @@ void playGames() {
 
     outputBuffer.reserve(clearBufferEvery + 100);
 
-    while (totalPositions < targetPositions) {
-        int randMoves = ::randMoves + randBool(); // Half of the games start with first 
+    std::vector<PartialDataUnit> gameData;
+
+    gameData.reserve(255);
+
+    // Open the file in write mode, should make a new file every time if using random u64 filename, but will append otherwise
+    std::ofstream file(filePath, std::ios::app);
+
+    // Check if the file was opened successfully
+    if (!file.is_open()) {
+        std::cerr << "Error: Could not open the file " << filePath << " for writing." << std::endl;
+        exit(-1);
+    }
+
+    mainLoop: while (totalPositions < targetPositions) {
+        int randMoves = ::randMoves + randBool(); // Half of the games start each side
 
         auto now = std::chrono::steady_clock::now();
         int timeSpent = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime).count();
-        clear();
         double avgPosPerSec = totalPositions / (timeSpent / 1000.0);
+        
+        clear();
         cout << "Positions/second: " + std::format("{:.2f}", avgPosPerSec) << endl;
         cout << "Positions (cached): " << formatNum(cachedPositions) << endl;
         cout << "Positions (saved): " << formatNum(savedPositions) << endl;
         cout << "Time: " << formatTime(timeSpent) << endl;
         cout << endl;
-
-        std::vector<PartialDataUnit> gameData;
-        int movesSinceStore = 0; // Moves since the position was put into the buffer
 
         TT.clear();
         for (auto& side : history) {
@@ -3436,6 +3440,7 @@ void playGames() {
 
         for (int i = 0; i < randMoves; i++) {
             makeRandomMove(board);
+            if (board.isGameOver()) goto mainLoop;
         }
 
         while (!board.isGameOver()) {
@@ -3451,12 +3456,10 @@ void playGames() {
                 nodesPerMove,
                 maxNodesPerMove);
             board.move(bestMove.move);
-            movesSinceStore++;
-            if (movesSinceStore >= saveEveryN && !board.isInCheck() && !(bestMove.move.typeOf() & CAPTURE)) {
+            if (!board.isInCheck() && !(bestMove.move.typeOf() & CAPTURE) && !isDecisive(bestMove.eval)) {
                 gameData.push_back(PartialDataUnit(board.exportToFEN() + " | " + std::to_string(bestMove.eval)));
                 totalPositions++;
                 cachedPositions++;
-                movesSinceStore = 0;
             }
         }
 
@@ -3474,11 +3477,12 @@ void playGames() {
 
             bufferLock.store(false);
         }
+        gameData.clear();
         if (outputBuffer.size() > clearBufferEvery) {
             while (bufferLock.load()) std::this_thread::sleep_for(std::chrono::milliseconds(10));
             bufferLock.store(true);
 
-            writeToFile(filePath, outputBuffer);
+            writeToFile(file, outputBuffer);
             cachedPositions = 0;
             savedPositions += outputBuffer.size();
             outputBuffer.clear();
