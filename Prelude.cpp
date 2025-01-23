@@ -859,7 +859,7 @@ struct MoveList {
         return moves[index];
     }
 
-    int find(const Move entry) {
+    size_t find(const Move entry) {
         auto it = std::find(moves.begin(), moves.begin() + count, entry);
         if (it != moves.begin() + count) {
             return std::distance(moves.begin(), it);
@@ -2781,21 +2781,23 @@ int qsearch(Board& board,
 
 // Full search function
 template<bool isPV, bool mainThread = false>
-MoveEvaluation search(Board& board,
+int search(Board& board,
     Stack* ss,
     int depth,
     int alpha,
     int beta,
     int ply,
     SearchLimit* sl) {
+    // Set the length of the current PV line to 0
+    ss->pv.length = 0;
     // Only worry about draws and such if the node is a child, otherwise game would be over
     if (ply > 0) {
         if (depth <= 0) {
             int eval = qsearch<isPV, mainThread>(board, alpha, beta, sl);
-            return { Move(), eval };
+            return eval;
         }
         else if (board.isDraw()) {
-            return { Move(), 0 };
+            return 0;
         }
     }
     if (ply + 1 > seldepth && !mainThread) seldepth = ply + 1;
@@ -2807,7 +2809,7 @@ MoveEvaluation search(Board& board,
         || (entry->flag == BETA_CUTOFF && entry->score >= beta) // Lower bound, fail high
         || (entry->flag == FAIL_LOW && entry->score <= alpha) // Upper bound, fail low
         )) {
-        return { Move(), entry->score };
+        return entry->score;
     }
 
 
@@ -2816,7 +2818,7 @@ MoveEvaluation search(Board& board,
     // Razoring (+9 +- 5)
     if (staticEval <= alpha - RAZOR_MARGIN - RAZOR_DEPTH_SCALAR * depth * depth) {
         int value = qsearch<false, mainThread>(board, alpha - 1, alpha, sl);
-        if (value < alpha && !isDecisive(value)) return { Move(), value };
+        if (value < alpha && !isDecisive(value)) return value;
     }
 
     // Internal iterative reductions (+19 +- 10)
@@ -2828,14 +2830,14 @@ MoveEvaluation search(Board& board,
 
         if (mateValue < beta) {
             beta = mateValue;
-            if (alpha >= mateValue) return { Move(), mateValue };
+            if (alpha >= mateValue) return mateValue;
         }
 
         mateValue = -mateValue;
 
         if (mateValue > alpha) {
             alpha = mateValue;
-            if (beta <= mateValue) return { Move(), mateValue };
+            if (beta <= mateValue) return mateValue;
         }
     }
 
@@ -2845,7 +2847,7 @@ MoveEvaluation search(Board& board,
 
         // Reverse futility pruning (+32 +- 34)
         if (staticEval - RFP_MARGIN * depth >= beta && depth < 4 && !board.isInCheck()) {
-            return { Move(), staticEval - RFP_MARGIN };
+            return staticEval - RFP_MARGIN;
         }
 
         // Null move pruning (+75 +- 33)
@@ -2854,9 +2856,9 @@ MoveEvaluation search(Board& board,
         if (board.canNullMove() && staticEval >= beta && !board.isInCheck() && popcountll(board.side ? board.white[0] : board.black[0]) + 1 != popcountll(board.side ? board.whitePieces : board.blackPieces)) {
             Board testBoard = board;
             testBoard.makeNullMove();
-            int eval = -search<false, mainThread>(testBoard, ss + 1, depth - NMP_REDUCTION - depth / NMP_REDUCTION_DIVISOR, -beta, -beta + 1, ply + 1, sl).eval;
+            int eval = -search<false, mainThread>(testBoard, ss + 1, depth - NMP_REDUCTION - depth / NMP_REDUCTION_DIVISOR, -beta, -beta + 1, ply + 1, sl);
             if (eval >= beta) {
-                return { Move(), eval };
+                return eval;
             }
         }
     }
@@ -2916,14 +2918,14 @@ MoveEvaluation search(Board& board,
 
         // Only run PVS with more than one move already searched
         if (movesMade == 1) {
-            eval = -search<true, mainThread>(testBoard, ss + 1, newDepth, -beta, -alpha, ply + 1, sl).eval;
+            eval = -search<true, mainThread>(testBoard, ss + 1, newDepth, -beta, -alpha, ply + 1, sl);
         }
         else {
             // Principal variation search stuff
-            eval = -search<false, mainThread>(testBoard, ss + 1, newDepth - depthReduction, -alpha - 1, -alpha, ply + 1, sl).eval;
+            eval = -search<false, mainThread>(testBoard, ss + 1, newDepth - depthReduction, -alpha - 1, -alpha, ply + 1, sl);
             // If it fails high and isPV or used reduction, go again with full bounds
             if (eval > alpha && (isPV || depthReduction > 0)) {
-                eval = -search<true, mainThread>(testBoard, ss + 1, newDepth, -beta, -alpha, ply + 1, sl).eval;
+                eval = -search<true, mainThread>(testBoard, ss + 1, newDepth, -beta, -alpha, ply + 1, sl);
             }
         }
 
@@ -2971,15 +2973,15 @@ MoveEvaluation search(Board& board,
 
     if (!movesMade) {
         if (board.isInCheck()) {
-            return { Move(), -MATE_SCORE + ply };
+            return -MATE_SCORE + ply;
         }
-        return { Move(), 0 };
+        return 0;
     }
 
     // Uses entry that was already fetched above
     *entry = Transposition(board.zobrist, bestMove, flag, bestEval, depth);
 
-    return { bestMove, bestEval };
+    return bestEval;
 }
 
 template<bool mainThread>
@@ -3020,8 +3022,9 @@ MoveEvaluation iterativeDeepening(
         else maxDepth = 1;
     }
 
-    MoveEvaluation move;
-    MoveEvaluation bestMove;
+    int eval;
+    bool isMate = false;
+    int mateDist;
 
     if (ISDBG && mainThread) m_assert(maxDepth >= 1, "Depth is less than 1 in ID search");
 
@@ -3039,18 +3042,18 @@ MoveEvaluation iterativeDeepening(
         seldepth = depth;
 
         // Full search on depth 1, otherwise try with aspiration window
-        if (depth == 1) move = search<true, mainThread>(board, ss, depth, -INF_INT, INF_INT, 0, &sl);
+        if (depth == 1) eval = search<true, mainThread>(board, ss, depth, -INF_INT, INF_INT, 0, &sl);
         else { // From Clarity
-            int alpha = std::max(-MATE_SCORE, move.eval - ASPR_DELTA);
-            int beta = std::min(MATE_SCORE, move.eval + ASPR_DELTA);
+            int alpha = std::max(-MATE_SCORE, eval - ASPR_DELTA);
+            int beta = std::min(MATE_SCORE, eval + ASPR_DELTA);
             int delta = ASPR_DELTA;
             while (true) {
-                move = search<true, mainThread>(board, ss, depth, alpha, beta, 0, &sl);
+                eval = search<true, mainThread>(board, ss, depth, alpha, beta, 0, &sl);
                 if (sl.stopSearch()) break;
-                if (move.eval >= beta) {
+                if (eval >= beta) {
                     beta = std::min(beta + delta, MATE_SCORE);
                 }
-                else if (move.eval <= alpha) {
+                else if (eval <= alpha) {
                     beta = (alpha + beta) / 2;
                     alpha = std::max(alpha - delta, -MATE_SCORE);
                 }
@@ -3060,14 +3063,12 @@ MoveEvaluation iterativeDeepening(
             }
         }
 
-        if (ISDBG && mainThread) m_assert(!move.move.isNull(), "Returned null move in search");
+        IFDBG m_assert(!stack[0].pv.moves[0].isNull(), "Returned null move in search");
 
         auto now = std::chrono::steady_clock::now();
         double elapsedNs = (double)std::chrono::duration_cast<std::chrono::nanoseconds>(now - start).count();
         int nps = (int)((double)nodes / (elapsedNs / 1e9));
 
-        // Discard searches that return null or illegal moves, usually caused by TT corruption or exiting search early before any search cycle has fisnished
-        if (!move.move.isNull() && board.isLegalMove(move.move)) bestMove = move;
 
         int TTused = 0;
         int sampleSize = TT.size > 2000 ? 2000 : TT.size;
@@ -3075,10 +3076,11 @@ MoveEvaluation iterativeDeepening(
             if (TT.getEntry(i)->zobristKey != 0) TTused++;
         }
 
-        bool isMate = false;
-        int mateDist = (MATE_SCORE - std::abs(bestMove.eval)) / 2 + 1;
-
-        if (std::abs(bestMove.eval) >= MATE_IN_MAX_PLY) isMate = true;
+        if (std::abs(eval) >= MATE_IN_MAX_PLY) {
+            isMate = true;
+            mateDist = (MATE_SCORE - std::abs(eval)) / 2 + 1;
+        }
+        else isMate = false;
 
         string ans;
 
@@ -3105,10 +3107,10 @@ MoveEvaluation iterativeDeepening(
             ans = "info depth " + std::to_string(depth) + " nodes " + std::to_string(nodes) + " nps " + std::to_string(nps) + " time " + std::to_string((int)(elapsedNs / 1e6)) + " hashfull " + std::to_string((int)(TTused / (double)sampleSize * 1000));
             if (isMate) {
                 ans += " score mate ";
-                ans += ((bestMove.eval < 0) ? "-" : "") + std::to_string(mateDist);
+                ans += ((eval < 0) ? "-" : "") + std::to_string(mateDist);
             }
             else {
-                ans += " score cp " + std::to_string(bestMove.eval);
+                ans += " score cp " + std::to_string(eval);
             }
 
             ans += " pv";
@@ -3124,11 +3126,11 @@ MoveEvaluation iterativeDeepening(
             const double hashPercent = TTused / (double)sampleSize * 100;
             string fancyEval = "";
             if (isMate) {
-                if (bestMove.eval < 0) fancyEval = "-";
+                if (eval < 0) fancyEval = "-";
                 fancyEval += "M" + std::to_string(mateDist);
             }
             else {
-                fancyEval = (bestMove.eval > 0 ? '+' : '\0') + std::format("{:.2f}", bestMove.eval / 100.0);
+                fancyEval = (eval > 0 ? '+' : '\0') + std::format("{:.2f}", eval / 100.0);
             }
             cout << padStr(std::to_string(depth) + "/" + std::to_string(seldepth), 9);
             cout << Colors::GREY;
@@ -3151,9 +3153,10 @@ MoveEvaluation iterativeDeepening(
         lastInfo = std::chrono::steady_clock::now();
     }
 
-    if (mainThread && isUci) std::cout << "bestmove " << stack[0].pv.moves[0].toString() << std::endl;
+
+    if (mainThread && isUci) cout << "bestmove " << stack[0].pv.moves[0].toString() << endl;
     if (mainThread) breakFlag.store(true);
-    return bestMove;
+    return { stack[0].pv.moves[0], eval };
 }
 
 // Run a worker/helper thread to fill TT
@@ -3264,18 +3267,18 @@ void bench(int depth) {
         totalNodes += nodes;
         totalTimeMs += durationMs;
 
-        cout << "FEN: " << fen << std::endl;
-        cout << "Nodes: " << nodes << ", Time: " << durationMs << " ms" << std::endl;
-        cout << "----------------------------------------" << std::endl;
+        cout << "FEN: " << fen << endl;
+        cout << "Nodes: " << nodes << ", Time: " << durationMs << " ms" << endl;
+        cout << "----------------------------------------" << endl;
     }
 
     cout << "Benchmark Completed." << std::endl;
-    cout << "Total Nodes: " << formatNum(totalNodes) << std::endl;
-    cout << "Total Time: " << formatNum(totalTimeMs) << " ms" << std::endl;
+    cout << "Total Nodes: " << formatNum(totalNodes) << endl;
+    cout << "Total Time: " << formatNum(totalTimeMs) << " ms" << endl;
     int nps = INF_INT;
     if (totalTimeMs > 0) {
         nps = static_cast<long long>((totalNodes / totalTimeMs) * 1000);
-        cout << "Average NPS: " << formatNum(nps) << std::endl;
+        cout << "Average NPS: " << formatNum(nps) << endl;
     }
     cout << totalNodes << " nodes " << nps << " nps" << endl;
 }
