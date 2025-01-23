@@ -120,9 +120,9 @@ int getLine(int line) { return line; }
 #define popcountll(x) std::popcount(x)
 
 #ifdef DEBUG
-constexpr bool ISDBG = true;
+    constexpr bool ISDBG = true;
 #else
-constexpr bool ISDBG = false;
+    constexpr bool ISDBG = false;
 #endif
 #define IFDBG if constexpr (ISDBG)
 
