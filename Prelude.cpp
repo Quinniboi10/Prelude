@@ -2790,6 +2790,11 @@ int search(Board& board,
     SearchLimit* sl) {
     // Set the length of the current PV line to 0
     ss->pv.length = 0;
+
+    if (ply + 1 > seldepth && !mainThread) seldepth = ply + 1;
+
+    if (board.isInCheck()) depth++;
+
     // Only worry about draws and such if the node is a child, otherwise game would be over
     if (ply > 0) {
         if (depth <= 0) {
@@ -2800,7 +2805,6 @@ int search(Board& board,
             return 0;
         }
     }
-    if (ply + 1 > seldepth && !mainThread) seldepth = ply + 1;
 
     Transposition* entry = TT.getEntry(board.zobrist);
 
@@ -2824,6 +2828,11 @@ int search(Board& board,
     // Internal iterative reductions (+19 +- 10)
     if (entry->zobristKey != board.zobrist && depth > 3) depth -= 1;
 
+    if (depth <= 0) {
+        int eval = qsearch<isPV, mainThread>(board, alpha, beta, sl);
+        return eval;
+    }
+
     // Mate distance pruning
     if (ply > 0) {
         int mateValue = MATE_SCORE - ply;
@@ -2842,9 +2851,6 @@ int search(Board& board,
     }
 
     if constexpr (!isPV) {
-        // Late move pruning
-
-
         // Reverse futility pruning (+32 +- 34)
         if (staticEval - RFP_MARGIN * depth >= beta && depth < 4 && !board.isInCheck()) {
             return staticEval - RFP_MARGIN;
