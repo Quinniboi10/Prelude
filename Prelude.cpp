@@ -63,7 +63,7 @@ constexpr double ASP_DELTA_MULTIPLIER = 1.25;  // Scalar to widen aspr window on
 // ****** DATA GEN ******
 constexpr int targetPositions     = 1'000'000'000;  // Number of positions to generate
 constexpr int datagenInfoInterval = 1;  // How often (in games) to send progress report to console
-constexpr int clearBufferEvery    = 1'000;    // Push output buffer to file every n data points
+constexpr int outputBufferSize    = 1;    // Size (MiB) for the game writing output buffer
 constexpr int randMoves           = 8;        // Number of random halfmoves before data gen begins
 constexpr int nodesPerMove        = 5000;     // Soft nodes per move
 constexpr int maxNodesPerMove     = 100'000;  // Hard nodes per move
@@ -552,7 +552,7 @@ static constexpr u64 KING_ATTACKS[64] = {
 // Magic code from https://github.com/nkarve/surge/blob/master/src/tables.cpp
 
 constexpr int diagonalOf(Square s) { return 7 + rankOf(s) - fileOf(s); }
-constexpr int antiDiagonalOf(Square s) { return rankOf(s) + fileOf(s); }
+constexpr int antiDiagonalOf(Square s) { return rankOf(s) + static_cast<Rank>(fileOf(s)); }
 
 //Precomputed file masks
 const u64 MASK_FILE[8] = {
@@ -950,7 +950,7 @@ public:
 constexpr i16 inputQuantizationValue = 255;
 constexpr i16 hiddenQuantizationValue = 64;
 constexpr i16 evalScale = 400;
-constexpr size_t HL_SIZE = 128;
+constexpr size_t HL_SIZE = 256;
 constexpr size_t OUTPUT_BUCKETS = 8;
 
 constexpr int ReLU = 0;
@@ -3370,6 +3370,13 @@ void writeToFile(std::ofstream& outFile, const std::vector<DataUnit>& data) {
 }
 
 void playGames() {
+    int clearBufferEvery = outputBufferSize * 1024 * 1024; // Convert to bytes
+    clearBufferEvery /= sizeof(DataUnit); // Divide by size of 1 unit of data
+    if (clearBufferEvery == 0) clearBufferEvery += 1;
+    cout << "Writing data every " << formatNum(clearBufferEvery) << " positions" << endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+
+
     string filePath = "./data/" + makeFileName();
 
     if (!std::filesystem::is_directory("./data/")) std::filesystem::create_directory("./data/");        
@@ -3402,7 +3409,7 @@ void playGames() {
 
     auto randBool = [&]() { return dist(engine); };
 
-    outputBuffer.reserve(clearBufferEvery + 100);
+    outputBuffer.reserve(clearBufferEvery + 255);
 
     std::vector<PartialDataUnit> gameData;
 
