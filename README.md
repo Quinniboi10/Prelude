@@ -42,13 +42,19 @@ Prelude is a UCI-compatible chess engine utilizing advanced search\* algorithms 
 
 ### Evaluation:
 
-1. NNUE evaluation
-2. Currently uses perspective network trained on [bullet](https://github.com/jw1912/bullet)
+1. NNUE evaluation trained with [bullet](https://github.com/jw1912/bullet)
+2. Uses QA of 255, QB of 64, and eval scale of 400
+3. SCReLU activation function
+4. (768->256)x2->1x8
 
 ### Move Ordering:
 
+Move ordering will always be ordered  
+TT move, all captures, all quiets
+
 1. TT best move prioritization.
 2. Most valuable victim - least valuable attacker (MVVLVA) prioritization for captures.
+3. Quiet move ordering using history tables
 
 ## Installation
 
