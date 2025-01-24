@@ -29,7 +29,6 @@
 // NMP eval reduction
 // Split up board class, don't do things like accumulator updates inside move
 
-
 // ************ CONFIG ************
 // ****** SEARCH ******
 constexpr int RFP_MARGIN            = 75;
@@ -37,7 +36,7 @@ constexpr int NMP_REDUCTION         = 3;      // NMP depth reduction
 constexpr int NMP_REDUCTION_DIVISOR = 3;      // Subtract depth/n from NMP depth
 constexpr int MAX_HISTORY           = 16384;  // Max history bonus
 
-constexpr int MATE_SCORE = 99999;
+constexpr int MATE_SCORE = 32767;  // Max for i16
 constexpr int MAX_PLY    = 255;
 
 constexpr int MATE_IN_MAX_PLY  = MATE_SCORE - MAX_PLY;
@@ -68,7 +67,6 @@ constexpr int clearBufferEvery    = 1'000;    // Push output buffer to file ever
 constexpr int randMoves           = 8;        // Number of random halfmoves before data gen begins
 constexpr int nodesPerMove        = 5000;     // Soft nodes per move
 constexpr int maxNodesPerMove     = 100'000;  // Hard nodes per move
-
 
 #include <iostream>
 #include <string>
@@ -120,19 +118,11 @@ int getLine(int line) { return line; }
 #define popcountll(x) std::popcount(x)
 
 #ifdef DEBUG
-    constexpr bool ISDBG = true;
+constexpr bool ISDBG = true;
 #else
-    constexpr bool ISDBG = false;
+constexpr bool ISDBG = false;
 #endif
 #define IFDBG if constexpr (ISDBG)
-
-using std::cerr;
-using std::string;
-using std::array;
-using std::cout;
-using std::endl;
-
-#define m_assert(expr, msg) assert(((void) (msg), (expr)))
 
 using u64 = uint64_t;
 using u32 = uint32_t;
@@ -143,8 +133,17 @@ using i64 = int64_t;
 using i32 = int32_t;
 using i16 = int16_t;
 
-constexpr u64 INF     = std::numeric_limits<uint64_t>::max();
+using std::cerr;
+using std::string;
+using std::array;
+using std::cout;
+using std::endl;
+
+#define m_assert(expr, msg) assert(((void) (msg), (expr)))
+
+constexpr u64 INF     = std::numeric_limits<u64>::max();
 constexpr int INF_INT = std::numeric_limits<int>::max();
+constexpr int INF_I16 = std::numeric_limits<i16>::max();
 
 
 enum Color : int {
@@ -2226,8 +2225,8 @@ public:
         return mirrored_rank * 8 + file;
     }
 
-    int evaluate() const { // Returns evaluation in centipawns as side to move
-        return std::clamp(nn.forwardPass(this), -MATE_SCORE, MATE_SCORE);
+    i16 evaluate() const { // Returns evaluation in centipawns as side to move
+        return std::clamp(nn.forwardPass(this), MATED_IN_MAX_PLY + 1, MATE_IN_MAX_PLY - 1);
 
         // Code below here can be used when there are 2 NNUEs
         int matEval = 0;
@@ -2781,7 +2780,7 @@ int qsearch(Board& board,
 
 // Full search function
 template<bool isPV, bool mainThread = false>
-int search(Board& board,
+i16 search(Board& board,
     Stack* ss,
     int depth,
     int alpha,
@@ -2816,12 +2815,11 @@ int search(Board& board,
         return entry->score;
     }
 
-
-    int staticEval = board.evaluate();
+    i16 staticEval = board.evaluate();
 
     // Razoring (+9 +- 5)
     if (staticEval <= alpha - RAZOR_MARGIN - RAZOR_DEPTH_SCALAR * depth * depth) {
-        int value = qsearch<false, mainThread>(board, alpha - 1, alpha, sl);
+        i16 value = qsearch<false, mainThread>(board, alpha - 1, alpha, sl);
         if (value < alpha && !isDecisive(value)) return value;
     }
 
@@ -2829,13 +2827,13 @@ int search(Board& board,
     if (entry->zobristKey != board.zobrist && depth > 3) depth -= 1;
 
     if (depth <= 0) {
-        int eval = qsearch<isPV, mainThread>(board, alpha, beta, sl);
+        i16 eval = qsearch<isPV, mainThread>(board, alpha, beta, sl);
         return eval;
     }
 
     // Mate distance pruning
     if (ply > 0) {
-        int mateValue = MATE_SCORE - ply;
+        i16 mateValue = MATE_SCORE - ply;
 
         if (mateValue < beta) {
             beta = mateValue;
@@ -2862,7 +2860,7 @@ int search(Board& board,
         if (board.canNullMove() && staticEval >= beta && !board.isInCheck() && popcountll(board.side ? board.white[0] : board.black[0]) + 1 != popcountll(board.side ? board.whitePieces : board.blackPieces)) {
             Board testBoard = board;
             testBoard.makeNullMove();
-            int eval = -search<false, mainThread>(testBoard, ss + 1, depth - NMP_REDUCTION - depth / NMP_REDUCTION_DIVISOR, -beta, -beta + 1, ply + 1, sl);
+            i16 eval = -search<false, mainThread>(testBoard, ss + 1, depth - NMP_REDUCTION - depth / NMP_REDUCTION_DIVISOR, -beta, -beta + 1, ply + 1, sl);
             if (eval >= beta) {
                 return eval;
             }
@@ -2872,7 +2870,7 @@ int search(Board& board,
 
     MoveList moves = board.generateMoves();
     Move bestMove;
-    int bestEval = -INF_INT;
+    i16 bestEval = -INF_I16;
 
     int flag = FAIL_LOW;
 
@@ -2918,7 +2916,7 @@ int search(Board& board,
 
         nodes++;
 
-        int eval;
+        i16 eval;
 
         int newDepth = depth - 1;
 
@@ -3028,7 +3026,7 @@ MoveEvaluation iterativeDeepening(
         else maxDepth = 1;
     }
 
-    int eval;
+    i16 eval;
     bool isMate = false;
     int mateDist;
 
