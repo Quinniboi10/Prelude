@@ -11,7 +11,7 @@ endif
 
 # Compiler and flags
 CXX      := clang++
-CXXFLAGS := -O3 -march=native -ffast-math -funroll-loops -std=c++20 -static -DNDEBUG
+CXXFLAGS := -O3 -march=native -ffast-math -funroll-loops -flto -fuse-ld=lld -std=c++20 -static -DNDEBUG
 
 # Default target executable name and evaluation file path
 EXE      ?= Prelude$(EXE_EXT)
@@ -33,6 +33,12 @@ $(EXE): $(SRCS)
 debug: clean
 debug: CXXFLAGS = -march=native -std=c++20 -O0 -DDEBUG -fsanitize=address -fno-omit-frame-pointer -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -Wall -Wextra
 debug: all
+
+# Debug Build
+.PHONY: profile
+profile: clean
+profile: CXXFLAGS = -O3 -g -march=native -ffast-math -funroll-loops -flto -fuse-ld=lld -std=c++20 -static -DNDEBUG
+profile: all
 
 # Force rebuild
 .PHONY: force
