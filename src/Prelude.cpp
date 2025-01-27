@@ -1,4 +1,4 @@
-/*
+﻿/*
     Prelude
     Copyright (C) 2024 Quinniboi10
 
@@ -61,12 +61,11 @@ constexpr double ASP_DELTA_MULTIPLIER = 1.25;  // Scalar to widen aspr window on
 
 
 // ****** DATA GEN ******
-constexpr int targetPositions     = 1'000'000'000;  // Number of positions to generate
-constexpr int datagenInfoInterval = 1;  // How often (in games) to send progress report to console
-constexpr int outputBufferSize    = 1;    // Size (MiB) for the game writing output buffer
-constexpr int randMoves           = 8;        // Number of random halfmoves before data gen begins
-constexpr int nodesPerMove        = 5000;     // Soft nodes per move
-constexpr int maxNodesPerMove     = 100'000;  // Hard nodes per move
+constexpr int TARGET_POSITIONS   = 1'000'000'000;  // Number of positions to generate
+constexpr int OUTPUT_BUFFER_SIZE = 1;              // Size (MiB) for the game writing output buffer
+constexpr int RAND_MOVES         = 8;        // Number of random halfmoves before data gen begins
+constexpr int NODES_PER_MOVE     = 5000;     // Soft nodes per move
+constexpr int MAX_NODES_PER_MOVE = 100'000;  // Hard nodes per move
 
 #include <iostream>
 #include <string>
@@ -97,7 +96,7 @@ constexpr int maxNodesPerMove     = 100'000;  // Hard nodes per move
     #undef _MSC_VER
 #endif
 
-#include "./external/incbin.h"
+#include "../external/incbin.h"
 
 #ifdef MSVC
     #pragma pop_macro("_MSC_VER")
@@ -141,7 +140,7 @@ using std::endl;
 
 #define m_assert(expr, msg) assert(((void) (msg), (expr)))
 
-constexpr u64 INF     = std::numeric_limits<u64>::max();
+constexpr u64 INF_U64 = std::numeric_limits<u64>::max();
 constexpr int INF_INT = std::numeric_limits<int>::max();
 constexpr int INF_I16 = std::numeric_limits<i16>::max();
 
@@ -343,8 +342,8 @@ int getPadding(string str, int targetLen) {
 // Pads a string to a given length
 template<typename objType>
 string padStr(objType obj, int targetLen) {
-    std::string objStr;
-    if constexpr (std::is_same_v<objType, std::string> || std::is_same_v<objType, std::basic_string<char>>) {
+    string objStr;
+    if constexpr (std::is_same_v<objType, string> || std::is_same_v<objType, std::basic_string<char>>) {
         objStr = obj; // Strings make everything explode if you call to_string
     }
     else {
@@ -454,7 +453,7 @@ public:
 
         engine.seed(69420); // Nice
 
-        std::uniform_int_distribution<u64> dist(0, INF);
+        std::uniform_int_distribution<u64> dist(0, INF_U64);
 
         for (auto& side : zobrist) {
             for (auto& pieceTable : side) {
@@ -1024,11 +1023,11 @@ public:
         outputBias.fill(0);
     }
 
-    void loadNetwork(const std::string& filepath) {
+    void loadNetwork(const string& filepath) {
         std::ifstream stream(filepath, std::ios::binary);
         if (!stream.is_open()) {
-            std::cerr << "Failed to open file: " + filepath << endl;
-            std::cerr << "Expect engine to not work as intended with bad evaluation" << endl;
+            cerr << "Failed to open file: " + filepath << endl;
+            cerr << "Expect engine to not work as intended with bad evaluation" << endl;
         }
 
         // Load weightsToHL
@@ -1054,7 +1053,7 @@ public:
         }
 
         cout << "Network loaded successfully from " << filepath << endl;
-        std::cerr << "WARNING: You are using MSVC, this means that your nnue was NOT embedded into the exe." << endl;
+        cerr << "WARNING: You are using MSVC, this means that your nnue was NOT embedded into the exe." << endl;
     }
 
     int forwardPass(const Board* board);
@@ -1642,7 +1641,7 @@ public:
             checks &= checks - 1;
         }
 
-        if (!checkMask) checkMask = INF; // If no checks, set to all ones
+        if (!checkMask) checkMask = INF_U64; // If no checks, set to all ones
 
         // ****** PIN STUFF HERE ******
         u64 rookXrays = getXrayRookAttacks(Square(kingIndex), pieces(), ourPieces) & enemyRookQueens;
@@ -2082,7 +2081,7 @@ public:
 
         // Sanitize input
         if (inputFEN.size() < 6) {
-            std::cerr << "Invalid FEN string" << endl;
+            cerr << "Invalid FEN string" << endl;
             return;
         }
 
@@ -2525,7 +2524,7 @@ void perftSuite(const string& filePath) {
     std::fstream file(filePath);
 
     if (!file.is_open()) {
-        std::cerr << "Failed to open file: " << filePath << endl;
+        cerr << "Failed to open file: " << filePath << endl;
         return;
     }
 
@@ -2573,7 +2572,7 @@ void perftSuite(const string& filePath) {
 
             std::deque<string> entryParts = split(entry, ' ');
             if (entryParts.size() != 2) {
-                std::cerr << "Invalid perft entry format: \"" << entry << "\"" << endl;
+                cerr << "Invalid perft entry format: \"" << entry << "\"" << endl;
                 continue;
             }
 
@@ -2581,7 +2580,7 @@ void perftSuite(const string& filePath) {
             string expectedStr = entryParts[1];
 
             if (depthStr.size() < 2 || depthStr[0] != 'D') {
-                std::cerr << "Invalid depth format: \"" << depthStr << "\"" << endl;
+                cerr << "Invalid depth format: \"" << depthStr << "\"" << endl;
                 continue;
             }
 
@@ -3191,7 +3190,7 @@ void bench(int depth) {
     u64 totalNodes = 0;
     double totalTimeMs = 0.0;
 
-    cout << "Starting benchmark with depth " << depth << std::endl;
+    cout << "Starting benchmark with depth " << depth << endl;
 
     array<string, 50> fens = {
         "r3k2r/2pb1ppp/2pp1q2/p7/1nP1B3/1P2P3/P2N1PPP/R2QK2R w KQkq a6 0 14",
@@ -3253,7 +3252,7 @@ void bench(int depth) {
         benchBoard.reset();
 
         // Split the FEN string into components
-        std::deque<std::string> fenParts = split(fen, ' ');
+        std::deque<string> fenParts = split(fen, ' ');
         benchBoard.loadFromFEN(fenParts);
 
         nodes = 0; // Reset node count
@@ -3272,16 +3271,16 @@ void bench(int depth) {
         totalTimeMs += durationMs;
 
         cout << "FEN: " << fen << endl;
-        cout << "Nodes: " << nodes << ", Time: " << durationMs << " ms" << endl;
+        cout << "Nodes: " << formatNum(nodes) << ", Time: " << formatTime(durationMs) << endl;
         cout << "----------------------------------------" << endl;
     }
 
-    cout << "Benchmark Completed." << std::endl;
+    cout << "Benchmark Completed." << endl;
     cout << "Total Nodes: " << formatNum(totalNodes) << endl;
-    cout << "Total Time: " << formatNum(totalTimeMs) << " ms" << endl;
+    cout << "Total Time: " << formatTime(totalTimeMs) << endl;
     int nps = INF_INT;
     if (totalTimeMs > 0) {
-        nps = static_cast<long long>((totalNodes / totalTimeMs) * 1000);
+        nps = static_cast<u64>((totalNodes / totalTimeMs) * 1000);
         cout << "Average NPS: " << formatNum(nps) << endl;
     }
     cout << totalNodes << " nodes " << nps << " nps" << endl;
@@ -3370,7 +3369,7 @@ void writeToFile(std::ofstream& outFile, const std::vector<DataUnit>& data) {
 }
 
 void playGames() {
-    int clearBufferEvery = outputBufferSize * 1024 * 1024; // Convert to bytes
+    int clearBufferEvery = OUTPUT_BUFFER_SIZE * 1024 * 1024; // Convert to bytes
     clearBufferEvery /= sizeof(DataUnit); // Divide by size of 1 unit of data
     if (clearBufferEvery == 0) clearBufferEvery += 1;
     cout << "Writing data every " << formatNum(clearBufferEvery) << " positions" << endl;
@@ -3420,12 +3419,12 @@ void playGames() {
 
     // Check if the file was opened successfully
     if (!file.is_open()) {
-        std::cerr << "Error: Could not open the file " << filePath << " for writing." << std::endl;
+        cerr << "Error: Could not open the file " << filePath << " for writing." << endl;
         exit(-1);
     }
 
-    mainLoop: while (totalPositions < targetPositions) {
-        int randMoves = ::randMoves + randBool(); // Half of the games start each side
+    mainLoop: while (totalPositions < TARGET_POSITIONS) {
+        int RAND_MOVES = ::RAND_MOVES + randBool(); // Half of the games start each side
 
         auto now = std::chrono::steady_clock::now();
         int timeSpent = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime).count();
@@ -3449,7 +3448,7 @@ void playGames() {
 
         board.reset();
 
-        for (int i = 0; i < randMoves; i++) {
+        for (int i = 0; i < RAND_MOVES; i++) {
             makeRandomMove(board);
             if (board.isGameOver()) goto mainLoop;
         }
@@ -3464,8 +3463,8 @@ void playGames() {
                 0, // Movetime
                 0, // Winc
                 0, // Binc
-                nodesPerMove,
-                maxNodesPerMove);
+                NODES_PER_MOVE,
+                MAX_NODES_PER_MOVE);
             board.move(bestMove.move);
             if (!board.isInCheck() && !(bestMove.move.typeOf() & CAPTURE) && !isDecisive(bestMove.eval)) {
                 gameData.push_back(PartialDataUnit(board.exportToFEN() + " | " + std::to_string(bestMove.eval)));
@@ -3765,7 +3764,7 @@ int main(int argc, char* argv[]) {
             cout << "Black king: " << popcountll(currentPos.black[5]) << endl;
         }
         else {
-            std::cerr << "Unknown command: " << command << std::endl;
+            cerr << "Unknown command: " << command << endl;
         }
     }
     return 0;
