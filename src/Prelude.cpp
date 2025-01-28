@@ -21,11 +21,14 @@
 // History malus
 // Increasing LMR on non pv nodes
 // Decrease LMR when a move is giving check
+// SEE move ordering
 // RFP improving
 // LMP improving
 // Futility pruning
 // 3 fold LMR
 // NMP eval reduction
+// Search extension
+// Draw eval randomization
 // Split up board class, don't do things like accumulator updates inside move
 
 #include <iostream>
@@ -2151,15 +2154,6 @@ class Board {
         return ans;
     }
 
-    int flipIndex(const int index) const {
-        // Ensure the index is within [0, 63]
-        IFDBG m_assert((index >= 0 && index <= 63), "Invalid index: " + std::to_string(index) + ". Must be between 0 and 63.");
-        int   rank          = index / 8;
-        int   file          = index % 8;
-        int   mirrored_rank = 7 - rank;
-        return mirrored_rank * 8 + file;
-    }
-
     i16 evaluate() const {  // Returns evaluation in centipawns as side to move
         return std::clamp(nn.forwardPass(this), MATED_IN_MAX_PLY + 1, MATE_IN_MAX_PLY - 1);
 
@@ -2626,8 +2620,7 @@ struct PvList {
 // ****** SEARCH FUNCTIONS ******
 bool isUci = false;  // Flag to represent if output should be human or UCI
 
-int seldepth = 0;
-
+int seldepth;
 
 bool isWin(int v) { return v >= MATE_IN_MAX_PLY; }
 
@@ -2637,6 +2630,7 @@ bool isDecisive(int v) { return isWin(v) || isLoss(v); }
 
 struct Stack {
     PvList pv;
+    i16    staticEval;
 };
 
 struct SearchLimit {
@@ -2700,7 +2694,7 @@ int qsearch(Board& board, int alpha, int beta, SearchLimit* sl) {
     int flag = FAIL_LOW;
 
     for (Move m : moves) {
-        if (sl->breakFlag->load() && !bestMove.isNull())
+        if (sl->breakFlag->load(std::memory_order_relaxed) && !bestMove.isNull())
             break;
         if (sl->outOfNodes())
             break;
@@ -2766,6 +2760,8 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
         }
     }
 
+    ss->staticEval = board.evaluate();
+
     Transposition* entry = TT.getEntry(board.zobrist);
 
     if (!isPV && ply > 0 && entry->zobristKey == board.zobrist && entry->depth >= depth
@@ -2776,10 +2772,8 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
         return entry->score;
     }
 
-    i16 staticEval = board.evaluate();
-
     // Razoring (+9 +- 5)
-    if (staticEval <= alpha - RAZOR_MARGIN - RAZOR_DEPTH_SCALAR * depth * depth) {
+    if (ss->staticEval <= alpha - RAZOR_MARGIN - RAZOR_DEPTH_SCALAR * depth * depth) {
         i16 value = qsearch<false, mainThread>(board, alpha - 1, alpha, sl);
         if (value < alpha && !isDecisive(value))
             return value;
@@ -2815,14 +2809,14 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
 
     if constexpr (!isPV) {
         // Reverse futility pruning (+32 +- 34)
-        if (staticEval - RFP_MARGIN * depth >= beta && depth < 4 && !board.isInCheck()) {
-            return staticEval - RFP_MARGIN;
+        if (ss->staticEval - RFP_MARGIN * depth >= beta && depth < 4 && !board.isInCheck()) {
+            return ss->staticEval - RFP_MARGIN;
         }
 
         // Null move pruning (+75 +- 33)
         // Don't prune PV nodes and don't prune king + pawn only
         // King + pawn is likely redundant because the position would already be considered endgame, but removing it seems to lose elo
-        if (board.canNullMove() && staticEval >= beta && !board.isInCheck()
+        if (board.canNullMove() && ss->staticEval >= beta && !board.isInCheck()
             && popcountll(board.side ? board.white[0] : board.black[0]) + 1 != popcountll(board.side ? board.whitePieces : board.blackPieces)) {
             Board testBoard = board;
             testBoard.makeNullMove();
@@ -2844,7 +2838,7 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
 
     for (Move m : moves) {
         // Break checks
-        if (sl->breakFlag->load() && !bestMove.isNull())
+        if (sl->breakFlag->load(std::memory_order_relaxed) && !bestMove.isNull())
             break;
         if (sl->outOfNodes())
             break;
