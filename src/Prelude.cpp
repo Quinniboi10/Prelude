@@ -2896,11 +2896,6 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
 
         int newDepth = depth - 1;
 
-        if (isPV && m.isQuiet() && history[board.side][m.from()][m.to()] > HISTORY_EXTENSION + depth * HISTORY_EXTENSION_DEPTH_SCALAR) {
-            newDepth++;
-            history[board.side][m.from()][m.to()] -= HISTORY_EXTENSION_DROP;
-        }
-
         // Only run PVS with more than one move already searched
         if (movesMade == 1) {
             eval = -search<true, mainThread>(testBoard, ss + 1, newDepth, -beta, -alpha, ply + 1, sl);
