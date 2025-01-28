@@ -3002,11 +3002,11 @@ iterativeDeepening(Board board, int maxDepth, std::atomic<bool>& breakFlag, int 
 
     SearchLimit sl = SearchLimit(std::chrono::steady_clock::now(), &breakFlag, hardLimit, maxNodes);
 
-    Stack  stack[MAX_PLY];
-    Stack* ss = stack;
+    array<Stack, MAX_PLY> stack;
+    Stack* ss = &stack[0];
 
     for (int depth = 1; depth <= maxDepth; depth++) {
-        seldepth = 0;
+        if constexpr (mainThread) seldepth = 0;
 
         // Full search on depth 1, otherwise try with aspiration window
         if (depth == 1)
@@ -3032,8 +3032,6 @@ iterativeDeepening(Board board, int maxDepth, std::atomic<bool>& breakFlag, int 
                 delta *= ASP_DELTA_MULTIPLIER;
             }
         }
-
-        IFDBG m_assert(!stack[0].pv.moves[0].isNull(), "Returned null move in search");
 
         auto   now       = std::chrono::steady_clock::now();
         double elapsedNs = (double) std::chrono::duration_cast<std::chrono::nanoseconds>(now - start).count();
@@ -3091,8 +3089,8 @@ iterativeDeepening(Board board, int maxDepth, std::atomic<bool>& breakFlag, int 
 
             ans += " pv";
 
-            for (int i = 0; i < stack[0].pv.length; i++) {
-                ans += " " + stack[0].pv.moves[i].toString();
+            for (int i = 0; i < ss->pv.length; i++) {
+                ans += " " + ss->pv.moves[i].toString();
             }
 
             cout << ans << endl;
@@ -3121,7 +3119,7 @@ iterativeDeepening(Board board, int maxDepth, std::atomic<bool>& breakFlag, int 
             cout << Colors::BRIGHT_GREEN;
             cout << padStr(fancyEval, 7);
             cout << Colors::BLUE;
-            for (const Move m : stack[0].pv) {
+            for (const Move m : ss->pv) {
                 cout << " " + m.toString();
             }
             cout << Colors::RESET << std::defaultfloat << std::setprecision(6) << endl;
@@ -3138,10 +3136,10 @@ iterativeDeepening(Board board, int maxDepth, std::atomic<bool>& breakFlag, int 
 
 
     if (mainThread && isUci)
-        cout << "bestmove " << stack[0].pv.moves[0].toString() << endl;
+        cout << "bestmove " << ss->pv.moves[0].toString() << endl;
     if (mainThread)
         breakFlag.store(true);
-    return {stack[0].pv.moves[0], eval};
+    return {ss->pv.moves[0], eval};
 }
 
 // Run a worker/helper thread to fill TT
