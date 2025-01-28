@@ -18,12 +18,12 @@ BreakBeforeBraces: Custom
 BraceWrapping:
   AfterFunction: false 
   AfterClass: false
-  AfterControlStatement: true
+  AfterControlStatement: false
   BeforeElse: true
 BreakBeforeTernaryOperators: true
 BreakConstructorInitializers: AfterColon
 BreakStringLiterals: false
-ColumnLimit: 100
+ColumnLimit: 200
 ContinuationIndentWidth: 2
 Cpp11BracedListStyle: true
 IndentGotoLabels: false
