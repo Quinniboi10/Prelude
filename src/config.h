@@ -24,13 +24,14 @@ constexpr int PVS_SEE_CAPTURE_SCALAR = -30;
 
 constexpr int SEE_MARGIN = -108;  // Margin for qsearch SEE pruning
 
-constexpr int    INC_SCALAR       = 1;     // Amount of increment to add to hard time limit
-constexpr double SOFT_TIME_SCALAR = 0.65;  // Scales the soft limit as hardLimit * n
+constexpr int    DEFAULT_MOVES_TO_GO = 20;    // Defualt moves remaining in the game for time management
+constexpr int    INC_SCALAR          = 1;     // Amount of increment to add to hard time limit
+constexpr double SOFT_TIME_SCALAR    = 0.65;  // Scales the soft limit as hardLimit * n
 
 constexpr int    ASPR_DELTA           = 25;    // Used as delta size in aspiration window
 constexpr double ASP_DELTA_MULTIPLIER = 1.25;  // Scalar to widen aspr window on fail
 
-constexpr int MAX_HISTORY                    = 16384;  // Max history bonus
+constexpr int MAX_HISTORY = 16384;  // Max history bonus
 
 // ****** DATA GEN ******
 constexpr int TARGET_POSITIONS   = 1'000'000'000;  // Number of positions to generate
