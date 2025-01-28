@@ -100,11 +100,8 @@ Square& operator+=(Square& s, Direction d) { return s = s + d; }
 Square& operator-=(Square& s, Direction d) { return s = s - d; }
 //clang-format on
 
-static inline const union {
-    uint32_t i;
-    char     c[4];
-} Le = { 0x01020304 };
-static inline const bool IS_LITTLE_ENDIAN = (Le.c[0] == 4);
+static inline const std::uint16_t Le     = 1;
+static inline const bool IS_LITTLE_ENDIAN = *reinterpret_cast<const char*>(&Le) == 1;
 
 // Names binary encoding flags from Move class
 enum MoveType {

@@ -26,7 +26,7 @@ all: $(EXE)
 
 # Link the executable
 $(EXE): $(SRCS)
-	$(CXX) $(CXXFLAGS) -DEVALFILE_PATH=\"$(EVALFILE)\" $(SRCS) -o $@
+	$(CXX) $(CXXFLAGS) -DEVALFILE=\"$(EVALFILE)\" $(SRCS) -o $@
 
 # Debug Build
 .PHONY: debug

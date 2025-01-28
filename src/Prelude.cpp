@@ -18,7 +18,6 @@
 
 
 // TODO (Ordered):
-// Switch to new Stockfish IS_LITTLE_ENDIAN code that doesn't involve undefined behavior
 // History malus
 // Increasing LMR on non pv nodes
 // Decrease LMR when a move is giving check
@@ -2747,8 +2746,7 @@ int qsearch(Board& board, int alpha, int beta, SearchLimit* sl) {
 template<bool isPV, bool mainThread = false>
 i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, SearchLimit* sl) {
     if (depth + ply > 225) {
-        ss -= 255 - depth - ply;
-        depth = 255 - ply;
+        depth = 255 - ply; // Clamp depth so it doesn't get too large
     }
     // Set the length of the current PV line to 0
     ss->pv.length = 0;
