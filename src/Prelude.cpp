@@ -871,7 +871,7 @@ class NNUE {
 
 std::atomic<u64>   nodes(0);
 int                moveOverhead = 20;
-int                movesToGo    = 20;
+int                movesToGo    = DEFAULT_MOVES_TO_GO;
 TranspositionTable TT;
 NNUE               nn;
 
@@ -3579,7 +3579,7 @@ int main(int argc, char* argv[]) {
         }
         else if (command == "ucinewgame") {
             isUci     = true;
-            movesToGo = 20;
+            movesToGo = DEFAULT_MOVES_TO_GO;
 
             stopSearch();
 
