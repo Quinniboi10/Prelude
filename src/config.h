@@ -33,7 +33,7 @@ constexpr double ASP_DELTA_MULTIPLIER = 1.25;  // Scalar to widen aspr window on
 constexpr int MAX_HISTORY                    = 16384;  // Max history bonus
 constexpr int HISTORY_EXTENSION              = 15000;  // What history needs to be for a quiet extension
 constexpr int HISTORY_EXTENSION_DEPTH_SCALAR = -150;   // Used for quiet extension (if history > hist extension + depth * n)
-constexpr int HISTORY_EXTENSION_DROP         = 500;    // How much to drop the history after extending the move
+constexpr int HISTORY_EXTENSION_DROP         = 1000;    // How much to drop the history after extending the move
 
 // ****** DATA GEN ******
 constexpr int TARGET_POSITIONS   = 1'000'000'000;  // Number of positions to generate
