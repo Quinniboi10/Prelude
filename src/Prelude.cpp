@@ -944,21 +944,20 @@ class Board {
         updateAccum();
     }
 
-    void clearIndex(int index) {
-        const u64 mask = ~(1ULL << index);
-        white[0] &= mask;
-        white[1] &= mask;
-        white[2] &= mask;
-        white[3] &= mask;
-        white[4] &= mask;
-        white[5] &= mask;
+    void clearBoard() {
+        white[0] = 0;
+        white[1] = 0;
+        white[2] = 0;
+        white[3] = 0;
+        white[4] = 0;
+        white[5] = 0;
 
-        black[0] &= mask;
-        black[1] &= mask;
-        black[2] &= mask;
-        black[3] &= mask;
-        black[4] &= mask;
-        black[5] &= mask;
+        black[0] = 0;
+        black[1] = 0;
+        black[2] = 0;
+        black[3] = 0;
+        black[4] = 0;
+        black[5] = 0;
     }
 
     void clearIndex(const Color c, int index) {
@@ -1946,8 +1945,7 @@ class Board {
         reset();
 
         // Clear all squares
-        for (int i = 0; i < 64; ++i)
-            clearIndex(i);
+        clearBoard();
 
         // Sanitize input
         if (inputFEN.size() < 4) {
