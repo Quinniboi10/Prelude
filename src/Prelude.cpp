@@ -674,7 +674,7 @@ struct MoveEvaluation {
 };
 
 struct MoveList {
-    array<Move, 218> moves;
+    array<Move, 256> moves;
     int              count;
 
     constexpr MoveList() { count = 0; }
