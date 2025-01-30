@@ -2428,6 +2428,7 @@ struct MovePicker {
         currIdx = 0;
         this->moves = moves;
 
+        moveScores.fill(0);
         for (int i = 0; i < moves.count; i++) {
             if (moves.moves[i].isCapture()) moveScores[i] = board.evaluateMVVLVA(moves.moves[i]) + 600'000;
             moveScores[i] += history.getHistoryBonus(board.side, moves.moves[i]);
