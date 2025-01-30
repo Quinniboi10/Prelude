@@ -18,17 +18,15 @@
 
 
 // TODO (Ordered):
-// History malus
-// Increasing LMR on non pv nodes
 // Decrease LMR when a move is giving check
 // SEE move ordering
-// RFP improving
 // LMP improving
 // Futility pruning
 // 3 fold LMR
 // NMP eval reduction
 // Search extension
 // Draw eval randomization
+// RFP improving
 // Split up board class, don't do things like accumulator updates inside move
 
 #include <iostream>
@@ -138,6 +136,8 @@ class Move {
     // Move is a queen promotion
     // Move is a knight promotion
     bool isQuiet() const { return (typeOf() & CAPTURE) == 0 && typeOf() != QUEEN_PROMO && typeOf() != KNIGHT_PROMO; }
+
+    bool isCapture() const { return (typeOf() & CAPTURE) != 0; }
 
     bool operator==(const Move other) const { return move == other.move; }
 };
@@ -714,6 +714,7 @@ struct MoveList {
     }
 };
 
+
 struct Transposition {
     u64  zobristKey;
     Move bestMove;
@@ -871,6 +872,32 @@ class NNUE {
     int forwardPass(const Board* board);
 };
 
+class History {
+private:
+    array<array<array<int, 64>, 64>, 2> history;
+
+public:
+    void update(Color side, Move m, int bonus) {
+        int clampedBonus = std::clamp(bonus, -MAX_HISTORY, MAX_HISTORY);
+        history[side][m.from()][m.to()] += clampedBonus - history[side][m.from()][m.to()] * abs(clampedBonus) / MAX_HISTORY;
+    }
+
+    int getHistoryBonus(Color side, Move m) { return history[side][m.from()][m.to()]; }
+
+    void clear() {
+        for (auto& side : history) {
+            for (auto& from : side) {
+                for (auto& to : from) {
+                    to = 0;
+                }
+            }
+        }
+    }
+
+    auto& operator[](int index) {
+        return history[index];
+    }
+};
 
 std::atomic<u64>   nodes(0);
 int                moveOverhead = 20;
@@ -879,7 +906,7 @@ TranspositionTable TT;
 NNUE               nn;
 
 // History is history[side][from][to]
-array<array<array<int, 64>, 64>, 2> history;
+History history;
 
 constexpr int                         msInfoInterval = 1000;
 std::chrono::steady_clock::time_point lastInfo;
@@ -1190,8 +1217,6 @@ class Board {
         return (victim * 100) - attacker;
     }
 
-    int getHistoryBonus(Move& m) { return history[side][m.from()][m.to()]; }
-
     u64 attackersTo(Square sq, u64 occ) {
         return (getRookAttacks(sq, occ) & pieces(ROOK, QUEEN)) | (getBishopAttacks(sq, occ) & pieces(BISHOP, QUEEN)) | (pawnAttacksBB<WHITE>(sq) & pieces(BLACK, PAWN))
              | (pawnAttacksBB<BLACK>(sq) & pieces(WHITE, PAWN)) | (KNIGHT_ATTACKS[sq] & pieces(KNIGHT)) | (KING_ATTACKS[sq] & pieces(KING));
@@ -1293,7 +1318,6 @@ class Board {
             return allMoves;
         }
 
-        MoveList prioritizedMoves, captures, quietMoves;
         generatePawnMoves(allMoves);
         generateKnightMoves(allMoves);
         generateBishopMoves(allMoves);
@@ -1301,38 +1325,18 @@ class Board {
         // Queen moves are part of bishop/rook moves
 
         // Classify moves
-        for (Move move : allMoves) {
-            if (move.isQuiet()) {
-                quietMoves.add(move);
-            }
-            else {
-                captures.add(move);
-            }
-        }
-
-        Transposition* TTEntry = TT.getEntry(zobrist);
-        if (TTEntry->zobristKey == zobrist && allMoves.find(TTEntry->bestMove) != -1) {
-            prioritizedMoves.add(TTEntry->bestMove);  // This move CAN be used in qsearch
-        }
-
-        std::stable_sort(captures.moves.begin(), captures.moves.begin() + captures.count, [&](Move a, Move b) { return evaluateMVVLVA(a) > evaluateMVVLVA(b); });
-
-        for (Move m : captures) {
-            prioritizedMoves.add(m);
-        }
-
         if (capturesOnly) {
-            return prioritizedMoves;
+            MoveList captures;
+            for (Move move : allMoves) {
+                if (!move.isQuiet()) {
+                    captures.add(move);
+                }
+            }
+
+            return captures;
         }
 
-        std::stable_sort(quietMoves.moves.begin(), quietMoves.moves.begin() + quietMoves.count, [&](Move a, Move b) { return getHistoryBonus(a) > getHistoryBonus(b); });
-
-
-        for (Move m : quietMoves) {
-            prioritizedMoves.add(m);
-        }
-
-        return prioritizedMoves;
+        return allMoves;
     }
 
     template<PieceType pt>
@@ -2408,6 +2412,54 @@ Move::Move(string strIn, Board& board) {
     *this = Move(from, to, flags);
 }
 
+struct MovePicker {
+    MoveList moves;
+
+    array<int, 256> moveScores;
+
+    int quietsSeen;
+    int capturesSeen;
+
+    int currIdx;
+
+    MovePicker(MoveList moves, Board& board) {
+        quietsSeen = 0;
+        capturesSeen = 0;
+        currIdx = 0;
+        this->moves = moves;
+
+        for (int i = 0; i < moves.count; i++) {
+            if (moves.moves[i].isCapture()) moveScores[i] = board.evaluateMVVLVA(moves.moves[i]) + 600'000;
+            moveScores[i] += history.getHistoryBonus(board.side, moves.moves[i]);
+        }
+    }
+
+    bool hasNext() {
+        return currIdx < moves.count;
+    }
+
+    [[nodiscard]] Move getNext() {
+        int best = currIdx;
+        int bestScore = moveScores[currIdx];
+
+        for (int i = currIdx; i < moves.count; i++) {
+            if (moveScores[i] > bestScore) {
+                best = i;
+                bestScore = moveScores[i];
+            }
+        }
+
+        if (best != currIdx) {
+            std::swap(moves.moves[currIdx], moves.moves[best]);
+            std::swap(moveScores[currIdx], moveScores[best]);
+        }
+
+        if (moves.get(currIdx).isQuiet()) quietsSeen++;
+        else capturesSeen++;
+
+        return moves.get(currIdx++);
+    }
+};
 
 // ****** PERFT TESTING *******
 u64 _bulk(Board& board, int depth) {
@@ -2687,13 +2739,13 @@ int qsearch(Board& board, int alpha, int beta, SearchLimit* sl) {
             )) {
         return entry->score;
     }
-
-    MoveList moves = board.generateMoves(true);
+    
+    MovePicker movePicker(board.generateMoves(true), board);
     Move     bestMove;
 
     int flag = FAIL_LOW;
 
-    for (Move m : moves) {
+    while (movePicker.hasNext()) {
         if (sl->breakFlag->load(std::memory_order_relaxed) && !bestMove.isNull())
             break;
         if (sl->outOfNodes())
@@ -2702,6 +2754,8 @@ int qsearch(Board& board, int alpha, int beta, SearchLimit* sl) {
             sl->breakFlag->store(true);
             break;
         }
+
+        Move m = movePicker.getNext();
 
         if (!board.isLegalMove(m) || !board.see(m, SEE_MARGIN))
             continue;
@@ -2828,7 +2882,7 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
     }
 
 
-    MoveList moves = board.generateMoves();
+    MovePicker movePicker(board.generateMoves(), board);
     Move     bestMove;
     i16      bestEval = -INF_I16;
 
@@ -2836,7 +2890,7 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
 
     int movesMade = 0;
 
-    for (Move m : moves) {
+    while (movePicker.hasNext()) {
         // Break checks
         if (sl->breakFlag->load(std::memory_order_relaxed) && !bestMove.isNull())
             break;
@@ -2846,6 +2900,8 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
             sl->breakFlag->store(true);
             break;
         }
+
+        Move m = movePicker.getNext();
 
         if (!board.isLegalMove(m)) {
             continue;  // Validate legal moves
@@ -2920,8 +2976,8 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
 
         if (alpha >= beta) {
             if (m.isQuiet()) {
-                int clampedBonus = std::clamp(depth * depth, -MAX_HISTORY, MAX_HISTORY);
-                history[board.side][m.from()][m.to()] += clampedBonus - history[board.side][m.from()][m.to()] * abs(clampedBonus) / MAX_HISTORY;
+                int bonus = HISTORY_DEPTH_SCALAR * depth;
+                history.update(board.side, m, bonus);
             }
             break;
         }
@@ -3415,13 +3471,7 @@ mainLoop:
         cout << endl;
 
         TT.clear();
-        for (auto& side : history) {
-            for (auto& from : side) {
-                for (auto& to : from) {
-                    to = 0;
-                }
-            }
-        }
+        history.clear();
 
         board.reset();
 
@@ -3574,13 +3624,7 @@ int main(int argc, char* argv[]) {
             stopSearch();
 
             TT.clear();
-            for (auto& side : history) {
-                for (auto& from : side) {
-                    for (auto& to : from) {
-                        to = 0;
-                    }
-                }
-            }
+            history.clear();
         }
         else if (parsedCommand[0] == "setoption") {
             // Assumes setoption name ...
