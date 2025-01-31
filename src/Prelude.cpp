@@ -19,7 +19,6 @@
 
 // TODO (Ordered):
 // Decrease LMR when a move is giving check
-// Pseudolegality checks on TT move
 // SEE move ordering
 // LMP improving
 // Futility pruning
@@ -155,15 +154,15 @@ std::deque<string> split(const string& s, char delim) {
     return result;
 }
 
-// Find how much to pad a string with a minimum padding of 2 spaces
-int getPadding(string str, int targetLen) {
+// Find how much to pad a string with a minimum padding of n spaces
+int getPadding(string str, int targetLen, int minPadding = 2) {
     targetLen -= str.length();
-    return std::max(targetLen, 2);
+    return std::max(targetLen, minPadding);
 }
 
 // Pads a string to a given length
 template<typename objType>
-string padStr(objType obj, int targetLen) {
+string padStr(objType obj, int targetLen, int minPadding = 2) {
     string objStr;
     if constexpr (std::is_same_v<objType, string> || std::is_same_v<objType, std::basic_string<char>>) {
         objStr = obj;  // Strings make everything explode if you call to_string
@@ -171,7 +170,7 @@ string padStr(objType obj, int targetLen) {
     else {
         objStr = std::to_string(obj);  // Convert other types
     }
-    int padding = getPadding(objStr, targetLen);
+    int padding = getPadding(objStr, targetLen, minPadding);
     for (int i = 0; i < padding; i++) {
         objStr += " ";
     }
@@ -871,6 +870,8 @@ class NNUE {
     }
 
     int forwardPass(const Board* board);
+
+    void showBuckets(const Board* board);
 };
 
 class History {
@@ -1030,8 +1031,9 @@ class Board {
             return ROOK;
         else if ((white[4] | black[4]) & indexBB)
             return QUEEN;
-        else
+        else if ((white[5] | black[5]) & indexBB)
             return KING;
+        return NO_PIECE_TYPE;
     }
 
     void generatePawnMoves(MoveList& moves) {
@@ -1224,7 +1226,7 @@ class Board {
     }
 
     bool see(Move m, int threshold) {  // Based on SF
-        // Don't do anything with promo, castle, EP
+        // Don't do anything with non-captures
         if ((m.typeOf() & ~CAPTURE) != 0)
             return 0 >= threshold;
 
@@ -1471,6 +1473,35 @@ class Board {
 
     u64 pinners(Color c) const { return pinnersPerC[c]; }
 
+    bool isPseudolegal(const Move m) {
+        if ((1ULL << m.from()) & ~pieces(side)) return false; // From square is not friendly
+
+        u64 toBB = 1ULL << m.to();
+        if (toBB & (pieces(side) | pieces(KING))) return false; // Self-captures or king captures
+
+        if (toBB & pieces() && (m.typeOf() & CAPTURE) == 0) return false; // Capture not flagged as a capture
+        
+        switch (getPiece(m.from())) {
+            case PAWN:
+                break;
+            case KNIGHT:
+                if ((KNIGHT_ATTACKS[m.from()] & toBB) == 0) return false; // Invalid knight move
+                break;
+            case BISHOP:
+                if ((getBishopAttacks(m.from(), pieces()) & ~pieces(side) & toBB) == 0) return false; // Invalid bishop move
+                break;
+            case ROOK:
+                if ((getRookAttacks(m.from(), pieces()) & ~pieces(side) & toBB) == 0) return false; // Invalid rook move
+                break;
+            case QUEEN:
+                if ((getBishopAttacks(m.from(), pieces()) & ~pieces(side) & toBB) == 0) return false; // Invalid diagonal move
+                if ((getRookAttacks(m.from(), pieces()) & ~pieces(side) & toBB) == 0) return false; // Invalid horizontal move
+                break;
+        }
+
+        return true;
+    }
+
     bool isLegalMove(const Move m) {
         int from = m.from();
         int to   = m.to();
@@ -1620,6 +1651,96 @@ class Board {
         cout << "Current key: 0x" << std::hex << std::uppercase << zobrist << std::dec << endl;
     }
 
+    
+    // Based on SF
+    void displayDebug() const {
+        if (side)
+            cout << "White's turn" << endl;
+        else
+            cout << "Black's turn" << endl;
+
+        cout << endl;
+
+        i16 staticEval = evaluate();
+
+        cout << "Raw NNUE per-piece evaluation:" << endl;
+        cout << "Note: values are clamped between -9.99 and 9.99" << endl;
+
+        for (int rank = 7; rank >= 0; rank--) {
+            cout << "+-------+-------+-------+-------+-------+-------+-------+-------+" << endl;
+            for (int file = 0; file < 8; file++) {
+                int  i            = rank * 8 + file;  // Map rank and file to bitboard index
+                char currentPiece = ' ';
+
+                if (readBit(white[0], i))
+                    currentPiece = 'P';
+                else if (readBit(white[1], i))
+                    currentPiece = 'N';
+                else if (readBit(white[2], i))
+                    currentPiece = 'B';
+                else if (readBit(white[3], i))
+                    currentPiece = 'R';
+                else if (readBit(white[4], i))
+                    currentPiece = 'Q';
+                else if (readBit(white[5], i))
+                    currentPiece = 'K';
+
+                else if (readBit(black[0], i))
+                    currentPiece = 'p';
+                else if (readBit(black[1], i))
+                    currentPiece = 'n';
+                else if (readBit(black[2], i))
+                    currentPiece = 'b';
+                else if (readBit(black[3], i))
+                    currentPiece = 'r';
+                else if (readBit(black[4], i))
+                    currentPiece = 'q';
+                else if (readBit(black[5], i))
+                    currentPiece = 'k';
+
+                cout << "|   " << ((1ULL << i) & pieces(WHITE) ? Colors::YELLOW : Colors::BLUE) << currentPiece << Colors::RESET << "   ";
+            }
+            cout << "| " << endl;
+
+            auto getEvalWithout = [&](int sq) -> string {
+                if ((1ULL << sq & pieces()) == 0 || (1ULL << sq & pieces(KING))) return "     ";
+                
+                Board testBoard = *this;
+                testBoard.subAccumulator(Square(sq));
+
+                double withoutSq = (staticEval - testBoard.evaluate()) / 100.0;
+                withoutSq = std::clamp(withoutSq, -9.99, 9.99);
+                return (withoutSq > 0 ? "+" : "") + std::format("{:.2f}", withoutSq);
+            };
+
+            cout << "| " << getEvalWithout(rank * 8) << " | " << 
+                getEvalWithout(rank * 8 + 1) << " | " << 
+                getEvalWithout(rank * 8 + 2) << " | " << 
+                getEvalWithout(rank * 8 + 3) << " | " << 
+                getEvalWithout(rank * 8 + 4) << " | " << 
+                getEvalWithout(rank * 8 + 5) << " | " << 
+                getEvalWithout(rank * 8 + 6) << " | " << 
+                getEvalWithout(rank * 8 + 7) << " |" << endl;
+        }
+        cout << "+-------+-------+-------+-------+-------+-------+-------+-------+" << endl;
+        cout << endl;
+        cout << "Current FEN: " << exportToFEN() << endl;
+        cout << "Current key: 0x" << std::hex << std::uppercase << zobrist << std::dec << endl;
+    }
+
+    // Used for debug
+    void subAccumulator(Square subtract) {
+        Color c = (1ULL << subtract & pieces(WHITE)) ? WHITE : BLACK;
+        int subFeatureWhite = NNUE::feature(WHITE, c, getPiece(subtract), subtract);
+        int subFeatureBlack = NNUE::feature(BLACK, c, getPiece(subtract), subtract);
+
+        // Accumulate weights in the hidden layer
+        for (int i = 0; i < HL_SIZE; i++) {
+            whiteAccum[i] -= nn.weightsToHL[subFeatureWhite * HL_SIZE + i];
+            blackAccum[i] -= nn.weightsToHL[subFeatureBlack * HL_SIZE + i];
+        }
+    }
+
     // Used for quiets, can assume all moving pieces are friendly
     void addSubAccumulator(Square add, PieceType addPT, Square subtract, PieceType subPT) {
         // Extract the features
@@ -1736,6 +1857,46 @@ class Board {
     void move(string moveIn) { move(Move(moveIn, *this)); }
 
     void move(Move moveIn, bool updateMoveHistory = true) {
+        #ifdef DEBUG
+        auto printDebugInfo = [&]() {
+            displayDebug();
+                
+            cout << endl;
+            cout << endl;
+
+            nn.showBuckets(this);
+
+            int whiteKing = ctzll(white[5]);
+            int blackKing = ctzll(black[5]);
+            cout << "Is in check (white): " << isUnderAttack(WHITE, whiteKing) << endl;
+            cout << "Is in check (black): " << isUnderAttack(BLACK, blackKing) << endl;
+            cout << "En passant square: " << (ctzll(enPassant) < 64 ? squareToAlgebraic(ctzll(enPassant)) : "-") << endl;
+            cout << "Castling rights: " << std::bitset<4>(castlingRights) << endl;
+
+            cout << "White pawns: " << popcountll(white[0]) << endl;
+            cout << "White knigts: " << popcountll(white[1]) << endl;
+            cout << "White bishops: " << popcountll(white[2]) << endl;
+            cout << "White rooks: " << popcountll(white[3]) << endl;
+            cout << "White queens: " << popcountll(white[4]) << endl;
+            cout << "White king: " << popcountll(white[5]) << endl;
+            cout << endl;
+            cout << "Black pawns: " << popcountll(black[0]) << endl;
+            cout << "Black knigts: " << popcountll(black[1]) << endl;
+            cout << "Black bishops: " << popcountll(black[2]) << endl;
+            cout << "Black rooks: " << popcountll(black[3]) << endl;
+            cout << "Black queens: " << popcountll(black[4]) << endl;
+            cout << "Black king: " << popcountll(black[5]) << endl;
+            cout << endl;
+
+            MoveList moves = generateLegalMoves();
+            moves.sortByString(*this);
+            cout << "Legal moves (" << moves.count << "):" << endl;
+            for (Move m : moves) {
+                cout << m.toString() << endl;
+            }
+            exit(-1);
+        };
+        #endif
         auto& us = side ? white : black;
 
         // Take out old zobrist stuff that will be re-added at the end of the turn
@@ -1753,53 +1914,19 @@ class Board {
         Square from = moveIn.from();
         Square to   = moveIn.to();
 
-        IFDBG {
-            if ((1ULL << to) & (white[5] | black[5])) {
-                cout << "WARNING: ATTEMPTED CAPTURE OF THE KING. MOVE: " << moveIn.toString() << endl;
-                display();
 
-                Transposition* TTEntry = TT.getEntry(zobrist);
-                if (TTEntry->zobristKey == zobrist && TTEntry->bestMove == moveIn)
-                    cout << "MOVE WAS FROM TT." << endl;
-                cout << "MOVE WAS NOT FROM TT." << endl;
-
-                int whiteKing = ctzll(white[5]);
-                int blackKing = ctzll(black[5]);
-                cout << "Is in check (white): " << isUnderAttack(WHITE, whiteKing) << endl;
-                cout << "Is in check (black): " << isUnderAttack(BLACK, blackKing) << endl;
-                cout << "En passant square: " << (ctzll(enPassant) < 64 ? squareToAlgebraic(ctzll(enPassant)) : "-") << endl;
-                cout << "Castling rights: " << std::bitset<4>(castlingRights) << endl;
-
-                cout << "White pawns: " << popcountll(white[0]) << endl;
-                cout << "White knigts: " << popcountll(white[1]) << endl;
-                cout << "White bishops: " << popcountll(white[2]) << endl;
-                cout << "White rooks: " << popcountll(white[3]) << endl;
-                cout << "White queens: " << popcountll(white[4]) << endl;
-                cout << "White king: " << popcountll(white[5]) << endl;
-                cout << endl;
-                cout << "Black pawns: " << popcountll(black[0]) << endl;
-                cout << "Black knigts: " << popcountll(black[1]) << endl;
-                cout << "Black bishops: " << popcountll(black[2]) << endl;
-                cout << "Black rooks: " << popcountll(black[3]) << endl;
-                cout << "Black queens: " << popcountll(black[4]) << endl;
-                cout << "Black king: " << popcountll(black[5]) << endl;
-                cout << endl;
-
-                MoveList moves = generateLegalMoves();
-                moves.sortByString(*this);
-                cout << "Legal moves (" << moves.count << "):" << endl;
-                for (Move m : moves) {
-                    cout << m.toString() << endl;
-                }
-                exit(-1);
-            }
+        #ifdef DEBUG
+        if ((1ULL << to) & (white[5] | black[5])) {
+            cout << "WARNING: ATTEMPTED CAPTURE OF THE KING. MOVE: " << moveIn.toString() << endl;
+            printDebugInfo();
         }
+        #endif
 
         PieceType pt = getPiece(from);
         MoveType  mt = moveIn.typeOf();
 
         removePiece(side, pt, from);
-        m_assert(!readBit(us[pt], from), "Position piece moved from was not cleared");
+        IFDBG m_assert(!readBit(us[pt], from), "Position piece moved from was not cleared");
 
         enPassant = 0;
 
@@ -1946,6 +2073,18 @@ class Board {
 
         // Only add 1 to full move clock if move was made as black
         fullMoveClock += ~side;
+
+        #ifdef DEBUG
+        if (popcountll(white[5]) > 1) {
+            cout << "WARNING: MORE THAN ONE WHITE KING IS ON THE BOARD. MOVE: " << moveIn.toString() << endl;
+            printDebugInfo();
+        }
+
+        if (popcountll(black[5]) > 1) {
+            cout << "WARNING: MORE THAN ONE BLACK KING IS ON THE BOARD. MOVE: " << moveIn.toString() << endl;
+            printDebugInfo();
+        }
+        #endif
     }
 
     void loadFromFEN(const std::deque<string>& inputFEN) {
@@ -2331,6 +2470,86 @@ int NNUE::forwardPass(const Board* board) {
     return (eval * EVAL_SCALE) / (QA * QB);
 }
 
+// Debug feature based on SF
+void NNUE::showBuckets(const Board* board) {
+    const int divisor      = 32 / OUTPUT_BUCKETS;
+    const int usingBucket = (popcountll(board->pieces()) - 2) / divisor;
+
+    int staticEval = 0;
+    
+    cout << "+------------+------------+" << endl;
+    cout << "|   Bucket   | Evaluation |" << endl;
+    cout << "+------------+------------+" << endl;
+
+    for (int outputBucket = 0; outputBucket < OUTPUT_BUCKETS; outputBucket++) {
+        // Determine the side to move and the opposite side
+        Color stm = board->side;
+
+        const Accumulator& accumulatorSTM = stm ? board->whiteAccum : board->blackAccum;
+        const Accumulator& accumulatorOPP = ~stm ? board->whiteAccum : board->blackAccum;
+
+        // Accumulate output for STM and OPP using separate weight segments
+        i64 eval = 0;
+
+        if constexpr (ACTIVATION != ::SCReLU) {
+            for (int i = 0; i < HL_SIZE; i++) {
+                // First HL_SIZE weights are for STM
+                if constexpr (ACTIVATION == ::ReLU)
+                    eval += ReLU(accumulatorSTM[i]) * weightsToOut[outputBucket][i];
+                if constexpr (ACTIVATION == ::CReLU)
+                    eval += CReLU(accumulatorSTM[i]) * weightsToOut[outputBucket][i];
+
+                // Last HL_SIZE weights are for OPP
+                if constexpr (ACTIVATION == ::ReLU)
+                    eval += ReLU(accumulatorOPP[i]) * weightsToOut[outputBucket][HL_SIZE + i];
+                if constexpr (ACTIVATION == ::CReLU)
+                    eval += CReLU(accumulatorOPP[i]) * weightsToOut[outputBucket][HL_SIZE + i];
+            }
+        }
+        else {
+            const __m256i vec_zero = _mm256_setzero_si256();
+            const __m256i vec_qa   = _mm256_set1_epi16(QA);
+            __m256i       sum      = vec_zero;
+
+            for (int i = 0; i < HL_SIZE / 16; i++) {
+                const __m256i us   = _mm256_load_si256(reinterpret_cast<const __m256i*>(&accumulatorSTM[16 * i]));  // Load from accumulator
+                const __m256i them = _mm256_load_si256(reinterpret_cast<const __m256i*>(&accumulatorOPP[16 * i]));
+
+                const __m256i us_weights   = _mm256_load_si256(reinterpret_cast<const __m256i*>(&weightsToOut[outputBucket][16 * i]));  // Load from net
+                const __m256i them_weights = _mm256_load_si256(reinterpret_cast<const __m256i*>(&weightsToOut[outputBucket][HL_SIZE + 16 * i]));
+
+                const __m256i us_clamped   = _mm256_min_epi16(_mm256_max_epi16(us, vec_zero), vec_qa);
+                const __m256i them_clamped = _mm256_min_epi16(_mm256_max_epi16(them, vec_zero), vec_qa);
+
+                const __m256i us_results   = _mm256_madd_epi16(_mm256_mullo_epi16(us_weights, us_clamped), us_clamped);
+                const __m256i them_results = _mm256_madd_epi16(_mm256_mullo_epi16(them_weights, them_clamped), them_clamped);
+
+                sum = _mm256_add_epi32(sum, us_results);
+                sum = _mm256_add_epi32(sum, them_results);
+            }
+
+            __m256i v1 = _mm256_hadd_epi32(sum, sum);
+            __m256i v2 = _mm256_hadd_epi32(v1, v1);
+
+            eval = _mm256_extract_epi32(v2, 0) + _mm256_extract_epi32(v2, 4);
+        }
+
+
+        // Dequantization
+        if constexpr (ACTIVATION == ::SCReLU)
+            eval /= QA;
+
+        eval += outputBias[outputBucket];
+
+        // Apply output bias and scale the result
+        staticEval =  (eval * EVAL_SCALE) / (QA * QB);
+
+        cout << "| " << padStr(outputBucket, 11, 0) << "|  " << (staticEval > 0 ? "+" : "-") << " " << padStr(std::format("{:.2f}", std::abs(staticEval / 100.0)), 8, 0) << "|";
+        if (outputBucket == usingBucket) cout << " <- Current bucket";
+        cout << endl;
+        if (outputBucket == OUTPUT_BUCKETS - 1) cout << "+------------+------------+" << endl;
+    }
+}
 
 string Move::toString() const {
     int start = from();
@@ -2413,29 +2632,29 @@ Move::Move(string strIn, Board& board) {
     *this = Move(from, to, flags);
 }
 
-
 struct MovePicker {
-    enum MovePickerState {
+    enum State {
         TT_MOVE,
         OTHER
     };
 
+    array<int, 256> moveScores;
 
     MoveList moves;
 
-    array<int, 256> moveScores;
-
     int currIdx;
 
-    MovePickerState state;
+    State state;
+
     Move TTMove;
 
     MovePicker(MoveList moves, Board& board) {
         currIdx = 0;
+        this->moves = moves;
 
         Transposition* entry = TT.getEntry(board.zobrist);
         if (entry->zobristKey == board.zobrist
-            && !entry->bestMove.isNull()) {
+            && board.isPseudolegal(entry->bestMove)) {
             state = TT_MOVE;
             TTMove = entry->bestMove;
         }
@@ -2444,11 +2663,9 @@ struct MovePicker {
             TTMove = Move();
         }
 
-        this->moves = moves;
-
         moveScores.fill(0);
         for (int i = 0; i < moves.count; i++) {
-            if (moves.get(i) == TTMove) continue; // Don't bother to score TT move, it will get skipped later anyway
+            if (moves.get(i) == TTMove) continue; // Don't bother to score TT move, it will be put first in staged movegen then cleared
             if (moves.moves[i].isCapture()) moveScores[i] = board.evaluateMVVLVA(moves.moves[i]) + 600'000;
             moveScores[i] += history.getHistoryBonus(board.side, moves.moves[i]);
         }
@@ -2468,6 +2685,7 @@ struct MovePicker {
                 std::swap(moveScores[currIdx], moveScores[i]);
                 currIdx++;
             }
+
             if (moveScores[i] > bestScore) {
                 best = i;
                 bestScore = moveScores[i];
@@ -2486,6 +2704,7 @@ struct MovePicker {
         switch (state) {
             case TT_MOVE:
                 m_assert(!TTMove.isNull(), "Tried to get TT move while it was null");
+                state = OTHER;
                 return TTMove;
             default:
                 m_assert(hasNext(), "Tried to get another move from movepicker while it was empty");
@@ -3800,6 +4019,12 @@ int main(int argc, char* argv[]) {
         }
         else if (command == "debug.searchinfo") {
             cout << threads.size() << " helper threads running" << endl;
+        }
+        else if (command == "debug.d") {
+            currentPos.displayDebug();
+            cout << endl;
+            cout << endl;
+            nn.showBuckets(&currentPos);
         }
         else if (command == "debug.popcnt") {
             cout << "White pawns: " << popcountll(currentPos.white[0]) << endl;
