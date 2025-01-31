@@ -2832,6 +2832,8 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
     Move     bestMove;
     i16      bestEval = -INF_I16;
 
+    MoveList seenQuiets;
+
     int flag = FAIL_LOW;
 
     int movesMade = 0;
@@ -2861,6 +2863,8 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
             if (depth <= 8 && movesMade > 0 && !board.see(m, seeThreshold))
                 continue;
         }
+
+        seenQuiets.add(m);
 
         // Calculate reduction factor for late move reduction (+14 +- 8)
         // Based on Weiss
@@ -2922,6 +2926,11 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
             if (m.isQuiet()) {
                 int clampedBonus = std::clamp(depth * depth, -MAX_HISTORY, MAX_HISTORY);
                 history[board.side][m.from()][m.to()] += clampedBonus - history[board.side][m.from()][m.to()] * abs(clampedBonus) / MAX_HISTORY;
+
+                for (Move quiet : seenQuiets) { // History malus (penalize all other quiets)
+                    if (quiet == m) continue;
+                    history[board.side][quiet.from()][quiet.to()] -= clampedBonus - history[board.side][quiet.from()][quiet.to()] * abs(clampedBonus) / MAX_HISTORY;
+                }
             }
             break;
         }
