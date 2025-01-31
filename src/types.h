@@ -57,7 +57,7 @@ enum PieceType : int {
     KING,
     NO_PIECE_TYPE
 };
-array<int, 5> PIECE_VALUES = {100, 316, 328, 493, 982};
+array<int, 6> PIECE_VALUES = {100, 316, 328, 493, 982, 0};
 
 // clang-format off
 enum Square : int {

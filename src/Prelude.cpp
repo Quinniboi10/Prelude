@@ -19,6 +19,7 @@
 
 // TODO (Ordered):
 // Decrease LMR when a move is giving check
+// Pseudolegality checks on TT move
 // SEE move ordering
 // LMP improving
 // Futility pruning
@@ -1798,7 +1799,7 @@ class Board {
         MoveType  mt = moveIn.typeOf();
 
         removePiece(side, pt, from);
-        IFDBG m_assert(!readBit(us[pt], from), "Position piece moved from was not cleared");
+        m_assert(!readBit(us[pt], from), "Position piece moved from was not cleared");
 
         enPassant = 0;
 
@@ -2412,24 +2413,42 @@ Move::Move(string strIn, Board& board) {
     *this = Move(from, to, flags);
 }
 
+
 struct MovePicker {
+    enum MovePickerState {
+        TT_MOVE,
+        OTHER
+    };
+
+
     MoveList moves;
 
     array<int, 256> moveScores;
 
-    int quietsSeen;
-    int capturesSeen;
-
     int currIdx;
 
+    MovePickerState state;
+    Move TTMove;
+
     MovePicker(MoveList moves, Board& board) {
-        quietsSeen = 0;
-        capturesSeen = 0;
         currIdx = 0;
+
+        Transposition* entry = TT.getEntry(board.zobrist);
+        if (entry->zobristKey == board.zobrist
+            && !entry->bestMove.isNull()) {
+            state = TT_MOVE;
+            TTMove = entry->bestMove;
+        }
+        else {
+            state = OTHER;
+            TTMove = Move();
+        }
+
         this->moves = moves;
 
         moveScores.fill(0);
         for (int i = 0; i < moves.count; i++) {
+            if (moves.get(i) == TTMove) continue; // Don't bother to score TT move, it will get skipped later anyway
             if (moves.moves[i].isCapture()) moveScores[i] = board.evaluateMVVLVA(moves.moves[i]) + 600'000;
             moveScores[i] += history.getHistoryBonus(board.side, moves.moves[i]);
         }
@@ -2439,11 +2458,16 @@ struct MovePicker {
         return currIdx < moves.count;
     }
 
-    [[nodiscard]] Move getNext() {
+    [[nodiscard]] int findNext() {
         int best = currIdx;
         int bestScore = moveScores[currIdx];
 
         for (int i = currIdx; i < moves.count; i++) {
+            if (moves.get(i) == TTMove) { // Get rid of the TT move
+                std::swap(moves.moves[currIdx], moves.moves[i]);
+                std::swap(moveScores[currIdx], moveScores[i]);
+                currIdx++;
+            }
             if (moveScores[i] > bestScore) {
                 best = i;
                 bestScore = moveScores[i];
@@ -2455,10 +2479,18 @@ struct MovePicker {
             std::swap(moveScores[currIdx], moveScores[best]);
         }
 
-        if (moves.get(currIdx).isQuiet()) quietsSeen++;
-        else capturesSeen++;
+        return currIdx++;
+    }
 
-        return moves.get(currIdx++);
+    Move getNext() {
+        switch (state) {
+            case TT_MOVE:
+                m_assert(!TTMove.isNull(), "Tried to get TT move while it was null");
+                return TTMove;
+            default:
+                m_assert(hasNext(), "Tried to get another move from movepicker while it was empty");
+                return moves.get(findNext());
+        }
     }
 };
 
@@ -2977,7 +3009,7 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
 
         if (alpha >= beta) {
             if (m.isQuiet()) {
-                int bonus = HISTORY_DEPTH_SCALAR * depth;
+                int bonus = depth * depth;
                 history.update(board.side, m, bonus);
             }
             break;
