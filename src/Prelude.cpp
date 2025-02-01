@@ -3062,13 +3062,17 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
         }
 
         if (alpha >= beta) {
-            if (m.isQuiet()) {
-                int clampedBonus = std::clamp(depth * depth, -MAX_HISTORY, MAX_HISTORY);
+            auto updateHistory = [&](Move m, int bonus) {
+                int clampedBonus = std::clamp(bonus, -MAX_HISTORY, MAX_HISTORY);
                 history[board.side][m.from()][m.to()] += clampedBonus - history[board.side][m.from()][m.to()] * abs(clampedBonus) / MAX_HISTORY;
+            };
+
+            if (m.isQuiet()) {
+                updateHistory(m, depth * depth);
 
                 for (Move quiet : seenQuiets) { // History malus (penalize all other quiets)
                     if (quiet == m) continue;
-                    history[board.side][quiet.from()][quiet.to()] -= clampedBonus - history[board.side][quiet.from()][quiet.to()] * abs(clampedBonus) / MAX_HISTORY;
+                    updateHistory(quiet, -(depth * depth));
                 }
             }
             break;
