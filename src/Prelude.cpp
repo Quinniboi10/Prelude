@@ -2994,6 +2994,9 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
         if (!isPV && !isDecisive(bestEval) && !board.isInCheck() && movesMade >= MIN_MOVES_BEFORE_LMP + depth * depth && depth <= MAX_DEPTH_FOR_LMP && m.isQuiet()) {
             continue;  // Skip quiets for late move pruning
         }
+        if (history[board.side][m.from()][m.to()] < HISTORY_PRUNING_SCALAR * depth) {
+            continue; // History pruning
+        }
 
         if (ply > 0 && bestEval > MATED_IN_MAX_PLY) {
             // PVS SEE pruning

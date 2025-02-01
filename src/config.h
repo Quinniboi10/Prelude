@@ -23,6 +23,8 @@ constexpr int RAZOR_DEPTH_SCALAR = 300;  // Depth scalar to use for razoring
 constexpr int PVS_SEE_QUIET_SCALAR   = -80;
 constexpr int PVS_SEE_CAPTURE_SCALAR = -30;
 
+constexpr int HISTORY_PRUNING_SCALAR = -2500;  // Depth scalar for history pruning
+
 constexpr int SEE_MARGIN = -108;  // Margin for qsearch SEE pruning
 
 // ****** TIME MANAGEMENT ******
