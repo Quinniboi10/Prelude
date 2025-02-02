@@ -640,7 +640,7 @@ struct MoveList {
 
     Move get(int index) { return moves[index]; }
 
-    size_t find(const Move entry) {
+    int find(const Move entry) {
         auto it = std::find(moves.begin(), moves.begin() + count, entry);
         if (it != moves.begin() + count) {
             return std::distance(moves.begin(), it);
@@ -2106,110 +2106,81 @@ class Board {
     }
 
     string exportToFEN() const {
-        string ans = "";
-
-        int blankSquares = 0;
-
+        string fen = "";
         for (int rank = 7; rank >= 0; rank--) {
-            for (int file = 0; file <= 7; file++) {
+            int empty = 0; // Empty sqares
+            for (int file = 0; file < 8; file++) {
                 int sq = rank * 8 + file;
-                for (int i = 0; i < 6; ++i) {
-                    if (readBit(white[i], sq)) {
-                        if (blankSquares / 12)
-                            ans += std::to_string(blankSquares / 12);  // Divide by 12 because it in incremented in a for loop for types
-                        blankSquares = 0;
-                        switch (i) {
-                        case 0 :
-                            ans += "P";
-                            break;
-                        case 1 :
-                            ans += "N";
-                            break;
-                        case 2 :
-                            ans += "B";
-                            break;
-                        case 3 :
-                            ans += "R";
-                            break;
-                        case 4 :
-                            ans += "Q";
-                            break;
-                        case 5 :
-                            ans += "K";
-                            break;
-                        }
-                        break;
-                    }
-                    else
-                        blankSquares++;
+                char p = '\0';
+                // White pcs
+                if (readBit(white[0], sq))
+                    p = 'P';
+                else if (readBit(white[1], sq))
+                    p = 'N';
+                else if (readBit(white[2], sq))
+                    p = 'B';
+                else if (readBit(white[3], sq))
+                    p = 'R';
+                else if (readBit(white[4], sq))
+                    p = 'Q';
+                else if (readBit(white[5], sq))
+                    p = 'K';
+
+                // Black pcs
+                else if (readBit(black[0], sq))
+                    p = 'p';
+                else if (readBit(black[1], sq))
+                    p = 'n';
+                else if (readBit(black[2], sq))
+                    p = 'b';
+                else if (readBit(black[3], sq))
+                    p = 'r';
+                else if (readBit(black[4], sq))
+                    p = 'q';
+                else if (readBit(black[5], sq))
+                    p = 'k';
+
+                if (p == '\0') {
+                    empty++;
                 }
-                for (int i = 0; i < 6; ++i) {
-                    if (readBit(black[i], sq)) {
-                        if (blankSquares / 12)
-                            ans += std::to_string(blankSquares / 12);
-                        blankSquares = 0;
-                        switch (i) {
-                        case 0 :
-                            ans += "p";
-                            break;
-                        case 1 :
-                            ans += "n";
-                            break;
-                        case 2 :
-                            ans += "b";
-                            break;
-                        case 3 :
-                            ans += "r";
-                            break;
-                        case 4 :
-                            ans += "q";
-                            break;
-                        case 5 :
-                            ans += "k";
-                            break;
-                        }
-                        break;
+                else {
+                    if (empty > 0) {
+                        fen += std::to_string(empty);
+                        empty = 0;
                     }
-                    else
-                        blankSquares++;
+                    fen += p;
                 }
             }
-            if (blankSquares / 12)
-                ans += std::to_string(blankSquares / 12);
-            ans += "/";
-            blankSquares = 0;
+            if (empty > 0)
+                fen += std::to_string(empty);
+            if (rank > 0)
+                fen += "/";
         }
+        // Side to move.
+        fen += " ";
+        fen += (side ? "w" : "b");
+        fen += " ";
 
-        // Remove the trailing / on the end of the fen
-        ans[ans.length() - 1] = '\0';
+        // Castling rights.
+        string castle = "";
+        if (readBit(castlingRights, 3)) castle += "K";
+        if (readBit(castlingRights, 2)) castle += "Q";
+        if (readBit(castlingRights, 1)) castle += "k";
+        if (readBit(castlingRights, 0)) castle += "q";
+        if (castle == "") castle = "-";
+        fen += castle;
+        fen += " ";
 
-        ans += side ? " w " : " b ";
+        // En passant target square.
+        fen += (enPassant ? squareToAlgebraic(ctzll(enPassant)) : "-");
+        fen += " ";
 
-        if (readBit(castlingRights, 3))
-            ans += "K";
-        if (readBit(castlingRights, 2))
-            ans += "Q";
-        if (readBit(castlingRights, 1))
-            ans += "k";
-        if (readBit(castlingRights, 0))
-            ans += "q";
+        // Halfmove and fullmove clocks.
+        fen += std::to_string(halfMoveClock);
+        fen += " ";
+        fen += std::to_string(fullMoveClock);
 
-        if (castlingRights == 0)
-            ans += "- ";
-        else
-            ans += " ";
-
-        if (enPassant)
-            ans += squareToAlgebraic(ctzll(enPassant));
-        else
-            ans += "-";
-
-        ans += " ";
-        ans += std::to_string(halfMoveClock);
-        ans += " ";
-        ans += std::to_string(fullMoveClock);
-
-        return ans;
+        return fen;
     }
 
     i16 evaluate() const {  // Returns evaluation in centipawns as side to move
@@ -2994,6 +2965,9 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
         if (!isPV && !isDecisive(bestEval) && !board.isInCheck() && movesMade >= MIN_MOVES_BEFORE_LMP + depth * depth && depth <= MAX_DEPTH_FOR_LMP && m.isQuiet()) {
             continue;  // Skip quiets for late move pruning
         }
+        if (!isLoss(bestEval) && m.isQuiet() && movesMade > 0 && history[board.side][m.from()][m.to()] < HISTORY_PRUNING_SCALAR * depth) {
+            continue; // History pruning
+        }
 
         if (ply > 0 && bestEval > MATED_IN_MAX_PLY) {
             // PVS SEE pruning
@@ -3003,7 +2977,7 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
                 continue;
         }
 
-        seenQuiets.add(m);
+        if(m.isQuiet()) seenQuiets.add(m);
 
         // Calculate reduction factor for late move reduction (+14 +- 8)
         // Based on Weiss
