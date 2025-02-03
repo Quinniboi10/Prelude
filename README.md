@@ -49,7 +49,7 @@ Prelude is a UCI-compatible chess engine utilizing advanced search\* algorithms 
 
 ### Move Ordering:
 
-Move ordering will always be ordered  
+Moves will always be ordered  
 TT move, all captures, all quiets
 
 1. TT best move prioritization.
@@ -114,7 +114,3 @@ Ensure a NNUE file is correctly placed. Update its path in the code if necessary
 - **A\_randomnoob**: Fixing obvious mistakes
 - **Matt**: Providing help and allowing me to use his git instance
 - **jw**: Helping me with NNUE training
-
-## License
-
-Prelude is released under the GNU 3 License. See `LICENSE` for details.
