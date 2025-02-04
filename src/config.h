@@ -36,6 +36,8 @@ constexpr double SOFT_TIME_SCALAR    = 0.65;  // Scales the soft limit as hardLi
 constexpr int    ASPR_DELTA           = 25;    // Used as delta size in aspiration window
 constexpr double ASP_DELTA_MULTIPLIER = 1.25;  // Scalar to widen aspr window on fail
 
+constexpr int SEE_CAPTURE_ORDERING_THRESHOLD = -50;  // Threshold for SEE move ordering (if fails, bad noisy)
+
 constexpr int MAX_HISTORY = 16384;  // Max history bonus
 
 // ************ DATA GEN ************
