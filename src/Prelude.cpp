@@ -1,28 +1,6 @@
-﻿/*
-    Prelude
-    Copyright (C) 2024 Quinniboi10
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-*/
-
-
-// TODO (Ordered):
-// History malus
-// Increasing LMR on non pv nodes
+﻿// TODO (Ordered):
 // Decrease LMR when a move is giving check
 // SEE move ordering
-// RFP improving
 // LMP improving
 // Futility pruning
 // 3 fold LMR
@@ -2788,6 +2766,7 @@ bool isDecisive(int v) { return isWin(v) || isLoss(v); }
 struct Stack {
     PvList pv;
     i16    staticEval;
+    bool   inCheck;
 };
 
 struct SearchLimit {
@@ -2918,6 +2897,7 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
     }
 
     ss->staticEval = board.evaluate();
+    ss->inCheck = board.isInCheck();
 
     Transposition* entry = TT.getEntry(board.zobrist);
 
@@ -2929,14 +2909,14 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
         return entry->score;
     }
 
-    // Razoring (+9 +- 5)
+    // Razoring
     if (ss->staticEval <= alpha - RAZOR_MARGIN - RAZOR_DEPTH_SCALAR * depth * depth) {
         i16 value = qsearch<false, mainThread>(board, alpha - 1, alpha, sl);
         if (value < alpha && !isDecisive(value))
             return value;
     }
 
-    // Internal iterative reductions (+19 +- 10)
+    // Internal iterative reductions
     if (entry->zobristKey != board.zobrist && depth > 3)
         depth -= 1;
 
@@ -2965,15 +2945,15 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
     }
 
     if constexpr (!isPV) {
-        // Reverse futility pruning (+32 +- 34)
-        if (ss->staticEval - RFP_MARGIN * depth >= beta && depth < 4 && !board.isInCheck()) {
+        // Reverse futility pruning
+        if (ss->staticEval - RFP_MARGIN * depth >= beta && depth < 4 && !ss->inCheck) {
             return ss->staticEval - RFP_MARGIN;
         }
 
-        // Null move pruning (+75 +- 33)
+        // Null move pruning
         // Don't prune PV nodes and don't prune king + pawn only
         // King + pawn is likely redundant because the position would already be considered endgame, but removing it seems to lose elo
-        if (board.canNullMove() && ss->staticEval >= beta && !board.isInCheck()
+        if (board.canNullMove() && ss->staticEval >= beta && !ss->inCheck
             && popcountll(board.side ? board.white[0] : board.black[0]) + 1 != popcountll(board.side ? board.whitePieces : board.blackPieces)) {
             Board testBoard = board;
             testBoard.makeNullMove();
@@ -2984,6 +2964,10 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
         }
     }
 
+    bool improving = ply >= 2
+        && ss->staticEval > (ss - 2)->staticEval
+        && !ss->inCheck
+        && !(ss - 2)->inCheck;
 
     MoveList moves = board.generateMoves();
     Move     bestMove;
@@ -3009,15 +2993,23 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
         if (!board.isLegalMove(m)) {
             continue;  // Validate legal moves
         }
-        if (!isPV && !isDecisive(bestEval) && !board.isInCheck() && movesMade >= MIN_MOVES_BEFORE_LMP + depth * depth && depth <= MAX_DEPTH_FOR_LMP && m.isQuiet()) {
-            continue;  // Skip quiets for late move pruning
-        }
-        if (!isLoss(bestEval) && m.isQuiet() && movesMade > 0 && history[board.side][m.from()][m.to()] < HISTORY_PRUNING_SCALAR * depth) {
-            continue; // History pruning
+        // Late move pruning
+        if (!isPV
+            && !isDecisive(bestEval)
+            && !ss->inCheck
+            && movesMade >= (MIN_MOVES_BEFORE_LMP + depth * depth) / (2 - improving)
+            && depth <= MAX_DEPTH_FOR_LMP
+            && m.isQuiet()) {
+            continue;
         }
 
+        // History pruning
+        if (!isLoss(bestEval) && m.isQuiet() && movesMade > 0 && history[board.side][m.from()][m.to()] < HISTORY_PRUNING_SCALAR * depth) {
+            continue;
+        }
+        
+        // PVS SEE pruning
         if (ply > 0 && bestEval > MATED_IN_MAX_PLY) {
-            // PVS SEE pruning
             const int seeThreshold = m.isQuiet() ? PVS_SEE_QUIET_SCALAR * depth : PVS_SEE_CAPTURE_SCALAR * depth * depth;
 
             if (depth <= 8 && movesMade > 0 && !board.see(m, seeThreshold))
@@ -3026,7 +3018,7 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
 
         if(m.isQuiet()) seenQuiets.add(m);
 
-        // Calculate reduction factor for late move reduction (+14 +- 8)
+        // Calculate reduction factor for late move reduction
         // Based on Weiss
         int depthReduction;
         // Captures or promos are not reduced
