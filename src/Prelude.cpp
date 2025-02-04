@@ -226,7 +226,7 @@ string abbreviateNum(const i64 v) {
     if (v > 1000)
         return std::format("{:.2f} k", v / 1000.0);
 
-    return std::to_string(v);
+    return std::to_string(v) + " ";
 }
 
 // Class with precomputed constants
