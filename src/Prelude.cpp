@@ -1227,7 +1227,7 @@ class Board {
             return allMoves;
         }
 
-        MoveList prioritizedMoves, captures, quietMoves;
+        MoveList prioritizedMoves, noisy, quietMoves, badNoisy;
         generatePawnMoves(allMoves);
         generateKnightMoves(allMoves);
         generateBishopMoves(allMoves);
@@ -1240,7 +1240,8 @@ class Board {
                 quietMoves.add(move);
             }
             else {
-                captures.add(move);
+                if (see(move, SEE_CAPTURE_ORDERING_THRESHOLD)) noisy.add(move);
+                else badNoisy.add(move);
             }
         }
 
@@ -1249,9 +1250,9 @@ class Board {
             prioritizedMoves.add(TTEntry->bestMove);  // This move CAN be used in qsearch
         }
 
-        std::stable_sort(captures.moves.begin(), captures.moves.begin() + captures.count, [&](Move a, Move b) { return evaluateMVVLVA(a) > evaluateMVVLVA(b); });
+        std::stable_sort(noisy.moves.begin(), noisy.moves.begin() + noisy.count, [&](Move a, Move b) { return evaluateMVVLVA(a) > evaluateMVVLVA(b); });
 
-        for (Move m : captures) {
+        for (Move m : noisy) {
             prioritizedMoves.add(m);
         }
 
@@ -1260,9 +1261,12 @@ class Board {
         }
 
         std::stable_sort(quietMoves.moves.begin(), quietMoves.moves.begin() + quietMoves.count, [&](Move a, Move b) { return getHistoryBonus(a) > getHistoryBonus(b); });
-
+        std::stable_sort(badNoisy.moves.begin(), badNoisy.moves.begin() + badNoisy.count, [&](Move a, Move b) { return evaluateMVVLVA(a) > evaluateMVVLVA(b); });
 
         for (Move m : quietMoves) {
+            prioritizedMoves.add(m);
+        }
+        for (Move m : badNoisy) {
             prioritizedMoves.add(m);
         }
 
