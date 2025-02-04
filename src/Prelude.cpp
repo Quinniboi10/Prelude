@@ -6,6 +6,7 @@
 // 3 fold LMR
 // NMP eval reduction
 // Search extension
+// No accum updates when verifying EP legality
 // Draw eval randomization
 // Split up board class, don't do things like accumulator updates inside move
 
@@ -425,10 +426,10 @@ const u64 SQUARE_BB[65] = {
 
 //Reverses a bitboard
 u64 reverse(u64 b) {
-    b = (b & 0x5555555555555555) << 1 | (b >> 1) & 0x5555555555555555;
-    b = (b & 0x3333333333333333) << 2 | (b >> 2) & 0x3333333333333333;
-    b = (b & 0x0f0f0f0f0f0f0f0f) << 4 | (b >> 4) & 0x0f0f0f0f0f0f0f0f;
-    b = (b & 0x00ff00ff00ff00ff) << 8 | (b >> 8) & 0x00ff00ff00ff00ff;
+    b = (b & 0x5555555555555555) << 1 | ((b >> 1) & 0x5555555555555555);
+    b = (b & 0x3333333333333333) << 2 | ((b >> 2) & 0x3333333333333333);
+    b = (b & 0x0f0f0f0f0f0f0f0f) << 4 | ((b >> 4) & 0x0f0f0f0f0f0f0f0f);
+    b = (b & 0x00ff00ff00ff00ff) << 8 | ((b >> 8) & 0x00ff00ff00ff00ff);
 
     return (b << 48) | ((b & 0xffff0000) << 16) | ((b >> 16) & 0xffff0000) | (b >> 48);
 }
@@ -561,9 +562,9 @@ void initializeLine() {
     for (Square sq1 = a1; sq1 <= h8; ++sq1) {
         for (Square sq2 = a1; sq2 <= h8; ++sq2) {
             if (fileOf(sq1) == fileOf(sq2) || rankOf(sq1) == rankOf(sq2))
-                LINE[sq1][sq2] = get_rook_attacks_for_init(sq1, 0) & get_rook_attacks_for_init(sq2, 0) | SQUARE_BB[sq1] | SQUARE_BB[sq2];
+                LINE[sq1][sq2] = (get_rook_attacks_for_init(sq1, 0) & get_rook_attacks_for_init(sq2, 0)) | SQUARE_BB[sq1] | SQUARE_BB[sq2];
             else if (diagonalOf(sq1) == diagonalOf(sq2) || antiDiagonalOf(sq1) == antiDiagonalOf(sq2))
-                LINE[sq1][sq2] = getBishopAttacksForInit(sq1, 0) & getBishopAttacksForInit(sq2, 0) | SQUARE_BB[sq1] | SQUARE_BB[sq2];
+                LINE[sq1][sq2] = (getBishopAttacksForInit(sq1, 0) & getBishopAttacksForInit(sq2, 0)) | SQUARE_BB[sq1] | SQUARE_BB[sq2];
         }
     }
 
@@ -571,9 +572,9 @@ void initializeLine() {
         for (Square sq2 = a1; sq2 <= h8; ++sq2) {
             u64 blockers = (1ULL << sq1) | (1ULL << sq2);
             if (fileOf(sq1) == fileOf(sq2) || rankOf(sq1) == rankOf(sq2))
-                LINESEG[sq1][sq2] = get_rook_attacks_for_init(sq1, blockers) & get_rook_attacks_for_init(sq2, blockers) | SQUARE_BB[sq1] | SQUARE_BB[sq2];
+                LINESEG[sq1][sq2] = (get_rook_attacks_for_init(sq1, blockers) & get_rook_attacks_for_init(sq2, blockers)) | SQUARE_BB[sq1] | SQUARE_BB[sq2];
             else if (diagonalOf(sq1) == diagonalOf(sq2) || antiDiagonalOf(sq1) == antiDiagonalOf(sq2))
-                LINESEG[sq1][sq2] = getBishopAttacksForInit(sq1, blockers) & getBishopAttacksForInit(sq2, blockers) | SQUARE_BB[sq1] | SQUARE_BB[sq2];
+                LINESEG[sq1][sq2] = (getBishopAttacksForInit(sq1, blockers) & getBishopAttacksForInit(sq2, blockers)) | SQUARE_BB[sq1] | SQUARE_BB[sq2];
         }
     }
 }
@@ -1209,7 +1210,7 @@ class Board {
                     break;
                 occ ^= 1ULL << ctzll(bb);
 
-                attackers |= getBishopAttacks(Square(to), occ) & pieces(BISHOP, QUEEN) | getRookAttacks(Square(to), occ) & pieces(ROOK, QUEEN);
+                attackers |= (getBishopAttacks(Square(to), occ) & pieces(BISHOP, QUEEN)) | (getRookAttacks(Square(to), occ) & pieces(ROOK, QUEEN));
             }
             else
                 return (attackers & ~pieces(stm)) ? res ^ 1 : res;  // King capture so flip side if enemy has attackers
@@ -1468,7 +1469,7 @@ class Board {
         // En passant check
         if (m.typeOf() == EN_PASSANT) {
             Board testBoard = *this;
-            testBoard.move(m, false);
+            testBoard.move(m);
             // Needs to use a different test because isInCheck does not work with NSTM
             return !testBoard.isUnderAttack(side, ctzll(king));
         }
@@ -1634,7 +1635,7 @@ class Board {
         int subFeatureBlack = NNUE::feature(BLACK, c, getPiece(subtract), subtract);
 
         // Accumulate weights in the hidden layer
-        for (int i = 0; i < HL_SIZE; i++) {
+        for (size_t i = 0; i < HL_SIZE; i++) {
             whiteAccum[i] -= nn.weightsToHL[subFeatureWhite * HL_SIZE + i];
             blackAccum[i] -= nn.weightsToHL[subFeatureBlack * HL_SIZE + i];
         }
@@ -1650,7 +1651,7 @@ class Board {
         int subFeatureBlack = NNUE::feature(BLACK, side, subPT, subtract);
 
         // Accumulate weights in the hidden layer
-        for (int i = 0; i < HL_SIZE; i++) {
+        for (size_t i = 0; i < HL_SIZE; i++) {
             whiteAccum[i] += nn.weightsToHL[addFeatureWhite * HL_SIZE + i];
             blackAccum[i] += nn.weightsToHL[addFeatureBlack * HL_SIZE + i];
 
@@ -1672,7 +1673,7 @@ class Board {
         int sub2FeatureBlack = NNUE::feature(BLACK, ~side, sub2PT, sub2);
 
         // Accumulate weights in the hidden layer
-        for (int i = 0; i < HL_SIZE; i++) {
+        for (size_t i = 0; i < HL_SIZE; i++) {
             whiteAccum[i] += nn.weightsToHL[addFeatureWhite * HL_SIZE + i];
             blackAccum[i] += nn.weightsToHL[addFeatureBlack * HL_SIZE + i];
 
@@ -1700,7 +1701,7 @@ class Board {
         int sub2FeatureBlack = NNUE::feature(BLACK, side, sub2PT, sub2);
 
         // Accumulate weights in the hidden layer
-        for (int i = 0; i < HL_SIZE; i++) {
+        for (size_t i = 0; i < HL_SIZE; i++) {
             whiteAccum[i] += nn.weightsToHL[add1FeatureWhite * HL_SIZE + i];
             blackAccum[i] += nn.weightsToHL[add1FeatureBlack * HL_SIZE + i];
 
@@ -1755,7 +1756,7 @@ class Board {
 
     void move(string moveIn) { move(Move(moveIn, *this)); }
 
-    void move(Move moveIn, bool updateMoveHistory = true) {
+    void move(Move moveIn) {
         #ifdef DEBUG
         auto printDebugInfo = [&]() {
             displayDebug();
@@ -2210,7 +2211,7 @@ class Board {
             int inputFeatureBlack = NNUE::feature(BLACK, WHITE, getPiece(currentSq), currentSq);
 
             // Accumulate weights for STM hidden layer
-            for (int i = 0; i < HL_SIZE; i++) {
+            for (size_t i = 0; i < HL_SIZE; i++) {
                 whiteAccum[i] += nn.weightsToHL[inputFeatureWhite * HL_SIZE + i];
                 blackAccum[i] += nn.weightsToHL[inputFeatureBlack * HL_SIZE + i];
             }
@@ -2227,7 +2228,7 @@ class Board {
             int inputFeatureBlack = NNUE::feature(BLACK, BLACK, getPiece(currentSq), currentSq);
 
             // Accumulate weights for STM hidden layer
-            for (int i = 0; i < HL_SIZE; i++) {
+            for (size_t i = 0; i < HL_SIZE; i++) {
                 whiteAccum[i] += nn.weightsToHL[inputFeatureWhite * HL_SIZE + i];
                 blackAccum[i] += nn.weightsToHL[inputFeatureBlack * HL_SIZE + i];
             }
@@ -2270,8 +2271,8 @@ class Board {
 
 // Returns the output of the NN
 int NNUE::forwardPass(const Board* board) {
-    const int divisor      = 32 / OUTPUT_BUCKETS;
-    const int outputBucket = (popcountll(board->pieces()) - 2) / divisor;
+    const size_t divisor      = 32 / OUTPUT_BUCKETS;
+    const size_t outputBucket = (popcountll(board->pieces()) - 2) / divisor;
 
     // Determine the side to move and the opposite side
     Color stm = board->side;
@@ -2283,7 +2284,7 @@ int NNUE::forwardPass(const Board* board) {
     i64 eval = 0;
 
     if constexpr (ACTIVATION != ::SCReLU) {
-        for (int i = 0; i < HL_SIZE; i++) {
+        for (size_t i = 0; i < HL_SIZE; i++) {
             // First HL_SIZE weights are for STM
             if constexpr (ACTIVATION == ::ReLU)
                 eval += ReLU(accumulatorSTM[i]) * weightsToOut[outputBucket][i];
@@ -2302,7 +2303,7 @@ int NNUE::forwardPass(const Board* board) {
         const __m256i vec_qa   = _mm256_set1_epi16(QA);
         __m256i       sum      = vec_zero;
 
-        for (int i = 0; i < HL_SIZE / 16; i++) {
+        for (size_t i = 0; i < HL_SIZE / 16; i++) {
             const __m256i us   = _mm256_load_si256(reinterpret_cast<const __m256i*>(&accumulatorSTM[16 * i]));  // Load from accumulator
             const __m256i them = _mm256_load_si256(reinterpret_cast<const __m256i*>(&accumulatorOPP[16 * i]));
 
@@ -2338,8 +2339,8 @@ int NNUE::forwardPass(const Board* board) {
 
 // Debug feature based on SF
 void NNUE::showBuckets(const Board* board) {
-    const int divisor      = 32 / OUTPUT_BUCKETS;
-    const int usingBucket = (popcountll(board->pieces()) - 2) / divisor;
+    const size_t divisor      = 32 / OUTPUT_BUCKETS;
+    const size_t usingBucket = (popcountll(board->pieces()) - 2) / divisor;
 
     int staticEval = 0;
 
@@ -2347,7 +2348,7 @@ void NNUE::showBuckets(const Board* board) {
     cout << "|   Bucket   | Evaluation |" << endl;
     cout << "+------------+------------+" << endl;
 
-    for (int outputBucket = 0; outputBucket < OUTPUT_BUCKETS; outputBucket++) {
+    for (size_t outputBucket = 0; outputBucket < OUTPUT_BUCKETS; outputBucket++) {
         // Determine the side to move and the opposite side
         Color stm = board->side;
 
@@ -2358,7 +2359,7 @@ void NNUE::showBuckets(const Board* board) {
         i64 eval = 0;
 
         if constexpr (ACTIVATION != ::SCReLU) {
-            for (int i = 0; i < HL_SIZE; i++) {
+            for (size_t i = 0; i < HL_SIZE; i++) {
                 // First HL_SIZE weights are for STM
                 if constexpr (ACTIVATION == ::ReLU)
                     eval += ReLU(accumulatorSTM[i]) * weightsToOut[outputBucket][i];
@@ -2377,7 +2378,7 @@ void NNUE::showBuckets(const Board* board) {
             const __m256i vec_qa   = _mm256_set1_epi16(QA);
             __m256i       sum      = vec_zero;
 
-            for (int i = 0; i < HL_SIZE / 16; i++) {
+            for (size_t i = 0; i < HL_SIZE / 16; i++) {
                 const __m256i us   = _mm256_load_si256(reinterpret_cast<const __m256i*>(&accumulatorSTM[16 * i]));  // Load from accumulator
                 const __m256i them = _mm256_load_si256(reinterpret_cast<const __m256i*>(&accumulatorOPP[16 * i]));
 
@@ -2771,7 +2772,7 @@ struct Stack {
 
 struct SearchLimit {
     std::chrono::steady_clock::time_point searchStart;
-    int                                   maxNodes;
+    u64                                   maxNodes;
     int                                   searchTime;
     std::atomic<bool>*                    breakFlag;
 
@@ -3124,7 +3125,7 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
 
 template<bool mainThread>
 MoveEvaluation
-iterativeDeepening(Board board, int maxDepth, std::atomic<bool>& breakFlag, int wtime = 0, int btime = 0, int mtime = 0, int winc = 0, int binc = 0, int maxNodes = -1, int softNodes = -1) {
+iterativeDeepening(Board board, int maxDepth, std::atomic<bool>& breakFlag, int wtime = 0, int btime = 0, int mtime = 0, int winc = 0, int binc = 0, u64 maxNodes = 0, u64 softNodes = 0) {
     if (mainThread)
         breakFlag.store(false);
     lastInfo       = std::chrono::steady_clock::now();
@@ -3254,7 +3255,7 @@ iterativeDeepening(Board board, int maxDepth, std::atomic<bool>& breakFlag, int 
 
             ans += " pv";
 
-            for (int i = 0; i < ss->pv.length; i++) {
+            for (u32 i = 0; i < ss->pv.length; i++) {
                 ans += " " + ss->pv.moves[i].toString();
             }
 
@@ -3292,9 +3293,9 @@ iterativeDeepening(Board board, int maxDepth, std::atomic<bool>& breakFlag, int 
 
         lastInfo = std::chrono::steady_clock::now();
 
-        if (softNodes >= 0 && nodes >= softNodes) {
+        if (softNodes > 0 && nodes >= softNodes) {
             if (ISDBG && mainThread)
-                cout << "Stopping search because of node limit" << endl;
+                cout << "Stopping search because of soft node limit" << endl;
             break;
         }
     }
@@ -3432,15 +3433,6 @@ void bench(int depth) {
 }
 
 // ****** DATA GEN ******
-[[nodiscard]] u16 signedToUnsigned(i16 a) {
-    u16 r;
-    std::memcpy(&r, &a, sizeof(u16));
-    if (r & 0x8000)
-        r ^= 0x7FFF;           // Flip value bits if negative
-    r = (r << 1) | (r >> 15);  // Store sign bit at bit 0
-    return r;
-}
-
 struct DataUnit {
     string data = "";  // This can be changed to use different data methods later
 
@@ -3508,7 +3500,7 @@ void writeToFile(std::ofstream& outFile, const std::vector<DataUnit>& data) {
 }
 
 void playGames() {
-    int clearBufferEvery = OUTPUT_BUFFER_SIZE * 1024 * 1024;  // Convert to bytes
+    size_t clearBufferEvery = OUTPUT_BUFFER_SIZE * 1024 * 1024;  // Convert to bytes
     clearBufferEvery /= sizeof(DataUnit);                     // Divide by size of 1 unit of data
     if (clearBufferEvery == 0)
         clearBufferEvery += 1;
@@ -3799,8 +3791,8 @@ int main(int argc, char* argv[]) {
 
             int depth = getValueFromUCI("depth", INF_INT);
 
-            int maxNodes     = getValueFromUCI("nodes", -1);
-            int maxSoftNodes = getValueFromUCI("softnodes", -1);
+            int maxNodes     = getValueFromUCI("nodes", 0);
+            int maxSoftNodes = getValueFromUCI("softnodes", 0);
 
             int wtime = getValueFromUCI("wtime", 0);
             int btime = getValueFromUCI("btime", 0);
