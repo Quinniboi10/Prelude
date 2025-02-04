@@ -1307,6 +1307,9 @@ class Board {
 
     u64 pieces(Color c) const { return c ? whitePieces : blackPieces; }
 
+    template<PieceType pt>
+    u8 count() const { return popcountll(pieces(pt)); }
+
     bool isEndgame() const { return popcountll(pieces()) < 9; }
 
     bool canNullMove() const { return !fromNull && !isEndgame() && !isInCheck(); }
@@ -2727,6 +2730,50 @@ struct PvList {
 };
 
 
+// ****** EVAL SCALING ******
+struct WinRateParams {
+    double a;
+    double b;
+};
+
+// From SF
+WinRateParams winRateParams(const Board& board) {
+
+    int material = board.count<PAWN>()
+        + 3 * board.count<KNIGHT>()
+        + 3 * board.count<BISHOP>()
+        + 5 * board.count<ROOK>()
+        + 9 * board.count<QUEEN>();
+
+    // The fitted model only uses data for material counts in [17, 78], and is anchored at count 58.
+    double m = std::clamp(material, 17, 78) / 58.0;
+
+    // Return a = p_a(material) and b = p_b(material), see github.com/official-stockfish/WDL_model
+    constexpr double as[] = {254.95376825, -629.98400095, 240.49995317, 368.35794496};
+    constexpr double bs[] = {88.04305635, -282.01675354, 256.25518352, 115.87175826};
+
+    double a = (((as[0] * m + as[1]) * m + as[2]) * m) + as[3];
+    double b = (((bs[0] * m + bs[1]) * m + bs[2]) * m) + bs[3];
+
+    return {a, b};
+}
+
+// The win rate model is 1 / (1 + exp((a - eval) / b)), where a = p_a(material) and b = p_b(material).
+// It fits the LTC fishtest statistics rather accurately.
+int winRateModel(int v, const Board& board) {
+    auto [a, b] = winRateParams(board);
+
+    // Return the win rate in per mille units, rounded to the nearest integer.
+    return int(0.5 + 1000 / (1 + std::exp((a - static_cast<double>(v)) / b)));
+}
+
+int toCP(int eval, const Board& board) {
+    auto [a, b] = winRateParams(board);
+
+    return std::round(100 * eval / a);
+}
+
+
 // ****** SEARCH FUNCTIONS ******
 bool isUci = false;  // Flag to represent if output should be human or UCI
 
@@ -3210,7 +3257,7 @@ iterativeDeepening(Board board, int maxDepth, std::atomic<bool>& breakFlag, int 
                 ans += ((eval < 0) ? "-" : "") + std::to_string(mateDist);
             }
             else {
-                ans += " score cp " + std::to_string(eval);
+                ans += " score cp " + std::to_string(toCP(eval, board));
             }
 
             ans += " pv";
@@ -3231,7 +3278,7 @@ iterativeDeepening(Board board, int maxDepth, std::atomic<bool>& breakFlag, int 
                 fancyEval += "M" + std::to_string(mateDist);
             }
             else {
-                fancyEval = (eval > 0 ? '+' : '\0') + std::format("{:.2f}", eval / 100.0);
+                fancyEval = (toCP(eval, board) > 0 ? '+' : '\0') + std::format("{:.2f}", toCP(eval, board) / 100.0);
             }
             cout << padStr(std::to_string(depth) + "/" + std::to_string(seldepth), 9);
             cout << Colors::GREY;
@@ -3829,7 +3876,8 @@ int main(int argc, char* argv[]) {
             bench(depth);
         }
         else if (command == "debug.eval") {
-            cout << "Evaluation (centipawns as current side): " << currentPos.evaluate() << endl;
+            cout << "Raw eval: " << currentPos.evaluate() << endl;
+            cout << "Normalized eval: " << toCP(currentPos.evaluate(), currentPos) << endl;
         }
         else if (command == "debug.checkmask") {
             printBitboard(currentPos.checkMask);
