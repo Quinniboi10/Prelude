@@ -24,6 +24,8 @@ using i64 = int64_t;
 using i32 = int32_t;
 using i16 = int16_t;
 
+using usize = size_t;
+
 using std::cerr;
 using std::string;
 using std::array;
@@ -57,7 +59,7 @@ enum PieceType : int {
     KING,
     NO_PIECE_TYPE
 };
-array<int, 5> PIECE_VALUES = {100, 316, 328, 493, 982};
+array<int, 7> PIECE_VALUES = {100, 316, 328, 493, 982, 0, 0};
 
 // clang-format off
 enum Square : int {
@@ -100,7 +102,7 @@ Square& operator+=(Square& s, Direction d) { return s = s + d; }
 Square& operator-=(Square& s, Direction d) { return s = s - d; }
 //clang-format on
 
-static inline const std::uint16_t Le     = 1;
+static inline const u16  Le               = 1;
 static inline const bool IS_LITTLE_ENDIAN = *reinterpret_cast<const char*>(&Le) == 1;
 
 // Names binary encoding flags from Move class
@@ -137,4 +139,34 @@ struct Colors {
     static constexpr string BRIGHT_WHITE = "\033[97m";
 
     static constexpr string GREY = BRIGHT_BLACK;
+};
+
+template<usize size>
+class U4array {
+    static_assert(size % 2 == 0);
+
+    array<u8, size / 2> data;
+
+public:
+    U4array() {
+        data.fill(0);
+    }
+
+    u8 operator[](usize index) const {
+        assert(index < size);
+        if (index % 2 == 0) return data[index / 2] & 0b1111;
+        return data[index / 2] >> 4;
+    }
+
+    void set(usize index, u8 value) {
+        assert(value == (value & 0b1111));
+        if (index % 2 == 0) {
+            data[index / 2] &= 0b11110000;
+            data[index / 2] |= value;
+        }
+        else {
+            data[index / 2] &= 0b1111;
+            data[index / 2] |= value << 4;
+        }
+    }
 };
