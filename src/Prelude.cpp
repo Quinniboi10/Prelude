@@ -3065,15 +3065,12 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
         // Calculate reduction factor for late move reduction
         // Based on Weiss
         int depthReduction;
-        // Captures or promos are not reduced
-        // Assumes std::log(0) is -inf
-        if (!m.isQuiet() || movesMade < 4)
+        if (depth < 3 || movesMade < 4)
             depthReduction = 0;
+        else if (!m.isQuiet())
+            depthReduction = 0.20 + std::log(depth) * std::log(movesMade) / 3.35;
         else
             depthReduction = 1.35 + std::log(depth) * std::log(movesMade) / 2.75;
-
-        if (depth < 3)
-            depthReduction = 0;
 
         // Recursive call with a copied board
         Board testBoard = board;
