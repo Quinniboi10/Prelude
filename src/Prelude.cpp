@@ -713,7 +713,7 @@ struct TranspositionTable {
     std::vector<Transposition> table;
 
    public:
-    usize size;
+    u64 size;
 
     TranspositionTable(float sizeInMB = 16) { resize(sizeInMB); }
 
@@ -721,9 +721,7 @@ struct TranspositionTable {
 
     void resize(float newSizeMiB) {
         // Find number of bytes allowed
-        size = newSizeMiB * 1024 * 1024;
-        // Divide by size of transposition entry
-        size /= sizeof(Transposition);
+        size = newSizeMiB / sizeof(Transposition) * 1024 * 1024;
         if (size == 0)
             size += 1;
         IFDBG cout << "Using transposition table with " << formatNum(size) << " entries" << endl;
@@ -835,8 +833,7 @@ class NNUE {
             outputBias[i] = read_little_endian<int16_t>(stream);
         }
 
-        cout << "Network loaded successfully from " << filepath << endl;
-        cerr << "WARNING: You are using MSVC, this means that your nnue was NOT embedded into the exe." << endl;
+        IFDBG cout << "Network loaded successfully from " << filepath << endl;
     }
 
     int forwardPass(const Board* board);
@@ -3475,7 +3472,7 @@ void bench(int depth) {
 // ****** DATA GEN ******
 struct ScoredViriMove {
     u16 move;
-    i16 score;
+    i16 score; // As white
 
     ScoredViriMove(u16 m, i16 s) {
         move = m;
@@ -3489,7 +3486,7 @@ struct MarlinPosition {
     u8 epSquare;
     u8 halfmoveClock;
     u16 fullmoveClock;
-    i16 eval;
+    i16 eval; // As white
     u8 wdl; // 0 = white loss, 1 = draw, 2 = white win
     u8 extraByte;
 };
@@ -3497,12 +3494,10 @@ struct MarlinPosition {
 struct DataUnit {
     MarlinPosition header;
     std::vector<ScoredViriMove> moves;
-    i32 nullData;
 
-    DataUnit(MarlinPosition h, auto m) {
+    DataUnit(MarlinPosition h, std::vector<ScoredViriMove> m) {
         header = h;
         moves = m;
-        nullData = 0;
     }
 };
 
@@ -3515,7 +3510,7 @@ MarlinPosition marlinFormat(const Board& b) {
 					: b.side == BLACK ? 2 : 5, fileOf(Square(ctzll(b.enPassant)));
     pos.halfmoveClock = b.halfMoveClock;
     pos.fullmoveClock = b.fullMoveClock;
-    pos.eval = b.evaluate();
+    pos.eval = 0; // Ignored in viriformat
     pos.wdl = 0; // 0 = white loss, 1 = draw, 2 = white win
     pos.extraByte = 0;
 
@@ -3589,11 +3584,11 @@ string makeFileName() {
 }
 
 void writeToFile(std::ofstream& outFile, const std::vector<DataUnit>& data) {
+    i32 nullBytes = 0;
     for (const auto& dataUnit : data) {
-        outFile.write(reinterpret_cast<const char*>(&dataUnit.header), sizeof(dataUnit.header));
-        for (const auto& move : dataUnit.moves) {
-            outFile.write(reinterpret_cast<const char*>(&move), sizeof(move));
-        }
+        outFile.write(reinterpret_cast<const char*>(&dataUnit.header), sizeof(dataUnit.header)); // Header
+        outFile.write(reinterpret_cast<const char*>(dataUnit.moves.data()), sizeof(ScoredViriMove) * dataUnit.moves.size()); // Moves
+        outFile.write(reinterpret_cast<const char*>(&nullBytes), 4); // Null move and eval to show end of game
     }
     outFile.flush();
 }
@@ -3692,7 +3687,7 @@ mainLoop:
                                                                 0,                    // Binc
                                                                 NODES_PER_MOVE, MAX_NODES_PER_MOVE);
             board.move(bestMove.move);
-            gameData.push_back(ScoredViriMove(bestMove.move.toViri(), bestMove.eval));
+            gameData.push_back(ScoredViriMove(bestMove.move.toViri(), board.side == WHITE ? bestMove.eval : -bestMove.eval));
             cachedPositions++;
             totalPositions++;
         }
@@ -3751,11 +3746,17 @@ int main(int argc, char* argv[]) {
     Board              currentPos;
     Precomputed::compute();
     initializeAllDatabases();
+
+    auto loadDefaultNet = [&](bool warnMSVC = false) {
 #if defined(_MSC_VER) && !defined(__clang__)
     nn.loadNetwork(EVALFILE);
+        if (warnMSVC) cerr << "WARNING: This file was compiled with MSVC, this means that an nnue was NOT embedded into the exe." << endl;
 #else
     nn = *reinterpret_cast<const NNUE*>(gEVALData);
 #endif
+    };
+
+    loadDefaultNet(true);
 
     currentPos.reset();
     std::atomic<bool> breakFlag(false);
@@ -3803,6 +3804,7 @@ int main(int argc, char* argv[]) {
             cout << "option name Threads type spin default 1 min 1 max 1024" << endl;
             cout << "option name Hash type spin default 16 min 1 max 4096" << endl;
             cout << "option name Move Overhead type spin default 20 min 0 max 1000" << endl;
+            cout << "option name NNUE type string default internal" << endl;
             cout << "uciok" << endl;
         }
         else if (command == "isready") {
@@ -3833,6 +3835,11 @@ int main(int argc, char* argv[]) {
             }
             else if (parsedCommand[2] == "Threads") {
                 startThreads(stoi(parsedCommand[findIndexOf(parsedCommand, "value") + 1]) - 1, currentPos, breakFlag);
+            }
+            else if (parsedCommand[2] == "NNUE") {
+                string value = parsedCommand[findIndexOf(parsedCommand, "value") + 1];
+                if (value == "internal") loadDefaultNet();
+                else nn.loadNetwork(value);
             }
         }
         else if (!parsedCommand.empty() && parsedCommand[0] == "position") {  // Handle "position" command
