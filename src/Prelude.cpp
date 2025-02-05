@@ -3602,14 +3602,6 @@ void writeToFile(std::ofstream& outFile, const std::vector<DataUnit>& data) {
 }
 
 void playGames() {
-    usize clearBufferEvery = OUTPUT_BUFFER_SIZE * 1024 * 1024;  // Convert to bytes
-    clearBufferEvery /= sizeof(DataUnit);                       // Divide by size of 1 unit of data
-    if (clearBufferEvery == 0)
-        clearBufferEvery += 1;
-    cout << "Writing data every " << formatNum(clearBufferEvery) << " positions" << endl;
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-
     string filePath = "./data/" + makeFileName();
 
     if (!std::filesystem::is_directory("./data/"))
@@ -3643,7 +3635,7 @@ void playGames() {
 
     auto randBool = [&]() { return dist(engine); };
 
-    outputBuffer.reserve(clearBufferEvery + 256);
+    outputBuffer.reserve(DATAGEN_OUTPUT_BUFFER + 256);
 
     std::vector<ScoredViriMove> gameData;
 
@@ -3717,7 +3709,7 @@ mainLoop:
         bufferLock.store(false);
         gameData.clear();
 
-        if (outputBuffer.size() > clearBufferEvery) {
+        if (cachedPositions > DATAGEN_OUTPUT_BUFFER) {
             while (bufferLock.load(std::memory_order_relaxed))
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             bufferLock.store(true);
