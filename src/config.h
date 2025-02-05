@@ -41,11 +41,11 @@ constexpr int SEE_CAPTURE_ORDERING_THRESHOLD = -50;  // Threshold for SEE move o
 constexpr int MAX_HISTORY = 16384;  // Max history bonus
 
 // ************ DATA GEN ************
-constexpr int TARGET_POSITIONS   = 1'000'000'000;  // Number of positions to generate
-constexpr int OUTPUT_BUFFER_SIZE = 1;              // Size (MiB) for the game writing output buffer
-constexpr int RAND_MOVES         = 8;              // Number of random halfmoves before data gen begins
-constexpr int NODES_PER_MOVE     = 5000;           // Soft nodes per move
-constexpr int MAX_NODES_PER_MOVE = 100'000;        // Hard nodes per move
+constexpr int TARGET_POSITIONS      = 1'000'000'000;  // Number of positions to generate
+constexpr int DATAGEN_OUTPUT_BUFFER = 10'000;              // Size in positions of the output buffer
+constexpr int RAND_MOVES            = 8;              // Number of random halfmoves before data gen begins
+constexpr int NODES_PER_MOVE        = 5000;           // Soft nodes per move
+constexpr int MAX_NODES_PER_MOVE    = 100'000;        // Hard nodes per move
 
 
 // ************ NNUE ************
