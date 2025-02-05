@@ -118,6 +118,45 @@ class Move {
     // Move is a knight promotion
     bool isQuiet() const { return (typeOf() & CAPTURE) == 0 && typeOf() != QUEEN_PROMO && typeOf() != KNIGHT_PROMO; }
 
+    // Convert a move into viri-style for datagen
+    u16 toViri() const {
+        static constexpr array MOVE_TYPES = {
+          static_cast<u16>(0x0000),  // None
+          static_cast<u16>(0xC000),  // Promo
+          static_cast<u16>(0x8000),  // Castling
+          static_cast<u16>(0x4000)   // EP
+        };
+
+        u16 viriMove = move & 0xFFF;  // Clear flags
+
+        if (typeOf() == EN_PASSANT)
+            viriMove |= MOVE_TYPES[3];
+        else if (typeOf() == CASTLE_K || typeOf() == CASTLE_Q) {
+            viriMove |= MOVE_TYPES[2];
+
+            // Issue here is Viri encoding is FRC style, so king takes rook
+            viriMove &= ~(0b111111 << 6);  // Clear the to square bits
+            if (typeOf() == CASTLE_K) {
+                if (from() == e1)
+                    viriMove |= h1 << 6;
+                else
+                    viriMove |= h8 << 6;
+            }
+            else {
+                if (from() == e1)
+                    viriMove |= a1 << 6;
+                else
+                    viriMove |= a8 << 6;
+            }
+        }
+        else if ((typeOf() & 0b1000) != 0) {
+            viriMove |= MOVE_TYPES[1];
+            viriMove |= move & (0b11 << 12);
+        }
+
+        return viriMove;
+    }
+
     bool operator==(const Move other) const { return move == other.move; }
 };
 
@@ -591,11 +630,11 @@ void initializeAllDatabases() {
 // Stores a move with an evaluation
 struct MoveEvaluation {
     Move move;
-    int  eval;
+    i16  eval;
 
     constexpr MoveEvaluation() {
         move = Move();
-        eval = -INF_INT;
+        eval = -INF_I16;
     }
     constexpr MoveEvaluation(Move m, int eval) {
         move       = m;
@@ -674,7 +713,7 @@ struct TranspositionTable {
     std::vector<Transposition> table;
 
    public:
-    size_t size;
+    usize size;
 
     TranspositionTable(float sizeInMB = 16) { resize(sizeInMB); }
 
@@ -748,7 +787,7 @@ class NNUE {
             std::make_unsigned_t<IntType> v = 0;
 
             stream.read(reinterpret_cast<char*>(u), sizeof(IntType));
-            for (std::size_t i = 0; i < sizeof(IntType); ++i)
+            for (usize i = 0; i < sizeof(IntType); ++i)
                 v = (v << 8) | u[sizeof(IntType) - i - 1];
 
             std::memcpy(&result, &v, sizeof(IntType));
@@ -775,24 +814,24 @@ class NNUE {
         }
 
         // Load weightsToHL
-        for (size_t i = 0; i < weightsToHL.size(); ++i) {
+        for (usize i = 0; i < weightsToHL.size(); ++i) {
             weightsToHL[i] = read_little_endian<int16_t>(stream);
         }
 
         // Load hiddenLayerBias
-        for (size_t i = 0; i < hiddenLayerBias.size(); ++i) {
+        for (usize i = 0; i < hiddenLayerBias.size(); ++i) {
             hiddenLayerBias[i] = read_little_endian<int16_t>(stream);
         }
 
         // Load weightsToOut
-        for (size_t i = 0; i < weightsToOut.size(); ++i) {
-            for (size_t j = 0; j < weightsToOut[i].size(); j++) {
+        for (usize i = 0; i < weightsToOut.size(); ++i) {
+            for (usize j = 0; j < weightsToOut[i].size(); j++) {
                 weightsToOut[i][j] = read_little_endian<int16_t>(stream);
             }
         }
 
         // Load outputBias
-        for (size_t i = 0; i < outputBias.size(); ++i) {
+        for (usize i = 0; i < outputBias.size(); ++i) {
             outputBias[i] = read_little_endian<int16_t>(stream);
         }
 
@@ -924,7 +963,7 @@ class Board {
         positionHistory.push_back(zobrist);
     }
 
-    PieceType getPiece(int index) {
+    PieceType getPiece(int index) const {
         u64 indexBB = 1ULL << index;
         if ((white[0] | black[0]) & indexBB)
             return PAWN;
@@ -1639,7 +1678,7 @@ class Board {
         int subFeatureBlack = NNUE::feature(BLACK, c, getPiece(subtract), subtract);
 
         // Accumulate weights in the hidden layer
-        for (size_t i = 0; i < HL_SIZE; i++) {
+        for (usize i = 0; i < HL_SIZE; i++) {
             whiteAccum[i] -= nn.weightsToHL[subFeatureWhite * HL_SIZE + i];
             blackAccum[i] -= nn.weightsToHL[subFeatureBlack * HL_SIZE + i];
         }
@@ -1655,7 +1694,7 @@ class Board {
         int subFeatureBlack = NNUE::feature(BLACK, side, subPT, subtract);
 
         // Accumulate weights in the hidden layer
-        for (size_t i = 0; i < HL_SIZE; i++) {
+        for (usize i = 0; i < HL_SIZE; i++) {
             whiteAccum[i] += nn.weightsToHL[addFeatureWhite * HL_SIZE + i];
             blackAccum[i] += nn.weightsToHL[addFeatureBlack * HL_SIZE + i];
 
@@ -1677,7 +1716,7 @@ class Board {
         int sub2FeatureBlack = NNUE::feature(BLACK, ~side, sub2PT, sub2);
 
         // Accumulate weights in the hidden layer
-        for (size_t i = 0; i < HL_SIZE; i++) {
+        for (usize i = 0; i < HL_SIZE; i++) {
             whiteAccum[i] += nn.weightsToHL[addFeatureWhite * HL_SIZE + i];
             blackAccum[i] += nn.weightsToHL[addFeatureBlack * HL_SIZE + i];
 
@@ -1705,7 +1744,7 @@ class Board {
         int sub2FeatureBlack = NNUE::feature(BLACK, side, sub2PT, sub2);
 
         // Accumulate weights in the hidden layer
-        for (size_t i = 0; i < HL_SIZE; i++) {
+        for (usize i = 0; i < HL_SIZE; i++) {
             whiteAccum[i] += nn.weightsToHL[add1FeatureWhite * HL_SIZE + i];
             blackAccum[i] += nn.weightsToHL[add1FeatureBlack * HL_SIZE + i];
 
@@ -2215,7 +2254,7 @@ class Board {
             int inputFeatureBlack = NNUE::feature(BLACK, WHITE, getPiece(currentSq), currentSq);
 
             // Accumulate weights for STM hidden layer
-            for (size_t i = 0; i < HL_SIZE; i++) {
+            for (usize i = 0; i < HL_SIZE; i++) {
                 whiteAccum[i] += nn.weightsToHL[inputFeatureWhite * HL_SIZE + i];
                 blackAccum[i] += nn.weightsToHL[inputFeatureBlack * HL_SIZE + i];
             }
@@ -2232,7 +2271,7 @@ class Board {
             int inputFeatureBlack = NNUE::feature(BLACK, BLACK, getPiece(currentSq), currentSq);
 
             // Accumulate weights for STM hidden layer
-            for (size_t i = 0; i < HL_SIZE; i++) {
+            for (usize i = 0; i < HL_SIZE; i++) {
                 whiteAccum[i] += nn.weightsToHL[inputFeatureWhite * HL_SIZE + i];
                 blackAccum[i] += nn.weightsToHL[inputFeatureBlack * HL_SIZE + i];
             }
@@ -2275,8 +2314,8 @@ class Board {
 
 // Returns the output of the NN
 int NNUE::forwardPass(const Board* board) {
-    const size_t divisor      = 32 / OUTPUT_BUCKETS;
-    const size_t outputBucket = (popcountll(board->pieces()) - 2) / divisor;
+    const usize divisor      = 32 / OUTPUT_BUCKETS;
+    const usize outputBucket = (popcountll(board->pieces()) - 2) / divisor;
 
     // Determine the side to move and the opposite side
     Color stm = board->side;
@@ -2288,7 +2327,7 @@ int NNUE::forwardPass(const Board* board) {
     i64 eval = 0;
 
     if constexpr (ACTIVATION != ::SCReLU) {
-        for (size_t i = 0; i < HL_SIZE; i++) {
+        for (usize i = 0; i < HL_SIZE; i++) {
             // First HL_SIZE weights are for STM
             if constexpr (ACTIVATION == ::ReLU)
                 eval += ReLU(accumulatorSTM[i]) * weightsToOut[outputBucket][i];
@@ -2307,7 +2346,7 @@ int NNUE::forwardPass(const Board* board) {
         const __m256i vec_qa   = _mm256_set1_epi16(QA);
         __m256i       sum      = vec_zero;
 
-        for (size_t i = 0; i < HL_SIZE / 16; i++) {
+        for (usize i = 0; i < HL_SIZE / 16; i++) {
             const __m256i us   = _mm256_load_si256(reinterpret_cast<const __m256i*>(&accumulatorSTM[16 * i]));  // Load from accumulator
             const __m256i them = _mm256_load_si256(reinterpret_cast<const __m256i*>(&accumulatorOPP[16 * i]));
 
@@ -2343,8 +2382,8 @@ int NNUE::forwardPass(const Board* board) {
 
 // Debug feature based on SF
 void NNUE::showBuckets(const Board* board) {
-    const size_t divisor      = 32 / OUTPUT_BUCKETS;
-    const size_t usingBucket = (popcountll(board->pieces()) - 2) / divisor;
+    const usize divisor      = 32 / OUTPUT_BUCKETS;
+    const usize usingBucket = (popcountll(board->pieces()) - 2) / divisor;
 
     int staticEval = 0;
 
@@ -2352,7 +2391,7 @@ void NNUE::showBuckets(const Board* board) {
     cout << "|   Bucket   | Evaluation |" << endl;
     cout << "+------------+------------+" << endl;
 
-    for (size_t outputBucket = 0; outputBucket < OUTPUT_BUCKETS; outputBucket++) {
+    for (usize outputBucket = 0; outputBucket < OUTPUT_BUCKETS; outputBucket++) {
         // Determine the side to move and the opposite side
         Color stm = board->side;
 
@@ -2363,7 +2402,7 @@ void NNUE::showBuckets(const Board* board) {
         i64 eval = 0;
 
         if constexpr (ACTIVATION != ::SCReLU) {
-            for (size_t i = 0; i < HL_SIZE; i++) {
+            for (usize i = 0; i < HL_SIZE; i++) {
                 // First HL_SIZE weights are for STM
                 if constexpr (ACTIVATION == ::ReLU)
                     eval += ReLU(accumulatorSTM[i]) * weightsToOut[outputBucket][i];
@@ -2382,7 +2421,7 @@ void NNUE::showBuckets(const Board* board) {
             const __m256i vec_qa   = _mm256_set1_epi16(QA);
             __m256i       sum      = vec_zero;
 
-            for (size_t i = 0; i < HL_SIZE / 16; i++) {
+            for (usize i = 0; i < HL_SIZE / 16; i++) {
                 const __m256i us   = _mm256_load_si256(reinterpret_cast<const __m256i*>(&accumulatorSTM[16 * i]));  // Load from accumulator
                 const __m256i them = _mm256_load_si256(reinterpret_cast<const __m256i*>(&accumulatorOPP[16 * i]));
 
@@ -2614,7 +2653,7 @@ void perftSuite(const string& filePath) {
         for (const auto& perftEntry : parts) {
             // Trim leading spaces
             string entry         = perftEntry;
-            size_t firstNonSpace = entry.find_first_not_of(" ");
+            usize firstNonSpace = entry.find_first_not_of(" ");
             if (firstNonSpace != string::npos) {
                 entry = entry.substr(firstNonSpace);
             }
@@ -3437,19 +3476,75 @@ void bench(int depth) {
 }
 
 // ****** DATA GEN ******
+struct ScoredViriMove {
+    u16 move;
+    i16 score;
+
+    ScoredViriMove(u16 m, i16 s) {
+        move = m;
+        score = s;
+    }
+};
+
+struct MarlinPosition {
+    u64 occupancy;
+    U4array<32> pieces;
+    u8 epSquare;
+    u8 halfmoveClock;
+    u16 fullmoveClock;
+    i16 eval;
+    u8 wdl; // 0 = white loss, 1 = draw, 2 = white win
+    u8 extraByte;
+};
+
 struct DataUnit {
-    string data = "";  // This can be changed to use different data methods later
+    MarlinPosition header;
+    std::vector<ScoredViriMove> moves;
+    i32 nullData;
 
-    DataUnit() { data = ""; }
-    DataUnit(string data) { this->data = data; }
+    DataUnit(MarlinPosition h, auto m) {
+        header = h;
+        moves = m;
+        nullData = 0;
+    }
 };
 
-struct PartialDataUnit {
-    string data = "";  // This can be changed to use different data methods later
+MarlinPosition marlinFormat(const Board& b) {
+    MarlinPosition pos;
+    constexpr PieceType UNMOVED_ROOK = PieceType(6); // Piece type
 
-    PartialDataUnit() { data = ""; }
-    PartialDataUnit(string data) { this->data = data; }
-};
+    pos.occupancy = b.pieces();
+    pos.epSquare = b.enPassant == 0 ? NO_SQUARE
+					: b.side == BLACK ? 2 : 5, fileOf(Square(ctzll(b.enPassant)));
+    pos.halfmoveClock = b.halfMoveClock;
+    pos.fullmoveClock = b.fullMoveClock;
+    pos.eval = b.evaluate();
+    pos.wdl = 0; // 0 = white loss, 1 = draw, 2 = white win
+    pos.extraByte = 0;
+
+    u64 occ = pos.occupancy;
+    usize index = 0;
+
+    while (occ) {
+        Square sq = Square(ctzll(occ));
+        int pt = b.getPiece(sq);
+
+        if (pt == ROOK
+            && (sq == a1
+                || sq == a8
+                || sq == h1
+                || sq == h8))
+            pt = UNMOVED_ROOK;
+
+        pt |= ((1ULL << sq & b.blackPieces) ? 1ULL << 3 : 0);
+
+        pos.pieces.set(index++, pt);
+
+        occ &= occ - 1;
+    }
+
+    return pos;
+}
 
 // Returns true if the position is checkmate by random chance (is used to reset and start over)
 void makeRandomMove(Board& board) {
@@ -3498,18 +3593,21 @@ string makeFileName() {
 
 void writeToFile(std::ofstream& outFile, const std::vector<DataUnit>& data) {
     for (const auto& dataUnit : data) {
-        outFile << dataUnit.data << endl;
+        outFile.write(reinterpret_cast<const char*>(&dataUnit.header), sizeof(dataUnit.header));
+        for (const auto& move : dataUnit.moves) {
+            outFile.write(reinterpret_cast<const char*>(&move), sizeof(move));
+        }
     }
     outFile.flush();
 }
 
 void playGames() {
-    size_t clearBufferEvery = OUTPUT_BUFFER_SIZE * 1024 * 1024;  // Convert to bytes
-    clearBufferEvery /= sizeof(DataUnit);                     // Divide by size of 1 unit of data
+    usize clearBufferEvery = OUTPUT_BUFFER_SIZE * 1024 * 1024;  // Convert to bytes
+    clearBufferEvery /= sizeof(DataUnit);                       // Divide by size of 1 unit of data
     if (clearBufferEvery == 0)
         clearBufferEvery += 1;
     cout << "Writing data every " << formatNum(clearBufferEvery) << " positions" << endl;
-    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
 
     string filePath = "./data/" + makeFileName();
@@ -3545,14 +3643,14 @@ void playGames() {
 
     auto randBool = [&]() { return dist(engine); };
 
-    outputBuffer.reserve(clearBufferEvery + 255);
+    outputBuffer.reserve(clearBufferEvery + 256);
 
-    std::vector<PartialDataUnit> gameData;
+    std::vector<ScoredViriMove> gameData;
 
-    gameData.reserve(255);
+    gameData.reserve(256);
 
     // Open the file in write mode, should make a new file every time if using random u64 filename, but will append otherwise
-    std::ofstream file(filePath, std::ios::app);
+    std::ofstream file(filePath, std::ios::app | std::ios::binary);
 
     // Check if the file was opened successfully
     if (!file.is_open()) {
@@ -3592,6 +3690,8 @@ mainLoop:
                 goto mainLoop;
         }
 
+        MarlinPosition startpos = marlinFormat(board);
+
         while (!board.isGameOver()) {
             MoveEvaluation bestMove = iterativeDeepening<false>(board,                // Board
                                                                 INF_INT,              // Depth
@@ -3603,40 +3703,31 @@ mainLoop:
                                                                 0,                    // Binc
                                                                 NODES_PER_MOVE, MAX_NODES_PER_MOVE);
             board.move(bestMove.move);
-            if (!board.isInCheck() && bestMove.move.isQuiet() && !isDecisive(bestMove.eval)) {
-                gameData.push_back(PartialDataUnit(board.exportToFEN() + " | " + std::to_string(bestMove.eval)));
-                totalPositions++;
-                cachedPositions++;
-            }
+            gameData.push_back(ScoredViriMove(bestMove.move.toViri(), bestMove.eval));
+            cachedPositions++;
+            totalPositions++;
         }
 
-        // Take partial move data and add the game result
-        for (PartialDataUnit i : gameData) {
-            string finalData = i.data + " | ";
-            if (board.isDraw())
-                finalData += "0.5";
-            else if (board.side == WHITE)
-                finalData += "0";  // White was STM when game was over, so white loses
-            else
-                finalData += "1";
+        while (bufferLock.load(std::memory_order_relaxed))
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        bufferLock.store(true);
 
-            while (bufferLock.load(std::memory_order_relaxed))
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            bufferLock.store(true);
+        outputBuffer.push_back(DataUnit(startpos, gameData));
 
-            outputBuffer.push_back(DataUnit(finalData));
-
-            bufferLock.store(false);
-        }
+        bufferLock.store(false);
         gameData.clear();
+
         if (outputBuffer.size() > clearBufferEvery) {
             while (bufferLock.load(std::memory_order_relaxed))
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             bufferLock.store(true);
 
             writeToFile(file, outputBuffer);
+
+            savedPositions += cachedPositions;
             cachedPositions = 0;
-            savedPositions += outputBuffer.size();
+
+
             outputBuffer.clear();
 
             bufferLock.store(false);
@@ -3758,7 +3849,7 @@ int main(int argc, char* argv[]) {
         else if (!parsedCommand.empty() && parsedCommand[0] == "position") {  // Handle "position" command
             currentPos.reset();
             if (parsedCommand.size() > 3 && parsedCommand[2] == "moves") {  // "position startpos moves ..."
-                for (size_t i = 3; i < parsedCommand.size(); ++i) {
+                for (usize i = 3; i < parsedCommand.size(); ++i) {
                     currentPos.move(parsedCommand[i]);
                 }
             }
@@ -3768,7 +3859,7 @@ int main(int argc, char* argv[]) {
                 currentPos.loadFromFEN(parsedCommand);
             }
             if (parsedCommand.size() > 6 && parsedCommand[6] == "moves") {
-                for (size_t i = 7; i < parsedCommand.size(); ++i) {
+                for (usize i = 7; i < parsedCommand.size(); ++i) {
                     currentPos.move(parsedCommand[i]);
                 }
             }
@@ -3909,6 +4000,7 @@ int main(int argc, char* argv[]) {
             cout << "Black king: " << popcountll(currentPos.black[5]) << endl;
         }
         else {
+            cout << std::hex << Move("a5b6", currentPos).toViri() << endl;
             cerr << "Unknown command: " << command << endl;
         }
     }
