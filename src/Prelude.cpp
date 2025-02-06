@@ -721,21 +721,21 @@ struct TranspositionTable {
 
     void resize(float newSizeMiB) {
         // Find number of bytes allowed
-        size = newSizeMiB / sizeof(Transposition) * 1024 * 1024;
+        size = newSizeMiB * 1024 * 1024 / sizeof(Transposition);
         if (size == 0)
             size += 1;
         IFDBG cout << "Using transposition table with " << formatNum(size) << " entries" << endl;
         table.resize(size);
     }
 
-    int index(u64 key, u64 size) { return key % size; }
+    int index(u64 key) { return key % size; }
 
     void setEntry(u64 key, Transposition& entry) {
-        auto& loc = table[index(key, size)];
+        auto& loc = table[index(key)];
         loc       = entry;
     }
 
-    Transposition* getEntry(u64 key) { return &table[index(key, size)]; }
+    Transposition* getEntry(u64 key) { return &table[index(key)]; }
 };
 
 // ****** NNUE STUFF ******
@@ -3747,7 +3747,7 @@ int main(int argc, char* argv[]) {
     Precomputed::compute();
     initializeAllDatabases();
 
-    auto loadDefaultNet = [&](bool warnMSVC = false) {
+    auto loadDefaultNet = [&]([[maybe_unused]] bool warnMSVC = false) {
 #if defined(_MSC_VER) && !defined(__clang__)
     nn.loadNetwork(EVALFILE);
         if (warnMSVC) cerr << "WARNING: This file was compiled with MSVC, this means that an nnue was NOT embedded into the exe." << endl;
