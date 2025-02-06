@@ -338,6 +338,8 @@ constexpr File fileOf(Square s) { return File(s & 0b111); }
 
 constexpr Rank flipRank(Square s) { return Rank(s ^ 0b111000); }
 
+constexpr Square toSquare(Rank rank, File file) { return static_cast<Square>((rank << 3) | file); }
+
 // Shift the bitboard in the given diection
 template<Direction shiftDir>
 u64 shift(u64 bb) {
@@ -775,7 +777,7 @@ class NNUE {
 
     // Function from stockfish
     template<typename IntType>
-    inline IntType read_little_endian(std::istream& stream) {
+    inline IntType readLittleEndian(std::istream& stream) {
         IntType result;
 
         if (IS_LITTLE_ENDIAN)
@@ -813,24 +815,24 @@ class NNUE {
 
         // Load weightsToHL
         for (usize i = 0; i < weightsToHL.size(); ++i) {
-            weightsToHL[i] = read_little_endian<int16_t>(stream);
+            weightsToHL[i] = readLittleEndian<int16_t>(stream);
         }
 
         // Load hiddenLayerBias
         for (usize i = 0; i < hiddenLayerBias.size(); ++i) {
-            hiddenLayerBias[i] = read_little_endian<int16_t>(stream);
+            hiddenLayerBias[i] = readLittleEndian<int16_t>(stream);
         }
 
         // Load weightsToOut
         for (usize i = 0; i < weightsToOut.size(); ++i) {
             for (usize j = 0; j < weightsToOut[i].size(); j++) {
-                weightsToOut[i][j] = read_little_endian<int16_t>(stream);
+                weightsToOut[i][j] = readLittleEndian<int16_t>(stream);
             }
         }
 
         // Load outputBias
         for (usize i = 0; i < outputBias.size(); ++i) {
-            outputBias[i] = read_little_endian<int16_t>(stream);
+            outputBias[i] = readLittleEndian<int16_t>(stream);
         }
 
         IFDBG cout << "Network loaded successfully from " << filepath << endl;
@@ -958,6 +960,10 @@ class Board {
         blackPieces = black[0] | black[1] | black[2] | black[3] | black[4] | black[5];
 
         positionHistory.push_back(zobrist);
+    }
+
+    bool canCastle(Color c, bool kingside) const {
+        return readBit(castlingRights, c == WHITE ? (kingside ? 3 : 2) : (kingside ? 1 : 0));
     }
 
     PieceType getPiece(int index) const {
@@ -1453,9 +1459,8 @@ class Board {
 
         // Castling checks
         if (m.typeOf() == CASTLE_K || m.typeOf() == CASTLE_Q) {
-            bool kingside    = (m.typeOf() == CASTLE_K);
-            int  rightsIndex = side ? (kingside ? 3 : 2) : (kingside ? 1 : 0);
-            if (!readBit(castlingRights, rightsIndex))
+            bool kingside = (m.typeOf() == CASTLE_K);
+            if (!canCastle(side, kingside))
                 return false;
             if (isInCheck())
                 return false;
@@ -1885,7 +1890,8 @@ class Board {
             break;
         case DOUBLE_PUSH :
             placePiece(side, pt, to);
-            enPassant = 1ULL << ((side) * (from + 8) + (!side) * (from - 8));
+            if (pieces(~side) & (shift<EAST>(1ULL << to) | shift<WEST>(1ULL << to))) // Only set EP square if it could be taken
+                enPassant = 1ULL << ((side) * (from + 8) + (!side) * (from - 8));
             addSubAccumulator(to, pt, from, pt);
             break;
         case CASTLE_K :
@@ -2185,10 +2191,10 @@ class Board {
 
         // Castling rights.
         string castle = "";
-        if (readBit(castlingRights, 3)) castle += "K";
-        if (readBit(castlingRights, 2)) castle += "Q";
-        if (readBit(castlingRights, 1)) castle += "k";
-        if (readBit(castlingRights, 0)) castle += "q";
+        if (canCastle(WHITE, true)) castle += "K";
+        if (canCastle(WHITE, false)) castle += "Q";
+        if (canCastle(BLACK, true)) castle += "k";
+        if (canCastle(BLACK, false)) castle += "q";
         if (castle == "") castle = "-";
         fen += castle;
         fen += " ";
@@ -3480,63 +3486,64 @@ struct ScoredViriMove {
     }
 };
 
-struct MarlinPosition {
+struct MarlinFormat {
     u64 occupancy;
     U4array<32> pieces;
-    u8 epSquare;
+    u8 epSquare; // Also stores side to move
     u8 halfmoveClock;
     u16 fullmoveClock;
     i16 eval; // As white
     u8 wdl; // 0 = white loss, 1 = draw, 2 = white win
     u8 extraByte;
+
+    MarlinFormat() = default;
+
+    MarlinFormat(const Board& b) {
+        constexpr PieceType UNMOVED_ROOK = PieceType(6); // Piece type
+
+        const u8 stm = b.side == BLACK ? (1 << 7) : 0;
+
+        occupancy = b.pieces();
+        epSquare = stm | (b.enPassant == 0 ? 64
+					    : toSquare(b.side == BLACK ? RANK3 : RANK6, fileOf(Square(ctzll(b.enPassant)))));
+        halfmoveClock = b.halfMoveClock;
+        fullmoveClock = b.fullMoveClock;
+        eval = 0; // Ignored in viriformat
+        wdl = 0; // 0 = white loss, 1 = draw, 2 = white win
+        extraByte = 0;
+
+        u64 occ = occupancy;
+        usize index = 0;
+
+        while (occ) {
+            Square sq = Square(ctzll(occ));
+            int pt = b.getPiece(sq);
+
+            if (pt == ROOK
+                && ((sq == a1 && b.canCastle(WHITE, false)) // White queenside
+                    || (sq == a8 && b.canCastle(WHITE, true)) // White kingside
+                    || (sq == h1 && b.canCastle(BLACK, false)) // Black queenside
+                    || (sq == h8 && b.canCastle(BLACK, true)))) // Black kingside
+                pt = UNMOVED_ROOK;
+
+            pt |= ((1ULL << sq & b.blackPieces) ? 1ULL << 3 : 0);
+
+            pieces.set(index++, pt);
+
+            occ &= occ - 1;
+        }
+    }
 };
 
 struct DataUnit {
-    MarlinPosition header;
+    MarlinFormat header;
     std::vector<ScoredViriMove> moves;
 
-    DataUnit(MarlinPosition h, std::vector<ScoredViriMove> m) {
+    DataUnit(MarlinFormat h, std::vector<ScoredViriMove> m) {
         header = h;
         moves = m;
     }
 };
-
-MarlinPosition marlinFormat(const Board& b) {
-    MarlinPosition pos;
-    constexpr PieceType UNMOVED_ROOK = PieceType(6); // Piece type
-
-    pos.occupancy = b.pieces();
-    pos.epSquare = b.enPassant == 0 ? NO_SQUARE
-					: b.side == BLACK ? 2 : 5, fileOf(Square(ctzll(b.enPassant)));
-    pos.halfmoveClock = b.halfMoveClock;
-    pos.fullmoveClock = b.fullMoveClock;
-    pos.eval = 0; // Ignored in viriformat
-    pos.wdl = 0; // 0 = white loss, 1 = draw, 2 = white win
-    pos.extraByte = 0;
-
-    u64 occ = pos.occupancy;
-    usize index = 0;
-
-    while (occ) {
-        Square sq = Square(ctzll(occ));
-        int pt = b.getPiece(sq);
-
-        if (pt == ROOK
-            && (sq == a1
-                || sq == a8
-                || sq == h1
-                || sq == h8))
-            pt = UNMOVED_ROOK;
-
-        pt |= ((1ULL << sq & b.blackPieces) ? 1ULL << 3 : 0);
-
-        pos.pieces.set(index++, pt);
-
-        occ &= occ - 1;
-    }
-
-    return pos;
-}
 
 // Returns true if the position is checkmate by random chance (is used to reset and start over)
 void makeRandomMove(Board& board) {
@@ -3674,7 +3681,7 @@ mainLoop:
                 goto mainLoop;
         }
 
-        MarlinPosition startpos = marlinFormat(board);
+        MarlinFormat startpos(board);
 
         while (!board.isGameOver()) {
             MoveEvaluation bestMove = iterativeDeepening<false>(board,                // Board
@@ -3691,6 +3698,14 @@ mainLoop:
             cachedPositions++;
             totalPositions++;
         }
+
+        if (board.isDraw())
+            startpos.wdl = 1;
+        else if (board.side == WHITE)
+            startpos.wdl = 0;  // White was STM when game was over, so white loses
+        else
+            startpos.wdl = 2;
+
 
         while (bufferLock.load(std::memory_order_relaxed))
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -3979,7 +3994,16 @@ int main(int argc, char* argv[]) {
             cout << endl;
             nn.showBuckets(&currentPos);
         }
-
+        else if (command == "debug.pack") {
+            MarlinFormat pos(currentPos);
+            array<u8, 32> bytes;
+            memcpy(&bytes, &pos, 32);
+            for (int i = 0; i < 32; i++) {
+                cerr << static_cast<int>(bytes[i]);
+                if (i != 31) cout << ", ";
+            }
+            cout << endl;
+        }
         else if (command == "debug.popcnt") {
             cout << "White pawns: " << popcountll(currentPos.white[0]) << endl;
             cout << "White knigts: " << popcountll(currentPos.white[1]) << endl;
@@ -3996,7 +4020,6 @@ int main(int argc, char* argv[]) {
             cout << "Black king: " << popcountll(currentPos.black[5]) << endl;
         }
         else {
-            cout << std::hex << Move("a5b6", currentPos).toViri() << endl;
             cerr << "Unknown command: " << command << endl;
         }
     }
