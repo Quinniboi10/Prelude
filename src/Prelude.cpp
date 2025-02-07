@@ -1,7 +1,6 @@
 ﻿// TODO (Ordered):
 // Decrease LMR when a move is giving check
 // SEE move ordering
-// LMP improving
 // Futility pruning
 // 3 fold LMR
 // NMP eval reduction
@@ -852,6 +851,7 @@ NNUE               nn;
 
 // History is history[side][from][to]
 array<array<array<int, 64>, 64>, 2> history;
+array<array<array<int, 64>, 64>, 2> captureHist;
 
 constexpr int                         msInfoInterval = 1000;
 std::chrono::steady_clock::time_point lastInfo;
@@ -1158,7 +1158,7 @@ class Board {
         }
     }
 
-    int evaluateMVVLVA(Move& a) {
+    int evaluateMVVLVA(Move a) {
         int victim   = PIECE_VALUES[getPiece(a.to())];
         int attacker = PIECE_VALUES[getPiece(a.from())];
 
@@ -1166,7 +1166,8 @@ class Board {
         return (victim * 100) - attacker;
     }
 
-    int getHistoryBonus(Move& m) { return history[side][m.from()][m.to()]; }
+    int getHistoryBonus(Move m) { return history[side][m.from()][m.to()]; }
+    int getCaptureHistoryBonus(Move m) { return captureHist[side][m.from()][m.to()]; }
 
     u64 attackersTo(Square sq, u64 occ) {
         return (getRookAttacks(sq, occ) & pieces(ROOK, QUEEN)) | (getBishopAttacks(sq, occ) & pieces(BISHOP, QUEEN)) | (pawnAttacksBB<WHITE>(sq) & pieces(BLACK, PAWN))
@@ -1292,7 +1293,9 @@ class Board {
             prioritizedMoves.add(TTEntry->bestMove);  // This move CAN be used in qsearch
         }
 
-        std::stable_sort(noisy.moves.begin(), noisy.moves.begin() + noisy.count, [&](Move a, Move b) { return evaluateMVVLVA(a) > evaluateMVVLVA(b); });
+        auto scoreCapture = [&](Move a, Move b) { return (evaluateMVVLVA(a) + getCaptureHistoryBonus(a) / 35) > (evaluateMVVLVA(b) + getCaptureHistoryBonus(b) / 35); };
+
+        std::stable_sort(noisy.moves.begin(), noisy.moves.begin() + noisy.count, scoreCapture);
 
         for (Move m : noisy) {
             prioritizedMoves.add(m);
@@ -1303,7 +1306,7 @@ class Board {
         }
 
         std::stable_sort(quietMoves.moves.begin(), quietMoves.moves.begin() + quietMoves.count, [&](Move a, Move b) { return getHistoryBonus(a) > getHistoryBonus(b); });
-        std::stable_sort(badNoisy.moves.begin(), badNoisy.moves.begin() + badNoisy.count, [&](Move a, Move b) { return evaluateMVVLVA(a) > evaluateMVVLVA(b); });
+        std::stable_sort(badNoisy.moves.begin(), badNoisy.moves.begin() + badNoisy.count, scoreCapture);
 
         for (Move m : quietMoves) {
             prioritizedMoves.add(m);
@@ -3131,6 +3134,10 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
                     if (quiet == m) continue;
                     updateHistory(quiet, -(depth * depth));
                 }
+            }
+            else {
+                int clampedBonus = std::clamp(depth * depth, -MAX_HISTORY, MAX_HISTORY);
+                captureHist[board.side][m.from()][m.to()] += clampedBonus - captureHist[board.side][m.from()][m.to()] * abs(clampedBonus) / MAX_HISTORY;
             }
             break;
         }
