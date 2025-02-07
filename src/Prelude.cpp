@@ -3521,12 +3521,14 @@ struct MarlinFormat {
 
             if (pt == ROOK
                 && ((sq == a1 && b.canCastle(WHITE, false)) // White queenside
-                    || (sq == a8 && b.canCastle(WHITE, true)) // White kingside
-                    || (sq == h1 && b.canCastle(BLACK, false)) // Black queenside
+                    || (sq == h1 && b.canCastle(WHITE, true)) // White kingside
+                    || (sq == a8 && b.canCastle(BLACK, false)) // Black queenside
                     || (sq == h8 && b.canCastle(BLACK, true)))) // Black kingside
                 pt = UNMOVED_ROOK;
 
             pt |= ((1ULL << sq & b.blackPieces) ? 1ULL << 3 : 0);
+
+            assert(pt < 7);
 
             pieces.set(index++, pt);
 
