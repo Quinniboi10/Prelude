@@ -3077,9 +3077,9 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
             depthReduction = 1.35 + std::log(depth) * std::log(movesMade) / 2.75;
 
         // Futility pruning
-        const int futilityMargin = 200 + 80 * std::min(depth - depthReduction, 0) +
-            (m.isQuiet() ? board.getHistoryBonus(m) : board.evaluateMVVLVA(m)) / 130; // Formula from integral
+        const int futilityMargin = 300;
         if (!ss->inCheck
+            && ply > 0
             && !isLoss(bestEval)
             && m.isQuiet()
             && ss->staticEval + futilityMargin < alpha) {
