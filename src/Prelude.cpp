@@ -1,8 +1,6 @@
 ﻿// TODO (Ordered):
 // Decrease LMR when a move is giving check
 // SEE move ordering
-// LMP improving
-// Futility pruning
 // 3 fold LMR
 // NMP eval reduction
 // Search extension
@@ -3074,6 +3072,18 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
             depthReduction = 0.20 + std::log(depth) * std::log(movesMade) / 3.35;
         else
             depthReduction = 1.35 + std::log(depth) * std::log(movesMade) / 2.75;
+
+        // Futility pruning
+        const int futilityMargin = 200 + 80 * std::min(depth - depthReduction, 0) +
+            (m.isQuiet() ? board.getHistoryBonus(m) : board.evaluateMVVLVA(m)) / 130; // Formula from integral
+        if (!ss->inCheck
+            && !isLoss(bestEval)
+            && m.isQuiet()
+            && ss->staticEval + futilityMargin < alpha) {
+            skipQuiets = true;
+            continue;
+        }
+
 
         // Recursive call with a copied board
         Board testBoard = board;
