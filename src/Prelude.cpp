@@ -3040,7 +3040,7 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
             continue;  // Validate legal moves
         }
         if (skipQuiets && m.isQuiet())
-            continue:
+            continue;
         // Late move pruning
         if (!isPV
             && !isDecisive(bestEval)
