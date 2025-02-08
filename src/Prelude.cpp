@@ -1,8 +1,6 @@
 ﻿// TODO (Ordered):
 // Decrease LMR when a move is giving check
 // SEE move ordering
-// LMP improving
-// Futility pruning
 // 3 fold LMR
 // NMP eval reduction
 // Search extension
@@ -3025,6 +3023,8 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
     int flag = FAIL_LOW;
 
     int movesMade = 0;
+    bool skipQuiets = false;
+
 
     for (Move m : moves) {
         // Break checks
@@ -3037,9 +3037,10 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
             break;
         }
 
-        if (!board.isLegalMove(m)) {
+        if (!board.isLegalMove(m))
             continue;  // Validate legal moves
-        }
+        if (skipQuiets && m.isQuiet())
+            continue;
         // Late move pruning
         if (!isPV
             && !isDecisive(bestEval)
@@ -3063,8 +3064,6 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
                 continue;
         }
 
-        if(m.isQuiet()) seenQuiets.add(m);
-
         // Calculate reduction factor for late move reduction
         // Based on Weiss
         int depthReduction;
@@ -3074,6 +3073,20 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
             depthReduction = 0.20 + std::log(depth) * std::log(movesMade) / 3.35;
         else
             depthReduction = 1.35 + std::log(depth) * std::log(movesMade) / 2.75;
+
+        // Futility pruning
+        const int futilityMargin = 300;
+        if (!ss->inCheck
+            && ply > 0
+            && depth < 6
+            && !isLoss(bestEval)
+            && m.isQuiet()
+            && ss->staticEval + futilityMargin < alpha) {
+            skipQuiets = true;
+            continue;
+        }
+
+        if(m.isQuiet()) seenQuiets.add(m);
 
         // Recursive call with a copied board
         Board testBoard = board;
