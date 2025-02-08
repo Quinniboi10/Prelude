@@ -3023,6 +3023,7 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
     int flag = FAIL_LOW;
 
     int movesMade = 0;
+    bool skipQuiets = false;
 
     for (Move m : moves) {
         // Break checks
@@ -3038,6 +3039,8 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
         if (!board.isLegalMove(m)) {
             continue;  // Validate legal moves
         }
+        if (skipQuiets && m.isQuiet())
+            continue:
         // Late move pruning
         if (!isPV
             && !isDecisive(bestEval)
