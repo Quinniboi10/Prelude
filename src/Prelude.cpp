@@ -3173,7 +3173,8 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
         return 0;
     }
 
-    // Uses entry that was already fetched above
+    if (entry->zobristKey == board.zobrist && bestMove.isNull())
+        bestMove = entry->bestMove; // Use the old best move if the current one is null
     *entry = Transposition(board.zobrist, bestMove, flag, bestEval, depth);
 
     return bestEval;
