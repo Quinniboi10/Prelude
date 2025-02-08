@@ -3080,7 +3080,7 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
         const int futilityMargin = 300;
         if (!ss->inCheck
             && ply > 0
-            && dpetepth < 6
+            && depth < 6
             && !isLoss(bestEval)
             && m.isQuiet()
             && ss->staticEval + futilityMargin < alpha) {
