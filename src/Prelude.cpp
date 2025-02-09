@@ -3115,10 +3115,10 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
         // Update best move and alpha-beta values
         if (eval > bestEval) {
             bestEval = eval;
-            bestMove = m;
             if (bestEval > alpha) {
                 // This flag seems to lose elo, should be re-tested later on.
                 //flag = EXACT;
+                bestMove = m;
                 alpha = bestEval;
                 if constexpr (isPV) {
                     ss->pv.update(m, (ss + 1)->pv);
