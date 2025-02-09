@@ -4,9 +4,7 @@
 #include <iostream>
 #include <string>
 #include <array>
-
-#define ctzll(x) std::countr_zero(x)
-#define popcountll(x) std::popcount(x)
+#include <bit>
 
 #ifdef DEBUG
 constexpr bool ISDBG = true;
@@ -14,6 +12,8 @@ constexpr bool ISDBG = true;
 constexpr bool ISDBG = false;
 #endif
 #define IFDBG if constexpr (ISDBG)
+
+#define ctzll(x) = std::countr_zero(x);
 
 using u64 = uint64_t;
 using u32 = uint32_t;
@@ -26,21 +26,16 @@ using i16 = int16_t;
 
 using usize = size_t;
 
-using std::cerr;
+using std::popcount;
 using std::string;
 using std::array;
+using std::cerr;
 using std::cout;
 using std::endl;
-
-#define m_assert(expr, msg) assert(((void) (msg), (expr)))
 
 constexpr u64 INF_U64 = std::numeric_limits<u64>::max();
 constexpr int INF_INT = std::numeric_limits<int>::max();
 constexpr int INF_I16 = std::numeric_limits<i16>::max();
-
-#include "config.h"
-
-using Accumulator = array<i16, HL_SIZE>;
 
 enum Color : int {
     WHITE = 1,
@@ -59,7 +54,7 @@ enum PieceType : int {
     KING,
     NO_PIECE_TYPE
 };
-array<int, 7> PIECE_VALUES = {100, 316, 328, 493, 982, 0, 0};
+inline array<int, 7> PIECE_VALUES = {100, 316, 328, 493, 982, 0, 0};
 
 // clang-format off
 enum Square : int {
@@ -94,12 +89,12 @@ enum File : int {
 enum Rank : int {
     RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8
 };
-Square& operator++(Square& s) { return s = Square(int(s) + 1); }
-Square& operator--(Square& s) { return s = Square(int(s) - 1); }
+inline Square& operator++(Square& s) { return s = Square(int(s) + 1); }
+inline Square& operator--(Square& s) { return s = Square(int(s) - 1); }
 constexpr Square operator+(Square s, Direction d) { return Square(int(s) + int(d)); }
 constexpr Square operator-(Square s, Direction d) { return Square(int(s) - int(d)); }
-Square& operator+=(Square& s, Direction d) { return s = s + d; }
-Square& operator-=(Square& s, Direction d) { return s = s - d; }
+inline Square& operator+=(Square& s, Direction d) { return s = s + d; }
+inline Square& operator-=(Square& s, Direction d) { return s = s - d; }
 //clang-format on
 
 static inline const u16  Le               = 1;
@@ -110,6 +105,7 @@ enum MoveType {
     STANDARD_MOVE = 0, DOUBLE_PUSH = 0b1, CASTLE_K = 0b10, CASTLE_Q = 0b11, CAPTURE = 0b100, EN_PASSANT = 0b101, PROMOTION = 0b1000, KNIGHT_PROMO = 0b1000, BISHOP_PROMO = 0b1001, ROOK_PROMO = 0b1010, QUEEN_PROMO = 0b1011, KNIGHT_PROMO_CAPTURE = 0b1100, BISHOP_PROMO_CAPTURE = 0b1101, ROOK_PROMO_CAPTURE = 0b1110, QUEEN_PROMO_CAPTURE = 0b1111
 };
 
+// TT flags
 enum flags {
     UNDEFINED, FAIL_LOW, BETA_CUTOFF, EXACT
 };
