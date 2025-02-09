@@ -1392,7 +1392,6 @@ class Board {
         int kingSq = ctzll(kingBB);
 
         u64   ourPieces         = pieces(side);
-        auto& opponentPieces    = side ? black : white;
         u64   enemyRookQueens   = pieces(~side, ROOK, QUEEN);
         u64   enemyBishopQueens = pieces(~side, BISHOP, QUEEN);
 
@@ -1410,18 +1409,6 @@ class Board {
         }
 
         // *** PAWN ATTACKS ***
-        /*if (side) {
-            if ((pieces(~side, PAWN) & (1ULL << (kingSq + 7))) && (kingSq % 8 != 0))
-                checkMask |= (1ULL << (kingSq + 7));
-            if ((opponentPieces[0] & (1ULL << (kingSq + 9))) && (kingSq % 8 != 7))
-                checkMask |= (1ULL << (kingSq + 9));
-        }
-        else {
-            if ((opponentPieces[0] & (1ULL << (kingSq - 7))) && (kingSq % 8 != 7))
-                checkMask |= (1ULL << (kingSq - 7));
-            if ((opponentPieces[0] & (1ULL << (kingSq - 9))) && (kingSq % 8 != 0))
-                checkMask |= (1ULL << (kingSq - 9));
-        }*/
         if (side) {
             checkMask |= shift<NORTH_WEST>(kingBB & ~Precomputed::A_FILE) & pieces(BLACK, PAWN);
             checkMask |= shift<NORTH_EAST>(kingBB & ~Precomputed::H_FILE) & pieces(BLACK, PAWN);
@@ -1886,7 +1873,7 @@ class Board {
         MoveType  mt = moveIn.typeOf();
 
         removePiece(side, pt, from);
-        IFDBG m_assert(!readBit(us[pt], from), "Position piece moved from was not cleared");
+        m_assert(!readBit(us[pt], from), "Position piece moved from was not cleared");
 
         enPassant = 0;
 
@@ -2747,7 +2734,7 @@ struct PvList {
 
         length = child.length + 1;
 
-        IFDBG assert(length == 1 || moves[0] != moves[1]);
+        assert(length == 1 || moves[0] != moves[1]);
     }
 
     auto begin() { return moves.begin(); }
@@ -2899,7 +2886,7 @@ int qsearch(Board& board, int alpha, int beta, SearchLimit* sl) {
         Board testBoard = board;
         testBoard.move(m);
 
-        nodes.store(nodes.load() + 1);
+        nodes++;
 
         int score;
 
@@ -2998,16 +2985,16 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
         }
     }
 
-    if constexpr (!isPV) {
+    if (!isPV && !ss->inCheck) {
         // Reverse futility pruning
-        if (ss->staticEval - RFP_MARGIN * depth >= beta && depth < 4 && !ss->inCheck) {
+        if (ss->staticEval - RFP_MARGIN * depth >= beta && depth < 4) {
             return ss->staticEval - RFP_MARGIN;
         }
 
         // Null move pruning
         // Don't prune PV nodes and don't prune king + pawn only
-        // King + pawn is likely redundant because the position would already be considered endgame, but removing it seems to lose elo
-        if (board.canNullMove() && ss->staticEval >= beta && !ss->inCheck
+        if (board.canNullMove()
+            && ss->staticEval >= beta
             && popcountll(board.side ? board.white[0] : board.black[0]) + 1 != popcountll(board.side ? board.whitePieces : board.blackPieces)) {
             Board testBoard = board;
             testBoard.makeNullMove();
@@ -3102,7 +3089,7 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
         testBoard.move(m);
         movesMade++;
 
-        nodes.store(nodes.load() + 1);
+        nodes++;
 
         i16 eval;
 
@@ -3136,11 +3123,8 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
         }
 
         // Fail high
-        if (eval >= beta) {
-            flag = BETA_CUTOFF;
-        }
-
         if (alpha >= beta) {
+            flag = BETA_CUTOFF;
             auto updateHistory = [&](Move m, int bonus) {
                 int clampedBonus = std::clamp(bonus, -MAX_HISTORY, MAX_HISTORY);
                 history[board.side][m.from()][m.to()] += clampedBonus - history[board.side][m.from()][m.to()] * abs(clampedBonus) / MAX_HISTORY;
@@ -3157,6 +3141,7 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
             break;
         }
 
+        // Print current move if the node is a root node
         if (ply == 0) {
             auto now = std::chrono::steady_clock::now();
             if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastInfo).count() >= msInfoInterval) {
