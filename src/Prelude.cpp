@@ -77,87 +77,6 @@ static void setBit(BitboardType& bitboard, int index, bool value) {
         bitboard &= ~(1ULL << index);
 }
 
-class Board;
-
-class Move {
-    // Bit indexes of various things
-    // See https://www.chessprogramming.org/Encoding_Moves
-    // Does not use double pawn push flag
-    // PROMO = 15
-    // CAPTURE = 14
-    // SPECIAL 1 = 13
-    // SPECIAL 0 = 12
-   private:
-    uint16_t move;
-
-   public:
-    constexpr Move() { move = 0; }
-
-    Move(string in, Board& board);
-
-    constexpr Move(u8 startSquare, u8 endSquare, int flags = STANDARD_MOVE) {
-        move = startSquare;
-        move |= endSquare << 6;
-        move |= flags << 12;
-    }
-
-    string toString() const;
-
-    Square from() const { return Square(move & 0b111111); }
-    Square to() const { return Square((move >> 6) & 0b111111); }
-
-    MoveType typeOf() const { return MoveType(move >> 12); }  // Return the flag bits
-
-    bool isNull() const { return move == 0; }
-
-    // This should return false if
-    // Move is a capture of any kind
-    // Move is a queen promotion
-    // Move is a knight promotion
-    bool isQuiet() const { return (typeOf() & CAPTURE) == 0 && typeOf() != QUEEN_PROMO && typeOf() != KNIGHT_PROMO; }
-
-    // Convert a move into viri-style for datagen
-    u16 toViri() const {
-        static constexpr array MOVE_TYPES = {
-          static_cast<u16>(0x0000),  // None
-          static_cast<u16>(0xC000),  // Promo
-          static_cast<u16>(0x8000),  // Castling
-          static_cast<u16>(0x4000)   // EP
-        };
-
-        u16 viriMove = move & 0xFFF;  // Clear flags
-
-        if (typeOf() == EN_PASSANT)
-            viriMove |= MOVE_TYPES[3];
-        else if (typeOf() == CASTLE_K || typeOf() == CASTLE_Q) {
-            viriMove |= MOVE_TYPES[2];
-
-            // Issue here is Viri encoding is FRC style, so king takes rook
-            viriMove &= ~(0b111111 << 6);  // Clear the to square bits
-            if (typeOf() == CASTLE_K) {
-                if (from() == e1)
-                    viriMove |= h1 << 6;
-                else
-                    viriMove |= h8 << 6;
-            }
-            else {
-                if (from() == e1)
-                    viriMove |= a1 << 6;
-                else
-                    viriMove |= a8 << 6;
-            }
-        }
-        else if ((typeOf() & 0b1000) != 0) {
-            viriMove |= MOVE_TYPES[1];
-            viriMove |= move & (0b11 << 12);
-        }
-
-        return viriMove;
-    }
-
-    bool operator==(const Move other) const { return move == other.move; }
-};
-
 // Split a string into a deque given a deliminer to split by
 std::deque<string> split(const string& s, char delim) {
     std::deque<string> result;
@@ -848,9 +767,6 @@ int                movesToGo    = DEFAULT_MOVES_TO_GO;
 TranspositionTable TT;
 NNUE               nn;
 
-// History is history[side][from][to]
-array<array<array<int, 64>, 64>, 2> history;
-
 constexpr int                         msInfoInterval = 1000;
 std::chrono::steady_clock::time_point lastInfo;
 
@@ -1164,8 +1080,6 @@ class Board {
         return (victim * 100) - attacker;
     }
 
-    int getHistoryBonus(Move& m) { return history[side][m.from()][m.to()]; }
-
     u64 attackersTo(Square sq, u64 occ) {
         return (getRookAttacks(sq, occ) & pieces(ROOK, QUEEN)) | (getBishopAttacks(sq, occ) & pieces(BISHOP, QUEEN)) | (pawnAttacksBB<WHITE>(sq) & pieces(BLACK, PAWN))
              | (pawnAttacksBB<BLACK>(sq) & pieces(WHITE, PAWN)) | (KNIGHT_ATTACKS[sq] & pieces(KNIGHT)) | (KING_ATTACKS[sq] & pieces(KING));
@@ -1267,13 +1181,27 @@ class Board {
             return allMoves;
         }
 
-        MoveList prioritizedMoves, noisy, quietMoves, badNoisy;
         generatePawnMoves(allMoves);
         generateKnightMoves(allMoves);
         generateBishopMoves(allMoves);
         generateRookMoves(allMoves);
         // Queen moves are part of bishop/rook moves
 
+        if (!capturesOnly)
+            return allMoves;
+
+        MoveList noisy;
+
+        // Classify moves
+        for (Move move : allMoves) {
+            if (!move.isQuiet()) noisy.add(move);
+        }
+
+        return noisy;
+    }
+
+    MoveList orderMoves(ThreadInfo& thisThread, MoveList& allMoves) {
+        MoveList prioritizedMoves, quietMoves, noisy, badNoisy;
         // Classify moves
         for (Move move : allMoves) {
             if (move.isQuiet()) {
@@ -1289,19 +1217,15 @@ class Board {
         if (TTEntry->zobristKey == zobrist && allMoves.find(TTEntry->bestMove) != -1) {
             prioritizedMoves.add(TTEntry->bestMove);  // This move CAN be used in qsearch
         }
-
-        std::stable_sort(noisy.moves.begin(), noisy.moves.begin() + noisy.count, [&](Move a, Move b) { return evaluateMVVLVA(a) > evaluateMVVLVA(b); });
+        
+        orderCaptures(noisy);
 
         for (Move m : noisy) {
             prioritizedMoves.add(m);
         }
 
-        if (capturesOnly) {
-            return prioritizedMoves;
-        }
-
-        std::stable_sort(quietMoves.moves.begin(), quietMoves.moves.begin() + quietMoves.count, [&](Move a, Move b) { return getHistoryBonus(a) > getHistoryBonus(b); });
-        std::stable_sort(badNoisy.moves.begin(), badNoisy.moves.begin() + badNoisy.count, [&](Move a, Move b) { return evaluateMVVLVA(a) > evaluateMVVLVA(b); });
+        std::stable_sort(quietMoves.moves.begin(), quietMoves.moves.begin() + quietMoves.count, [&](Move a, Move b) { return thisThread.getHistoryBonus(side, a) > thisThread.getHistoryBonus(side, b); });
+        orderCaptures(badNoisy);
 
         for (Move m : quietMoves) {
             prioritizedMoves.add(m);
@@ -1311,6 +1235,10 @@ class Board {
         }
 
         return prioritizedMoves;
+    }
+
+    void orderCaptures(MoveList& moves) {
+        std::stable_sort(moves.moves.begin(), moves.moves.begin() + moves.count, [&](Move a, Move b) { return evaluateMVVLVA(a) > evaluateMVVLVA(b); });
     }
 
     template<PieceType pt>
@@ -2724,31 +2652,6 @@ void perftSuite(const string& filePath) {
 }
 
 
-struct PvList {
-    array<Move, MAX_PLY> moves;
-    u32                  length;
-
-    void update(Move move, const PvList& child) {
-        moves[0] = move;
-        std::copy(child.moves.begin(), child.moves.begin() + child.length, moves.begin() + 1);
-
-        length = child.length + 1;
-
-        assert(length == 1 || moves[0] != moves[1]);
-    }
-
-    auto begin() { return moves.begin(); }
-    auto end() { return moves.begin() + length; }
-
-    auto& operator=(const PvList& other) {
-        std::copy(other.moves.begin(), other.moves.begin() + other.length, moves.begin());
-        length = other.length;
-
-        return *this;
-    }
-};
-
-
 // ****** EVAL SCALING ******
 struct WinRateParams {
     double a;
@@ -2796,6 +2699,8 @@ int toCP(int eval, const Board& board) {
 // ****** SEARCH FUNCTIONS ******
 bool isUci = false;  // Flag to represent if output should be human or UCI
 
+ThreadInfo mainThreadInfo; // This is the info table to be used by ONLY the main search thread
+
 int seldepth;
 
 bool isWin(int v) { return v >= MATE_IN_MAX_PLY; }
@@ -2803,12 +2708,6 @@ bool isWin(int v) { return v >= MATE_IN_MAX_PLY; }
 bool isLoss(int v) { return v <= MATED_IN_MAX_PLY; }
 
 bool isDecisive(int v) { return isWin(v) || isLoss(v); }
-
-struct Stack {
-    PvList pv;
-    i16    staticEval;
-    bool   inCheck;
-};
 
 struct SearchLimit {
     std::chrono::steady_clock::time_point searchStart;
@@ -2866,6 +2765,7 @@ int qsearch(Board& board, int alpha, int beta, SearchLimit* sl) {
     }
 
     MoveList moves = board.generateMoves(true);
+    board.orderCaptures(moves);
     Move     bestMove;
 
     int flag = FAIL_LOW;
@@ -2913,7 +2813,7 @@ int qsearch(Board& board, int alpha, int beta, SearchLimit* sl) {
 
 // Full search function
 template<bool isPV, bool mainThread = false>
-i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, SearchLimit* sl) {
+i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, SearchLimit* sl, ThreadInfo& thisThread) {
     if (depth + ply > 225) {
         depth = 255 - ply; // Clamp depth so it doesn't get too large
     }
@@ -2998,7 +2898,7 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
             && popcountll(board.side ? board.white[0] : board.black[0]) + 1 != popcountll(board.side ? board.whitePieces : board.blackPieces)) {
             Board testBoard = board;
             testBoard.makeNullMove();
-            i16 eval = -search<false, mainThread>(testBoard, ss + 1, depth - NMP_REDUCTION - depth / NMP_REDUCTION_DIVISOR, -beta, -beta + 1, ply + 1, sl);
+            i16 eval = -search<false, mainThread>(testBoard, ss + 1, depth - NMP_REDUCTION - depth / NMP_REDUCTION_DIVISOR, -beta, -beta + 1, ply + 1, sl, thisThread);
             if (eval >= beta) {
                 return eval;
             }
@@ -3013,6 +2913,8 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
     MoveList moves = board.generateMoves();
     Move     bestMove;
     i16      bestEval = -INF_I16;
+
+    moves = board.orderMoves(thisThread, moves);
 
     MoveList seenQuiets;
 
@@ -3048,7 +2950,7 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
         }
 
         // History pruning
-        if (!isLoss(bestEval) && m.isQuiet() && movesMade > 0 && history[board.side][m.from()][m.to()] < HISTORY_PRUNING_SCALAR * depth) {
+        if (!isLoss(bestEval) && m.isQuiet() && movesMade > 0 && thisThread.getHistoryBonus(board.side, m) < HISTORY_PRUNING_SCALAR * depth) {
             continue;
         }
         
@@ -3097,14 +2999,14 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
 
         // Only run PVS with more than one move already searched
         if (movesMade == 1) {
-            eval = -search<true, mainThread>(testBoard, ss + 1, newDepth, -beta, -alpha, ply + 1, sl);
+            eval = -search<true, mainThread>(testBoard, ss + 1, newDepth, -beta, -alpha, ply + 1, sl, thisThread);
         }
         else {
             // Principal variation search stuff
-            eval = -search<false, mainThread>(testBoard, ss + 1, newDepth - depthReduction, -alpha - 1, -alpha, ply + 1, sl);
+            eval = -search<false, mainThread>(testBoard, ss + 1, newDepth - depthReduction, -alpha - 1, -alpha, ply + 1, sl, thisThread);
             // If it fails high and isPV or used reduction, go again with full bounds
             if (eval > alpha && (isPV || depthReduction > 0)) {
-                eval = -search<true, mainThread>(testBoard, ss + 1, newDepth, -beta, -alpha, ply + 1, sl);
+                eval = -search<true, mainThread>(testBoard, ss + 1, newDepth, -beta, -alpha, ply + 1, sl, thisThread);
             }
         }
 
@@ -3127,7 +3029,7 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
             flag = BETA_CUTOFF;
             auto updateHistory = [&](Move m, int bonus) {
                 int clampedBonus = std::clamp(bonus, -MAX_HISTORY, MAX_HISTORY);
-                history[board.side][m.from()][m.to()] += clampedBonus - history[board.side][m.from()][m.to()] * abs(clampedBonus) / MAX_HISTORY;
+                thisThread.history[board.side][m.from()][m.to()] += clampedBonus - thisThread.history[board.side][m.from()][m.to()] * abs(clampedBonus) / MAX_HISTORY;
             };
 
             if (m.isQuiet()) {
@@ -3175,7 +3077,7 @@ i16 search(Board& board, Stack* ss, int depth, int alpha, int beta, int ply, Sea
 
 template<bool mainThread>
 MoveEvaluation
-iterativeDeepening(Board board, int maxDepth, std::atomic<bool>& breakFlag, int wtime = 0, int btime = 0, int mtime = 0, int winc = 0, int binc = 0, u64 maxNodes = 0, u64 softNodes = 0) {
+iterativeDeepening(Board board, int maxDepth, std::atomic<bool>& breakFlag, ThreadInfo& thisThread, int wtime = 0, int btime = 0, int mtime = 0, int winc = 0, int binc = 0, u64 maxNodes = 0, u64 softNodes = 0) {
     if (mainThread)
         breakFlag.store(false);
     lastInfo       = std::chrono::steady_clock::now();
@@ -3226,13 +3128,13 @@ iterativeDeepening(Board board, int maxDepth, std::atomic<bool>& breakFlag, int 
 
         // Full search on depth 1, otherwise try with aspiration window
         if (depth == 1)
-            eval = search<true, mainThread>(board, ss, depth, -INF_I16, INF_I16, 0, &sl);
+            eval = search<true, mainThread>(board, ss, depth, -INF_I16, INF_I16, 0, &sl, thisThread);
         else {  // From Clarity
             int alpha = std::max(-MATE_SCORE, eval - ASPR_DELTA);
             int beta  = std::min(MATE_SCORE, eval + ASPR_DELTA);
             int delta = ASPR_DELTA;
             while (true) {
-                eval = search<true, mainThread>(board, ss, depth, alpha, beta, 0, &sl);
+                eval = search<true, mainThread>(board, ss, depth, alpha, beta, 0, &sl, thisThread);
                 if (sl.stopSearch())
                     break;
                 if (eval >= beta) {
@@ -3361,6 +3263,8 @@ iterativeDeepening(Board board, int maxDepth, std::atomic<bool>& breakFlag, int 
 // Run a worker/helper thread to fill TT
 void runWorker(Board board, std::atomic<bool>& breakFlag, std::atomic<bool>& killFlag) {
     IFDBG cout << "New thread created" << endl;
+    ThreadInfo thisThread;
+    thisThread.reset();
     while (true) {
         if (killFlag.load(std::memory_order_relaxed))
             return;
@@ -3369,16 +3273,17 @@ void runWorker(Board board, std::atomic<bool>& breakFlag, std::atomic<bool>& kil
                 return;
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
-        iterativeDeepening<false>(board,                // Board
-                                  INF_INT,              // Depth
-                                  std::ref(breakFlag),  // Breakflag
-                                  0,                    // Wtime
-                                  0,                    // Btime
-                                  0,                    // Movetime
-                                  0,                    // Winc
-                                  0,                    // Binc
-                                  -1,                   // Soft nodes
-                                  -1);                  // Hard nodes
+        iterativeDeepening<false>(board,      // Board
+                                  INF_INT,    // Depth
+                                  breakFlag,  // Breakflag
+                                  thisThread, // Thread-specific data
+                                  0,          // Wtime
+                                  0,          // Btime
+                                  0,          // Movetime
+                                  0,          // Winc
+                                  0,          // Binc
+                                  -1,         // Soft nodes
+                                  -1);        // Hard nodes
     }
 }
 
@@ -3458,7 +3363,7 @@ void bench(int depth) {
         std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
 
         // Start the iterative deepening search
-        iterativeDeepening<false>(benchBoard, depth, benchBreakFlag, 0, 0, 0, 0, 0, -1, -1);
+        iterativeDeepening<false>(benchBoard, depth, std::ref(benchBreakFlag), std::ref(mainThreadInfo), 0, 0, 0, 0, 0, -1, -1);
 
         std::chrono::high_resolution_clock::time_point endTime    = std::chrono::high_resolution_clock::now();
         double                                         durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
@@ -3612,6 +3517,9 @@ void writeToFile(std::ofstream& outFile, const std::vector<DataUnit>& data) {
 void playGames() {
     string filePath = "./data/" + makeFileName();
 
+    ThreadInfo thisThread;
+    thisThread.reset();
+
     if (!std::filesystem::is_directory("./data/"))
         std::filesystem::create_directory("./data/");
 
@@ -3674,14 +3582,7 @@ mainLoop:
         cout << endl;
 
         TT.clear();
-        for (auto& side : history) {
-            for (auto& from : side) {
-                for (auto& to : from) {
-                    to = 0;
-                }
-            }
-        }
-
+        thisThread.reset();
         board.reset();
 
         for (int i = 0; i < RAND_MOVES; i++) {
@@ -3693,14 +3594,15 @@ mainLoop:
         MarlinFormat startpos(board);
 
         while (!board.isGameOver()) {
-            MoveEvaluation bestMove = iterativeDeepening<false>(board,                // Board
-                                                                INF_INT,              // Depth
-                                                                std::ref(breakFlag),  // Breakflag
-                                                                0,                    // Wtime
-                                                                0,                    // Btime
-                                                                0,                    // Movetime
-                                                                0,                    // Winc
-                                                                0,                    // Binc
+            MoveEvaluation bestMove = iterativeDeepening<false>(board,      // Board
+                                                                INF_INT,    // Depth
+                                                                breakFlag,  // Breakflag
+                                                                thisThread, // Thread-specific data
+                                                                0,          // Wtime
+                                                                0,          // Btime
+                                                                0,          // Movetime
+                                                                0,          // Winc
+                                                                0,          // Binc
                                                                 NODES_PER_MOVE, MAX_NODES_PER_MOVE);
             board.move(bestMove.move);
             gameData.push_back(ScoredViriMove(bestMove.move.toViri(), board.side == WHITE ? bestMove.eval : -bestMove.eval));
@@ -3841,13 +3743,8 @@ int main(int argc, char* argv[]) {
             stopSearch();
 
             TT.clear();
-            for (auto& side : history) {
-                for (auto& from : side) {
-                    for (auto& to : from) {
-                        to = 0;
-                    }
-                }
-            }
+            mainThreadInfo.reset();
+            currentPos.reset();
         }
         else if (parsedCommand[0] == "setoption") {
             // Assumes setoption name ...
@@ -3918,7 +3815,7 @@ int main(int argc, char* argv[]) {
             int binc = getValueFromUCI("binc", 0);
 
 
-            searchThread = std::thread(iterativeDeepening<true>, currentPos, depth, std::ref(breakFlag), wtime, btime, mtime, winc, binc, maxNodes, maxSoftNodes);
+            searchThread = std::thread(iterativeDeepening<true>, currentPos, depth, std::ref(breakFlag), std::ref(mainThreadInfo), wtime, btime, mtime, winc, binc, maxNodes, maxSoftNodes);
         }
         else if (command == "stop") {
             stopSearch();
