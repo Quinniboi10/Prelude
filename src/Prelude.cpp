@@ -3241,7 +3241,7 @@ iterativeDeepening(Board board, int maxDepth, std::atomic<bool>& breakFlag, int 
 
         // Full search on depth 1, otherwise try with aspiration window
         if (depth == 1)
-            eval = search<true, mainThread>(board, ss, depth, -INF_INT, INF_INT, 0, &sl);
+            eval = search<true, mainThread>(board, ss, depth, -INF_I16, INF_I16, 0, &sl);
         else {  // From Clarity
             int alpha = std::max(-MATE_SCORE, eval - ASPR_DELTA);
             int beta  = std::min(MATE_SCORE, eval + ASPR_DELTA);
