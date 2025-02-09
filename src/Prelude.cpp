@@ -274,22 +274,22 @@ class Precomputed {
     static array<u64, 65> zobristEP;
     static array<u64, 16> zobristCastling;
     static array<u64, 2>  zobristSide;
-    static constexpr u64  isOnA = 0x101010101010101;
-    static constexpr u64  isOnB = 0x202020202020202;
-    static constexpr u64  isOnC = 0x404040404040404;
-    static constexpr u64  isOnD = 0x808080808080808;
-    static constexpr u64  isOnE = 0x1010101010101010;
-    static constexpr u64  isOnF = 0x2020202020202020;
-    static constexpr u64  isOnG = 0x4040404040404040;
-    static constexpr u64  isOnH = 0x8080808080808080;
-    static constexpr u64  isOn1 = 0xff;
-    static constexpr u64  isOn2 = 0xff00;
-    static constexpr u64  isOn3 = 0xff0000;
-    static constexpr u64  isOn4 = 0xff000000;
-    static constexpr u64  isOn5 = 0xff00000000;
-    static constexpr u64  isOn6 = 0xff0000000000;
-    static constexpr u64  isOn7 = 0xff000000000000;
-    static constexpr u64  isOn8 = 0xff00000000000000;
+    static constexpr u64  A_FILE = 0x101010101010101;
+    static constexpr u64  B_FILE = 0x202020202020202;
+    static constexpr u64  C_FILE = 0x404040404040404;
+    static constexpr u64  D_FILE = 0x808080808080808;
+    static constexpr u64  E_FILE = 0x1010101010101010;
+    static constexpr u64  F_FILE = 0x2020202020202020;
+    static constexpr u64  G_FILE = 0x4040404040404040;
+    static constexpr u64  H_FILE = 0x8080808080808080;
+    static constexpr u64  RANK_1 = 0xff;
+    static constexpr u64  RANK_2 = 0xff00;
+    static constexpr u64  RANK_3 = 0xff0000;
+    static constexpr u64  RANK_4 = 0xff000000;
+    static constexpr u64  RANK_5 = 0xff00000000;
+    static constexpr u64  RANK_6 = 0xff0000000000;
+    static constexpr u64  RANK_7 = 0xff000000000000;
+    static constexpr u64  RANK_8 = 0xff00000000000000;
     static void           compute() {
         // *** MAKE RANDOM ZOBRIST TABLE ****
         std::random_device rd;
@@ -352,16 +352,16 @@ template<Color c>
 u64 pawnAttacksBB(const int sq) {
     const u64 pawnBB = 1ULL << sq;
     if constexpr (c == WHITE) {
-        if (pawnBB & Precomputed::isOnA)
+        if (pawnBB & Precomputed::A_FILE)
             return shift<NORTH_EAST>(pawnBB);
-        if (pawnBB & Precomputed::isOnH)
+        if (pawnBB & Precomputed::H_FILE)
             return shift<NORTH_WEST>(pawnBB);
         return shift<NORTH_EAST>(pawnBB) | shift<NORTH_WEST>(pawnBB);
     }
     else {
-        if (pawnBB & Precomputed::isOnA)
+        if (pawnBB & Precomputed::A_FILE)
             return shift<SOUTH_EAST>(pawnBB);
-        if (pawnBB & Precomputed::isOnH)
+        if (pawnBB & Precomputed::H_FILE)
             return shift<SOUTH_WEST>(pawnBB);
         return shift<SOUTH_EAST>(pawnBB) | shift<SOUTH_WEST>(pawnBB);
     }
@@ -989,18 +989,18 @@ class Board {
         pawnPushes &= ~pieces();
         int currentSquare;
 
-        u64 pawnCaptureRight   = pawns & ~(Precomputed::isOnH);
+        u64 pawnCaptureRight   = pawns & ~(Precomputed::H_FILE);
         pawnCaptureRight       = side ? (shift<NORTH_EAST>(pawnCaptureRight)) : (shift<SOUTH_EAST>(pawnCaptureRight));
         u64 pawnCaptureRightEP = pawnCaptureRight & enPassant;
         pawnCaptureRight &= pieces(~side);
 
-        u64 pawnCaptureLeft   = pawns & ~(Precomputed::isOnA);
+        u64 pawnCaptureLeft   = pawns & ~(Precomputed::A_FILE);
         pawnCaptureLeft       = side ? (shift<NORTH_WEST>(pawnCaptureLeft)) : (shift<SOUTH_WEST>(pawnCaptureLeft));
         u64 pawnCaptureLeftEP = pawnCaptureLeft & enPassant;
         pawnCaptureLeft &= pieces(~side);
 
         u64 pawnDoublePush = side ? (shift<NORTH>(pawnPushes)) : (shift<SOUTH>(pawnPushes));
-        pawnDoublePush &= side ? Precomputed::isOn4 : Precomputed::isOn5;
+        pawnDoublePush &= side ? Precomputed::RANK_4 : Precomputed::RANK_5;
         pawnDoublePush &= ~pieces();
 
         backShift = side ? SOUTH_SOUTH : NORTH_NORTH;
@@ -1014,7 +1014,7 @@ class Board {
         backShift = side ? SOUTH : NORTH;
         while (pawnPushes) {
             currentSquare = ctzll(pawnPushes);
-            if ((1ULL << currentSquare) & (Precomputed::isOn1 | Precomputed::isOn8)) {
+            if ((1ULL << currentSquare) & (Precomputed::RANK_1 | Precomputed::RANK_8)) {
                 moves.add(Move(currentSquare + backShift, currentSquare, QUEEN_PROMO));
                 moves.add(Move(currentSquare + backShift, currentSquare, ROOK_PROMO));
                 moves.add(Move(currentSquare + backShift, currentSquare, BISHOP_PROMO));
@@ -1029,7 +1029,7 @@ class Board {
         backShift = side ? SOUTH_WEST : NORTH_WEST;
         while (pawnCaptureRight) {
             currentSquare = ctzll(pawnCaptureRight);
-            if ((1ULL << currentSquare) & (Precomputed::isOn1 | Precomputed::isOn8)) {
+            if ((1ULL << currentSquare) & (Precomputed::RANK_1 | Precomputed::RANK_8)) {
                 moves.add(Move(currentSquare + backShift, currentSquare, QUEEN_PROMO_CAPTURE));
                 moves.add(Move(currentSquare + backShift, currentSquare, ROOK_PROMO_CAPTURE));
                 moves.add(Move(currentSquare + backShift, currentSquare, BISHOP_PROMO_CAPTURE));
@@ -1044,7 +1044,7 @@ class Board {
         backShift = side ? SOUTH_EAST : NORTH_EAST;
         while (pawnCaptureLeft) {
             currentSquare = ctzll(pawnCaptureLeft);
-            if ((1ULL << currentSquare) & (Precomputed::isOn1 | Precomputed::isOn8)) {
+            if ((1ULL << currentSquare) & (Precomputed::RANK_1 | Precomputed::RANK_8)) {
                 moves.add(Move(currentSquare + backShift, currentSquare, QUEEN_PROMO_CAPTURE));
                 moves.add(Move(currentSquare + backShift, currentSquare, ROOK_PROMO_CAPTURE));
                 moves.add(Move(currentSquare + backShift, currentSquare, BISHOP_PROMO_CAPTURE));
@@ -1388,7 +1388,8 @@ class Board {
 
     // Update checkers and pinners
     void updateCheckPin() {
-        int kingIndex = ctzll(side ? white[5] : black[5]);
+        u64 kingBB = pieces(side, KING);
+        int kingSq = ctzll(kingBB);
 
         u64   ourPieces         = pieces(side);
         auto& opponentPieces    = side ? black : white;
@@ -1396,36 +1397,44 @@ class Board {
         u64   enemyBishopQueens = pieces(~side, BISHOP, QUEEN);
 
         // Direct attacks for potential checks
-        u64 rookChecks   = getRookAttacks(Square(kingIndex), pieces()) & enemyRookQueens;
-        u64 bishopChecks = getBishopAttacks(Square(kingIndex), pieces()) & enemyBishopQueens;
+        u64 rookChecks   = getRookAttacks(Square(kingSq), pieces()) & enemyRookQueens;
+        u64 bishopChecks = getBishopAttacks(Square(kingSq), pieces()) & enemyBishopQueens;
         u64 checks       = rookChecks | bishopChecks;
         checkMask        = 0;  // If no checks, will be set to all 1s later.
 
         // *** KNIGHT ATTACKS ***
-        u64 knightAttacks = KNIGHT_ATTACKS[kingIndex] & opponentPieces[1];
+        u64 knightAttacks = KNIGHT_ATTACKS[kingSq] & pieces(~side, KNIGHT);
         while (knightAttacks) {
             checkMask |= (1ULL << ctzll(knightAttacks));
             knightAttacks &= knightAttacks - 1;
         }
 
         // *** PAWN ATTACKS ***
-        if (side) {
-            if ((opponentPieces[0] & (1ULL << (kingIndex + 7))) && (kingIndex % 8 != 0))
-                checkMask |= (1ULL << (kingIndex + 7));
-            if ((opponentPieces[0] & (1ULL << (kingIndex + 9))) && (kingIndex % 8 != 7))
-                checkMask |= (1ULL << (kingIndex + 9));
+        /*if (side) {
+            if ((pieces(~side, PAWN) & (1ULL << (kingSq + 7))) && (kingSq % 8 != 0))
+                checkMask |= (1ULL << (kingSq + 7));
+            if ((opponentPieces[0] & (1ULL << (kingSq + 9))) && (kingSq % 8 != 7))
+                checkMask |= (1ULL << (kingSq + 9));
         }
         else {
-            if ((opponentPieces[0] & (1ULL << (kingIndex - 7))) && (kingIndex % 8 != 7))
-                checkMask |= (1ULL << (kingIndex - 7));
-            if ((opponentPieces[0] & (1ULL << (kingIndex - 9))) && (kingIndex % 8 != 0))
-                checkMask |= (1ULL << (kingIndex - 9));
+            if ((opponentPieces[0] & (1ULL << (kingSq - 7))) && (kingSq % 8 != 7))
+                checkMask |= (1ULL << (kingSq - 7));
+            if ((opponentPieces[0] & (1ULL << (kingSq - 9))) && (kingSq % 8 != 0))
+                checkMask |= (1ULL << (kingSq - 9));
+        }*/
+        if (side) {
+            checkMask |= shift<NORTH_WEST>(kingBB & ~Precomputed::A_FILE) & pieces(BLACK, PAWN);
+            checkMask |= shift<NORTH_EAST>(kingBB & ~Precomputed::H_FILE) & pieces(BLACK, PAWN);
+        }
+        else {
+            checkMask |= shift<SOUTH_WEST>(kingBB & ~Precomputed::A_FILE) & pieces(WHITE, PAWN);
+            checkMask |= shift<SOUTH_EAST>(kingBB & ~Precomputed::H_FILE) & pieces(WHITE, PAWN);
         }
 
-        popcountll(checks | checkMask) > 1 ? doubleCheck = true : doubleCheck = false;
+        doubleCheck = popcountll(checks | checkMask) > 1;
 
         while (checks) {
-            checkMask |= LINESEG[kingIndex][ctzll(checks)];
+            checkMask |= LINESEG[kingSq][ctzll(checks)];
             checks &= checks - 1;
         }
 
@@ -1433,14 +1442,14 @@ class Board {
             checkMask = INF_U64;  // If no checks, set to all ones
 
         // ****** PIN STUFF HERE ******
-        u64 rookXrays     = getXrayRookAttacks(Square(kingIndex), pieces(), ourPieces) & enemyRookQueens;
-        u64 bishopXrays   = getXrayBishopAttacks(Square(kingIndex), pieces(), ourPieces) & enemyBishopQueens;
+        u64 rookXrays     = getXrayRookAttacks(Square(kingSq), pieces(), ourPieces) & enemyRookQueens;
+        u64 bishopXrays   = getXrayBishopAttacks(Square(kingSq), pieces(), ourPieces) & enemyBishopQueens;
         u64 pinners       = rookXrays | bishopXrays;
         pinnersPerC[side] = pinners;
 
         pinned = 0;
         while (pinners) {
-            pinned |= LINESEG[ctzll(pinners)][kingIndex] & ourPieces;
+            pinned |= LINESEG[ctzll(pinners)][kingSq] & ourPieces;
             pinners &= pinners - 1;
         }
     }

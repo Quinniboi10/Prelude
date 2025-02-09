@@ -31,7 +31,7 @@ $(EXE): $(SRCS)
 # Debug Build
 .PHONY: debug
 debug: clean
-debug: CXXFLAGS = -march=native -std=c++20 -O0 -DDEBUG -fsanitize=address -fno-omit-frame-pointer -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -Wall -Wextra
+debug: CXXFLAGS = -march=native -std=c++20 -O2 -DDEBUG -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -Wall -Wextra
 debug: all
 
 # Debug Build
