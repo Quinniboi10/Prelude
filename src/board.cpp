@@ -25,7 +25,7 @@ u64 Board::pieces(Color c) const {
 u64 Board::pieces(PieceType pt) const { return white[pt] | black[pt]; }
 
 template<Color c>
-u64 pawnAttackBB(int sq) {
+u64 Board::pawnAttackBB(int sq) {
     assert(sq > 0);
     assert(sq < 64);
 
