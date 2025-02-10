@@ -13,7 +13,7 @@ constexpr bool ISDBG = false;
 #endif
 #define IFDBG if constexpr (ISDBG)
 
-#define ctzll(x) = std::countr_zero(x);
+#define ctzll(x) std::countr_zero(x)
 
 using u64 = uint64_t;
 using u32 = uint32_t;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core.h"
+#include "util.h"
 #include "types.h"
 #include "move.h"
 
@@ -9,7 +9,8 @@ class Board {
     array<u64, 6> white;
     array<u64, 6> black;
 
-    u64 enPassant;
+    int epSquare;
+    // Only last 4 bits are meaningful, index KQkq
     u8  castlingRights;
 
     Color stm = WHITE;
@@ -23,12 +24,17 @@ class Board {
     u64 pieces(Color c) const;
     u64 pieces(PieceType pt) const;
 
+    template<Color c>
+    u64 pawnAttackBB(int sq);
+
     void placePiece(Color c, PieceType pt, int sq);
     void removePiece(Color c, PieceType pt, int sq);
     void removePiece(Color c, int sq);
 
-public:
+   public:
     void reset();
+
+    void loadFromFEN(string fen);
 
     void display() const;
 
