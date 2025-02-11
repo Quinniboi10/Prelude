@@ -16,7 +16,7 @@ BinPackParameters: false
 BreakBeforeBinaryOperators: NonAssignment
 BreakBeforeBraces: Custom
 BraceWrapping:
-  AfterFunction: false 
+  AfterFunction: false
   AfterClass: false
   AfterControlStatement: false
   BeforeElse: true
@@ -37,8 +37,9 @@ SortIncludes: false
 SortUsingDeclarations: false
 SpaceAfterCStyleCast: true
 SpaceAfterTemplateKeyword: false
-SpaceBeforeCaseColon: true
+SpaceBeforeCaseColon: false
 SpaceBeforeCpp11BracedList: false
 SpaceBeforeInheritanceColon: false
 SpaceInEmptyBlock: false
 SpacesBeforeTrailingComments: 2
+SpacesInAngles: false

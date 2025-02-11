@@ -1,6 +1,10 @@
 #pragma once
 
-#include "board.h"
+#include <cassert>
+
+#include "types.h"
+
+struct Board;
 
 class Move {
     // See https://www.chessprogramming.org/Encoding_Moves
@@ -9,16 +13,20 @@ class Move {
     // SPECIAL 1 = 13
     // SPECIAL 0 = 12
    private:
-    uint16_t move;
+    u16 move;
 
    public:
     constexpr Move() { move = 0; }
 
     constexpr Move(u8 startSquare, u8 endSquare, int flags = STANDARD_MOVE) {
+        assert(flags <= 0b1111);
         move = startSquare;
         move |= endSquare << 6;
         move |= flags << 12;
     }
+
+    constexpr Move(string strIn, Board& board);
+
 
     string toString() const;
 
@@ -75,4 +83,26 @@ class Move {
     }
 
     bool operator==(const Move other) const { return move == other.move; }
+
+    friend std::ostream& operator<<(std::ostream& os, const Move& m) {
+        os << m.toString();
+        return os;
+    }
+};
+
+struct MoveList {
+    array<Move, 256> moves;
+    usize            length;
+
+    constexpr MoveList() { length = 0; }
+
+    void add(Move m) {
+        assert(length < 256);
+        moves[length++] = m;
+    }
+
+    void add(u8 from, u8 to, int flags = STANDARD_MOVE) { add(Move(from, to, flags)); }
+
+    auto begin() { return moves.begin(); }
+    auto end() { return moves.begin() + length; }
 };
