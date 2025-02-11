@@ -7,14 +7,10 @@
 
 #include "types.h"
 
-inline array<u64, 8> FILE_BB = {0x101010101010101, 0x202020202020202, 0x404040404040404, 0x808080808080808, 0x1010101010101010, 0x2020202020202020, 0x4040404040404040, 0x8080808080808080};
-
-inline bool readBit(u64 bb, int sq) {
-    return (1ULL << sq) & bb;
-}
+inline bool readBit(u64 bb, int sq) { return (1ULL << sq) & bb; }
 
 template<bool value>
-inline void setBit(auto& bitboard, int index) {
+inline void setBit(auto& bitboard, usize index) {
     assert(index <= sizeof(bitboard) * 8);
     if constexpr (value)
         bitboard |= (1ULL << index);
@@ -22,10 +18,19 @@ inline void setBit(auto& bitboard, int index) {
         bitboard &= ~(1ULL << index);
 }
 
-template<Direction dir>
+inline Square popLSB(auto& bb) {
+    assert(bb > 0);
+    Square sq = static_cast<Square>(ctzll(bb));
+    bb &= bb - 1;
+    return sq;
+}
+
+template<int dir>
 inline u64 shift(u64 bb) {
     return dir > 0 ? bb << dir : bb >> -dir;
 }
+
+inline u64 shift(int dir, u64 bb) { return dir > 0 ? bb << dir : bb >> -dir; }
 
 inline std::vector<string> split(const string& str, char delim) {
     std::vector<std::string> result;
@@ -42,8 +47,32 @@ inline std::vector<string> split(const string& str, char delim) {
     return result;
 }
 
+constexpr Rank rankOf(Square s) { return Rank(s >> 3); }
+constexpr File fileOf(Square s) { return File(s & 0b111); }
+
+constexpr Rank flipRank(Square s) { return Rank(s ^ 0b111000); }
+
+constexpr Square toSquare(Rank rank, File file) { return static_cast<Square>((rank << 3) | file); }
+
 // Takes square (h8) and converts it into a bitboard index (64)
-static int parseSquare(const string square) { return (square.at(1) - '1') * 8 + (square.at(0) - 'a'); }
+constexpr Square parseSquare(const string square) { return static_cast<Square>((square.at(1) - '1') * 8 + (square.at(0) - 'a')); }
 
 // Takes a square (64) and converts into algebraic notation (h8)
-static string squareToAlgebraic(int sq) { return string(1, 'a' + (sq % 8)) + string(1, '1' + (sq / 8)); };
+constexpr string squareToAlgebraic(int sq) { return string(1, 'a' + (sq % 8)) + string(1, '1' + (sq / 8)); };
+
+// Print a bitboard (for debugging individual bitboards)
+inline void printBitboard(u64 bitboard) {
+    for (int rank = 7; rank >= 0; --rank) {
+        cout << "+---+---+---+---+---+---+---+---+" << endl;
+        for (int file = 0; file < 8; ++file) {
+            int  i            = rank * 8 + file;  // Map rank and file to bitboard index
+            char currentPiece = readBit(bitboard, i) ? '1' : ' ';
+
+            cout << "| " << currentPiece << " ";
+        }
+        cout << "|" << endl;
+    }
+    cout << "+---+---+---+---+---+---+---+---+" << endl;
+}
+
+constexpr Square castleSq(Color c, bool kingside) { return c == WHITE ? (kingside ? h1 : a1) : (kingside ? h8 : a8); }

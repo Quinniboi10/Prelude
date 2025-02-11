@@ -86,6 +86,14 @@ enum File : int {
     AFILE, BFILE, CFILE, DFILE, EFILE, FFILE, GFILE, HFILE
 };
 
+constexpr u64 MASK_FILE[8] = {
+  0x101010101010101, 0x202020202020202, 0x404040404040404, 0x808080808080808, 0x1010101010101010, 0x2020202020202020, 0x4040404040404040, 0x8080808080808080,
+};
+
+constexpr u64 MASK_RANK[8] = {
+    0xff, 0xff00, 0xff0000, 0xff000000, 0xff00000000, 0xff0000000000, 0xff000000000000, 0xff00000000000000
+};
+
 enum Rank : int {
     RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8
 };
@@ -109,6 +117,9 @@ enum MoveType {
 enum flags {
     UNDEFINED, FAIL_LOW, BETA_CUTOFF, EXACT
 };
+
+extern array<array<u64, 64>, 64> LINE;
+extern array<array<u64, 64>, 64> LINESEG;
 
 struct Colors {
     // ANSI codes for colors https://raw.githubusercontent.com/fidian/ansi/master/images/color-codes.png

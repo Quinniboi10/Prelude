@@ -4,34 +4,33 @@
 #include "types.h"
 #include "move.h"
 
-class Board {
+struct Board {
     // Indexed pawns, knights, bishops, rooks, queens, king
     array<u64, 6> white;
     array<u64, 6> black;
 
-    int epSquare;
+    Square epSquare;
     // Only last 4 bits are meaningful, index KQkq
-    u8  castlingRights;
+    u8 castlingRights;
 
-    Color stm = WHITE;
+    Color stm;
 
     int halfMoveClock;
     int fullMoveClock;
 
+   private:
     char getPieceAt(int i) const;
-
-    u64 pieces() const;
-    u64 pieces(Color c) const;
-    u64 pieces(PieceType pt) const;
-
-    template<Color c>
-    u64 pawnAttackBB(int sq);
 
     void placePiece(Color c, PieceType pt, int sq);
     void removePiece(Color c, PieceType pt, int sq);
     void removePiece(Color c, int sq);
 
    public:
+    u64 pieces() const;
+    u64 pieces(Color c) const;
+    u64 pieces(PieceType pt) const;
+    u64 pieces(Color c, PieceType pt) const;
+
     void reset();
 
     void loadFromFEN(string fen);
@@ -41,4 +40,6 @@ class Board {
     PieceType getPiece(int sq);
 
     void move(Move m);
+
+    bool canCastle(Color c, bool kingside);
 };

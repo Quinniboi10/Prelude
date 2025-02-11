@@ -15,27 +15,6 @@ char Board::getPieceAt(int i) const {
     return ' ';
 }
 
-u64 Board::pieces() const { return pieces(WHITE) | pieces(BLACK); }
-u64 Board::pieces(Color c) const {
-    if (c == WHITE) {
-        return white[0] | white[1] | white[2] | white[3] | white[4] | white[5];
-    }
-    return black[0] | black[1] | black[2] | black[3] | black[4] | black[5];
-}
-u64 Board::pieces(PieceType pt) const { return white[pt] | black[pt]; }
-
-template<Color c>
-u64 Board::pawnAttackBB(int sq) {
-    assert(sq > 0);
-    assert(sq < 64);
-
-    const u64 sqBB = 1ULL << sq;
-    if constexpr (c == WHITE) {
-        return shift<NORTH_EAST>(sqBB & ~FILE_BB[HFILE]) | shift<NORTH_WEST>(sqBB & ~FILE_BB[AFILE]);
-    }
-    return shift<SOUTH_EAST>(sqBB & ~FILE_BB[HFILE]) | shift<SOUTH_WEST>(sqBB & ~FILE_BB[AFILE]);
-}
-
 void Board::placePiece(Color c, PieceType pt, int sq) {
     assert(sq > 0);
     assert(sq < 64);
@@ -69,6 +48,16 @@ void Board::removePiece(Color c, int sq) {
     BB ^= 1ULL << sq;
 }
 
+u64 Board::pieces() const { return pieces(WHITE) | pieces(BLACK); }
+u64 Board::pieces(Color c) const {
+    if (c == WHITE) {
+        return white[0] | white[1] | white[2] | white[3] | white[4] | white[5];
+    }
+    return black[0] | black[1] | black[2] | black[3] | black[4] | black[5];
+}
+u64 Board::pieces(PieceType pt) const { return white[pt] | black[pt]; }
+u64 Board::pieces(Color c, PieceType pt) const { return c == WHITE ? white[pt] : black[pt]; }
+
 // Reset the board to startpos
 void Board::reset() {
     white[0] = 0xFF00ULL;
@@ -88,7 +77,7 @@ void Board::reset() {
     stm            = WHITE;
     castlingRights = 0b1111;
 
-    epSquare = 0;
+    epSquare = NO_SQUARE;
 
     halfMoveClock = 0;
     fullMoveClock = 1;
@@ -100,8 +89,10 @@ void Board::loadFromFEN(string fen) {
     reset();
 
     // Clear all squares
-    for (auto& bb : white) bb = 0;
-    for (auto& bb : black) bb = 0;
+    for (auto& bb : white)
+        bb = 0;
+    for (auto& bb : black)
+        bb = 0;
 
     std::vector<string> tokens = split(fen, ' ');
 
@@ -109,12 +100,12 @@ void Board::loadFromFEN(string fen) {
 
     int currIdx = 56;
 
-    const char whitePieces[6] = { 'P', 'N', 'B', 'R', 'Q', 'K' };
-    const char blackPieces[6] = { 'p', 'n', 'b', 'r', 'q', 'k' };
+    const char whitePieces[6] = {'P', 'N', 'B', 'R', 'Q', 'K'};
+    const char blackPieces[6] = {'p', 'n', 'b', 'r', 'q', 'k'};
 
     for (const string& rank : rankTokens) {
         for (const char c : rank) {
-            if (isdigit(c)) { // Empty squares
+            if (isdigit(c)) {  // Empty squares
                 currIdx += c - '0';
                 continue;
             }
@@ -130,7 +121,7 @@ void Board::loadFromFEN(string fen) {
             }
             currIdx++;
         }
-    currIdx -= 16;
+        currIdx -= 16;
     }
 
     if (tokens[1] == "w")
@@ -152,7 +143,7 @@ void Board::loadFromFEN(string fen) {
     if (tokens[3] != "-")
         epSquare = parseSquare(tokens[3]);
     else
-        epSquare = 0;
+        epSquare = NO_SQUARE;
 
     halfMoveClock = tokens.size() > 4 ? (stoi(tokens[5])) : 0;
     fullMoveClock = tokens.size() > 5 ? (stoi(tokens[5])) : 1;
@@ -210,8 +201,8 @@ void Board::move(Move m) {
         break;
     case DOUBLE_PUSH:
         placePiece(stm, pt, to);
-        if (pieces(~stm) & (shift<EAST>(1ULL << to) | shift<WEST>(1ULL << to))) // Only set EP square if it could be taken
-            epSquare = stm == WHITE ? from + 8 : from - 8;
+        if (pieces(~stm) & (shift<EAST>(1ULL << to) | shift<WEST>(1ULL << to)))  // Only set EP square if it could be taken
+            epSquare = Square(stm == WHITE ? from + 8 : from - 8);
         break;
     case CASTLE_K:
         placePiece(stm, pt, to);
@@ -237,7 +228,7 @@ void Board::move(Move m) {
             placePiece(stm, ROOK, d8);
         }
         break;
-    case CAPTURE: // This falls through
+    case CAPTURE:  // This falls through
         removePiece(~stm, to);
     case QUEEN_PROMO:
     case QUEEN_PROMO_CAPTURE:
@@ -260,3 +251,6 @@ void Board::move(Move m) {
 
     stm = ~stm;
 }
+
+
+bool Board::canCastle(Color c, bool kingside) { return readBit(castlingRights, c == WHITE ? (kingside ? 3 : 2) : (kingside ? 1 : 0)); }
