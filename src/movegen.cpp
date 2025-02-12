@@ -231,8 +231,8 @@ void Movegen::initializeAllDatabases() {
 }
 
 u64 Movegen::pawnAttackBB(Color c, int sq) {
-    assert(sq > 0);
-    assert(sq < 64);
+    assert(sq >= a1);
+    assert(sq < NO_SQUARE);
 
     const u64 sqBB = 1ULL << sq;
     if (c == WHITE) {
@@ -242,12 +242,14 @@ u64 Movegen::pawnAttackBB(Color c, int sq) {
 }
 
 void Movegen::pawnMoves(Board& board, MoveList& moves) {
+    u64 pawns = board.pieces(board.stm, PAWN);
     Direction pushDir      = board.stm == WHITE ? NORTH : SOUTH;
-    u64       singlePushes = shift(pushDir, board.pieces(board.stm, PAWN)) & ~board.pieces();
+    u64       singlePushes = shift(pushDir, pawns) & ~board.pieces();
     u64       doublePushes = shift(pushDir, singlePushes) & ~board.pieces();
+    doublePushes &= board.stm == WHITE ? MASK_RANK[RANK4] : MASK_RANK[RANK5];
 
-    u64 captureEast = shift(pushDir + EAST, board.pieces(board.stm, PAWN) & MASK_FILE[HFILE]) & board.pieces(~board.stm);
-    u64 captureWest = shift(pushDir + WEST, board.pieces(board.stm, PAWN) & MASK_FILE[AFILE]) & board.pieces(~board.stm);
+    u64 captureEast = shift(pushDir + EAST, pawns & ~MASK_FILE[HFILE]) & board.pieces(~board.stm);
+    u64 captureWest = shift(pushDir + WEST, pawns & ~MASK_FILE[AFILE]) & board.pieces(~board.stm);
 
     auto addPromos = [&](Square from, Square to, MoveType mt = STANDARD_MOVE) {
         assert(from >= 0);
@@ -304,9 +306,11 @@ void Movegen::pawnMoves(Board& board, MoveList& moves) {
     }
 
     if (board.epSquare != NO_SQUARE) {
-        u64 epMoves = pawnAttackBB(~board.stm, board.epSquare);
+        u64 epMoves = pawnAttackBB(~board.stm, board.epSquare) & board.pieces(board.stm, PAWN);
+
+        if (!epMoves) board.display();
         while (epMoves) {
-            Square from = popLSB(captureWest);
+            Square from = popLSB(epMoves);
 
             moves.add(from, board.epSquare, EN_PASSANT);
         }
@@ -316,47 +320,56 @@ void Movegen::pawnMoves(Board& board, MoveList& moves) {
 void Movegen::knightMoves(Board& board, MoveList& moves) {
     u64 knightBB = board.pieces(board.stm, KNIGHT);
 
+    u64 occ = board.pieces();
+    u64 friendly = board.pieces(board.stm);
+
     while (knightBB > 0) {
         Square currentSquare = popLSB(knightBB);
 
         u64 knightMoves = KNIGHT_ATTACKS[currentSquare];
-        knightMoves &= ~board.pieces(board.stm);
+        knightMoves &= ~friendly;
 
         while (knightMoves > 0) {
             Square to = popLSB(knightMoves);
-            moves.add(currentSquare, to, ((1ULL << to) & board.pieces()) ? CAPTURE : STANDARD_MOVE);
+            moves.add(currentSquare, to, ((1ULL << to) & occ) ? CAPTURE : STANDARD_MOVE);
         }
     }
 }
 
 void Movegen::bishopMoves(Board& board, MoveList& moves) {
-    u64 bishopBB = board.pieces(board.stm, BISHOP) | board.pieces(board.stm, QUEEN);
+    u64 bishopBB = board.pieces(board.stm, BISHOP, QUEEN);
+
+    u64 occ = board.pieces();
+    u64 friendly = board.pieces(board.stm);
 
     while (bishopBB > 0) {
         Square currentSquare = popLSB(bishopBB);
 
-        u64 bishopMoves = getBishopAttacks(currentSquare, board.pieces());
-        bishopMoves &= ~board.pieces(board.stm);
+        u64 bishopMoves = getBishopAttacks(currentSquare, occ);
+        bishopMoves &= ~friendly;
 
         while (bishopMoves > 0) {
             Square to = popLSB(bishopMoves);
-            moves.add(currentSquare, to, ((1ULL << to) & board.pieces()) ? CAPTURE : STANDARD_MOVE);
+            moves.add(currentSquare, to, ((1ULL << to) & occ) ? CAPTURE : STANDARD_MOVE);
         }
     }
 }
 
 void Movegen::rookMoves(Board& board, MoveList& moves) {
-    u64 rookBB = board.pieces(board.stm, ROOK) | board.pieces(board.stm, QUEEN);
+    u64 rookBB = board.pieces(board.stm, ROOK, QUEEN);
+
+    u64 occ = board.pieces();
+    u64 friendly = board.pieces(board.stm);
 
     while (rookBB > 0) {
         Square currentSquare = popLSB(rookBB);
 
-        u64 rookMoves = getBishopAttacks(currentSquare, board.pieces());
-        rookMoves &= ~board.pieces(board.stm);
+        u64 rookMoves = getRookAttacks(currentSquare, occ);
+        rookMoves &= ~friendly;
 
         while (rookMoves > 0) {
             Square to = popLSB(rookMoves);
-            moves.add(currentSquare, to, ((1ULL << to) & board.pieces()) ? CAPTURE : STANDARD_MOVE);
+            moves.add(currentSquare, to, ((1ULL << to) & occ) ? CAPTURE : STANDARD_MOVE);
         }
     }
 }
@@ -364,6 +377,7 @@ void Movegen::rookMoves(Board& board, MoveList& moves) {
 void Movegen::kingMoves(Board& board, MoveList& moves) {    
     Square kingSq = Square(ctzll(board.pieces(board.stm, KING)));
 
+    assert(kingSq >= a1);
     assert(kingSq < NO_SQUARE);
 
     u64 kingMoves = KING_ATTACKS[kingSq];
@@ -388,4 +402,177 @@ MoveList Movegen::generateMoves(Board& board) {
     // Note: Queen moves are done at the same time as bishop/rook moves
 
     return moves;
+}
+
+bool Movegen::isLegal(Board& board, Move m) {
+    int from = m.from();
+    int to   = m.to();
+
+    // Delete null moves
+    if (from == to)
+        return false;
+
+    // Castling checks
+    if (m.typeOf() == CASTLE_K || m.typeOf() == CASTLE_Q) {
+        bool kingside = (m.typeOf() == CASTLE_K);
+        if (!board.canCastle(board.stm, kingside))
+            return false;
+        if (inCheck(board))
+            return false;
+        if (board.stm == WHITE) {
+            if (kingside) {
+                if ((board.pieces() & ((1ULL << f1) | (1ULL << g1))) != 0)
+                    return false;
+                if (isUnderAttack(board, WHITE, f1) || isUnderAttack(board, WHITE, g1))
+                    return false;
+            }
+            else {
+                if ((board.pieces() & ((1ULL << b1) | (1ULL << c1) | (1ULL << d1))) != 0)
+                    return false;
+                if (isUnderAttack(board, WHITE, d1) || isUnderAttack(board, WHITE, c1))
+                    return false;
+            }
+        }
+        else {
+            if (kingside) {
+                if ((board.pieces() & ((1ULL << f8) | (1ULL << g8))) != 0)
+                    return false;
+                if (isUnderAttack(board, BLACK, f8) || isUnderAttack(board, BLACK, g8))
+                    return false;
+            }
+            else {
+                if ((board.pieces() & ((1ULL << b8) | (1ULL << c8) | (1ULL << d8))) != 0)
+                    return false;
+                if (isUnderAttack(board, BLACK, d8) || isUnderAttack(board, BLACK, c8))
+                    return false;
+            }
+        }
+    }
+
+    Board testBoard = board;
+    testBoard.move(m);
+    return !isUnderAttack(testBoard, board.stm, Square(ctzll(testBoard.pieces(board.stm, KING))));
+}
+
+bool Movegen::inCheck(Board& board) {
+    Square kingSq = Square(ctzll(board.pieces(board.stm, KING)));
+
+    return isUnderAttack(board, kingSq);
+}
+
+bool Movegen::isUnderAttack(Board& board, Square square) { return isUnderAttack(board, board.stm, square); }
+
+bool Movegen::isUnderAttack(Board& board, Color c, Square square) {
+    assert(square >= a1);
+    assert(square < NO_SQUARE);
+    // *** SLIDING PIECE ATTACKS ***
+    // Straight Directions (Rooks and Queens)
+    if (board.pieces(~c, ROOK, QUEEN) & getRookAttacks(square, board.pieces()))
+        return true;
+    
+    // Diagonal Directions (Bishops and Queens)
+    if (board.pieces(~c, BISHOP, QUEEN) & getBishopAttacks(square, board.pieces()))
+        return true;
+
+    // *** KNIGHT ATTACKS ***
+    if (board.pieces(~c, KNIGHT) & KNIGHT_ATTACKS[square])
+        return true;
+    
+    // *** KING ATTACKS ***
+    if (board.pieces(~c, KING) & KING_ATTACKS[square])
+        return true;
+    
+
+    // *** PAWN ATTACKS ***
+    if (c == WHITE)
+        return (pawnAttackBB(WHITE, square) & board.pieces(BLACK, PAWN)) != 0;
+    else
+        return (pawnAttackBB(BLACK, square) & board.pieces(WHITE, PAWN)) != 0;
+}
+
+u64 bulk(Board& board, usize depth) {
+    u64 nodes = 0;
+
+    MoveList moves = Movegen::generateMoves(board);
+
+    Board testBoard;
+
+    if (depth == 0)
+        return 1;
+
+    for (Move m : moves) {
+        if (!Movegen::isLegal(board, m))
+            continue;
+
+        if (depth == 1) {
+            nodes++;
+            continue;
+        }
+
+        testBoard = board;
+
+        testBoard.move(m);
+        nodes += bulk(testBoard, depth - 1);
+    }
+
+    return nodes;
+}
+
+u64 perft(Board& board, usize depth) {
+    u64 nodes = 0;
+
+    MoveList moves = Movegen::generateMoves(board);
+
+    Board testBoard;
+
+    if (depth == 0)
+        return 1;
+
+    for (Move m : moves) {
+        if (!Movegen::isLegal(board, m))
+            continue;
+
+        testBoard = board;
+
+        testBoard.move(m);
+        nodes += perft(testBoard, depth - 1);
+    }
+
+    return nodes;
+}
+
+void Movegen::perft(Board& board, usize depth, bool bulk) {
+    u64 nodes = 0;
+
+    MoveList moves = generateMoves(board);
+
+    Board testBoard;
+
+    u64 nodesThisMove = 0;
+
+    Stopwatch<std::chrono::milliseconds> stopwatch;
+
+    stopwatch.start();
+
+    for (Move m : moves) {
+        if (!isLegal(board, m))
+            continue;
+
+        testBoard = board;
+
+        testBoard.move(m);
+        if (bulk)
+            nodesThisMove = ::bulk(testBoard, depth - 1);
+        else
+            nodesThisMove = perft(testBoard, depth - 1);
+        nodes += nodesThisMove;
+
+        cout << m << ": " << nodesThisMove << endl;
+    }
+
+    u64 elapsedTime = stopwatch.elapsed();
+
+    cout << "Total nodes: " << formatNum(nodes) << endl;
+    cout << "Time spent (ms): " << elapsedTime << endl;
+    cout << "Nodes per second: " << formatNum(nodes * 1000 / elapsedTime) << endl;
 }

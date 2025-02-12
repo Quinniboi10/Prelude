@@ -25,7 +25,7 @@ class Move {
         move |= flags << 12;
     }
 
-    constexpr Move(string strIn, Board& board);
+    Move(string strIn, Board& board);
 
 
     string toString() const;

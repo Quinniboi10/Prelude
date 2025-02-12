@@ -3,6 +3,7 @@
 #include "types.h"
 #include "move.h"
 #include "board.h"
+#include "stopwatch.h"
 
 namespace Movegen {
 // Tables from https://github.com/Disservin/chess-library/blob/cf3bd56474168605201a01eb78b3222b8f9e65e4/include/chess.hpp#L780
@@ -35,4 +36,12 @@ void kingMoves(Board& board, MoveList& moves);
 void initializeAllDatabases();
 
 MoveList generateMoves(Board& board);
+
+bool isLegal(Board& board, Move m);
+
+bool inCheck(Board& board);
+bool isUnderAttack(Board& board, Square square);
+bool isUnderAttack(Board& board, Color c, Square square);
+
+void perft(Board& board, usize depth, bool bulk);
 }

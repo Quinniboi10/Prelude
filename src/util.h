@@ -7,6 +7,8 @@
 
 #include "types.h"
 
+#define ctzll(x) std::countr_zero(x)
+
 inline bool readBit(u64 bb, int sq) { return (1ULL << sq) & bb; }
 
 template<bool value>
@@ -18,7 +20,13 @@ inline void setBit(auto& bitboard, usize index) {
         bitboard &= ~(1ULL << index);
 }
 
+inline void printBitboard(u64 bitboard);
+
 inline Square popLSB(auto& bb) {
+    if (bb == 0) {
+        int* foo = (int*) -1;
+        printf("%d\n", *foo);
+    }
     assert(bb > 0);
     Square sq = static_cast<Square>(ctzll(bb));
     bb &= bb - 1;
@@ -60,6 +68,9 @@ constexpr Square parseSquare(const string square) { return static_cast<Square>((
 // Takes a square (64) and converts into algebraic notation (h8)
 constexpr string squareToAlgebraic(int sq) { return string(1, 'a' + (sq % 8)) + string(1, '1' + (sq / 8)); };
 
+// Returns the end position for castling (uses FRC)
+constexpr Square castleSq(Color c, bool kingside) { return c == WHITE ? (kingside ? h1 : a1) : (kingside ? h8 : a8); }
+
 // Print a bitboard (for debugging individual bitboards)
 inline void printBitboard(u64 bitboard) {
     for (int rank = 7; rank >= 0; --rank) {
@@ -75,4 +86,23 @@ inline void printBitboard(u64 bitboard) {
     cout << "+---+---+---+---+---+---+---+---+" << endl;
 }
 
-constexpr Square castleSq(Color c, bool kingside) { return c == WHITE ? (kingside ? h1 : a1) : (kingside ? h8 : a8); }
+// Formats a number with commas
+inline string formatNum(i64 v) {
+    auto s = std::to_string(v);
+
+    int n = s.length() - 3;
+    if (v < 0)
+        n--;
+    while (n > 0) {
+        s.insert(n, ",");
+        n -= 3;
+    }
+
+    return s;
+}
+
+// Throws a segfault, useful for tracing the call stack
+inline void segFault() {
+        int* foo = (int*) -1;
+        printf("%d\n", *foo);
+}
