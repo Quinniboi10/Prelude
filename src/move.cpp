@@ -1,7 +1,7 @@
 #include "move.h"
 #include "board.h"
 
-constexpr Move::Move(string strIn, Board& board) {
+Move::Move(string strIn, Board& board) {
     Square from = parseSquare(strIn.substr(0, 2));
     Square to   = parseSquare(strIn.substr(2, 2));
 
@@ -27,13 +27,13 @@ constexpr Move::Move(string strIn, Board& board) {
         }
     }
 
-    if (from == e1 && to == g1 && ctzll(board.pieces(WHITE, KING)) == e1 && board.canCastle(WHITE, true))
+    if (from == e1 && to == g1 && board.canCastle(WHITE, true))
         flags = CASTLE_K;
-    else if (from == e1 && to == c1 && ctzll(board.pieces(WHITE, KING)) == e1 && board.canCastle(WHITE, false))
+    else if (from == e1 && to == c1 && board.canCastle(WHITE, false))
         flags = CASTLE_Q;
-    else if (from == e8 && to == g8 && ctzll(board.pieces(BLACK, KING)) == e8 && board.canCastle(BLACK, true))
+    else if (from == e8 && to == g8 && board.canCastle(BLACK, true))
         flags = CASTLE_K;
-    else if (from == e8 && to == c8 && ctzll(board.pieces(BLACK, KING)) == e8 && board.canCastle(BLACK, false))
+    else if (from == e8 && to == c8 && board.canCastle(BLACK, false))
         flags = CASTLE_Q;
 
     if (to == board.epSquare && ((1ULL << from) & board.pieces(~board.stm, PAWN)))

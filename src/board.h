@@ -30,6 +30,7 @@ struct Board {
     u64 pieces(Color c) const;
     u64 pieces(PieceType pt) const;
     u64 pieces(Color c, PieceType pt) const;
+    u64 pieces(Color c, PieceType pt1, PieceType pt2) const;
 
     void reset();
 

@@ -13,6 +13,7 @@ int main(int argc, char* argv[]) {
     Movegen::initializeAllDatabases();
 
     board.reset();
+
     cout << "Prelude ready and awaiting commands" << endl;
     while (true) {
         std::getline(std::cin, command);
@@ -35,16 +36,44 @@ int main(int argc, char* argv[]) {
         }
         else if (command == "quit")
             return 0;
-        // ****** NON-UCI ******
-        else if (command == "d") {
+
+
+        // ************ NON-UCI ************
+
+
+        else if (command == "d")
             board.display();
+        else if (tokens[0] == "perft") {
+            if (tokens.size() < 2) {
+                cout << "Usage: perft <depth>" << endl;
+                continue;
+            }
+            Movegen::perft(board, stoi(tokens[1]), false);
+        }
+        else if (tokens[0] == "bulk") {
+            if (tokens.size() < 2) {
+                cout << "Usage: bulk <depth>" << endl;
+                continue;
+            }
+            Movegen::perft(board, stoi(tokens[1]), true);
+        }
+        else if (tokens[0] == "move") {
+            board.move(Move(tokens[1], board));
         }
         else if (command == "debug.moves") {
             MoveList moves = Movegen::generateMoves(board);
             for (Move m : moves) {
-                cout << m << endl;
+                cout << m;
+                if (Movegen::isLegal(board, m))
+                    cout << " <- legal" << endl;
+                else
+                    cout << " <- illegal" << endl;
             }
         }
+        else if (command == "debug.incheck")
+            cout << "Stm is " << (Movegen::inCheck(board) ? "in check" : "NOT in check") << endl;
+        else if (tokens[0] == "debug.islegal")
+            cout << tokens[1] << " is " << (Movegen::isLegal(board, Move(tokens[1], board)) ? "" : "not ") << "legal" << endl;
     }
     return 0;
 }

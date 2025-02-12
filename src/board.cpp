@@ -1,4 +1,5 @@
 #include "board.h"
+#include "types.h"
 
 #include <cassert>
 
@@ -16,7 +17,7 @@ char Board::getPieceAt(int i) const {
 }
 
 void Board::placePiece(Color c, PieceType pt, int sq) {
-    assert(sq > 0);
+    assert(sq >= 0);
     assert(sq < 64);
 
     auto& BB = c == WHITE ? white[pt] : black[pt];
@@ -27,7 +28,7 @@ void Board::placePiece(Color c, PieceType pt, int sq) {
 }
 
 void Board::removePiece(Color c, PieceType pt, int sq) {
-    assert(sq > 0);
+    assert(sq >= 0);
     assert(sq < 64);
 
     auto& BB = c == WHITE ? white[pt] : black[pt];
@@ -38,7 +39,7 @@ void Board::removePiece(Color c, PieceType pt, int sq) {
 }
 
 void Board::removePiece(Color c, int sq) {
-    assert(sq > 0);
+    assert(sq >= 0);
     assert(sq < 64);
 
     auto& BB = c == WHITE ? white[getPiece(sq)] : black[getPiece(sq)];
@@ -57,6 +58,7 @@ u64 Board::pieces(Color c) const {
 }
 u64 Board::pieces(PieceType pt) const { return white[pt] | black[pt]; }
 u64 Board::pieces(Color c, PieceType pt) const { return c == WHITE ? white[pt] : black[pt]; }
+u64 Board::pieces(Color c, PieceType pt1, PieceType pt2) const { return c == WHITE ? white[pt1] | white[pt2] : black[pt1] | black[pt2]; }
 
 // Reset the board to startpos
 void Board::reset() {
@@ -184,6 +186,8 @@ PieceType Board::getPiece(int sq) {
 
 // Make a move on the board
 void Board::move(Move m) {
+
+    epSquare       = NO_SQUARE;
     Square    from = m.from();
     Square    to   = m.to();
     MoveType  mt   = m.typeOf();
@@ -196,13 +200,13 @@ void Board::move(Move m) {
         placePiece(stm, pt, to);
         break;
     case EN_PASSANT:
-        removePiece(~stm, PAWN, epSquare);
+        removePiece(~stm, PAWN, to + (stm == WHITE ? SOUTH : NORTH));
         placePiece(stm, pt, to);
         break;
     case DOUBLE_PUSH:
         placePiece(stm, pt, to);
-        if (pieces(~stm) & (shift<EAST>(1ULL << to) | shift<WEST>(1ULL << to)))  // Only set EP square if it could be taken
-            epSquare = Square(stm == WHITE ? from + 8 : from - 8);
+        if (pieces(~stm, PAWN) & (shift<EAST>((1ULL << to) & ~MASK_FILE[HFILE]) | shift<WEST>((1ULL << to) & ~MASK_FILE[AFILE])))  // Only set EP square if it could be taken
+            epSquare = Square(stm == WHITE ? from + NORTH : from + SOUTH);
         break;
     case CASTLE_K:
         placePiece(stm, pt, to);
@@ -228,26 +232,42 @@ void Board::move(Move m) {
             placePiece(stm, ROOK, d8);
         }
         break;
-    case CAPTURE:  // This falls through
+    case CAPTURE:
         removePiece(~stm, to);
+        placePiece(stm, pt, to);
+        break;
+
     case QUEEN_PROMO:
+        placePiece(stm, QUEEN, to);
+        break;
     case QUEEN_PROMO_CAPTURE:
+        removePiece(~stm, to);
         placePiece(stm, QUEEN, to);
         break;
     case ROOK_PROMO:
+        placePiece(stm, ROOK, to);
+        break;
     case ROOK_PROMO_CAPTURE:
+        removePiece(~stm, to);
         placePiece(stm, ROOK, to);
         break;
     case BISHOP_PROMO:
+        placePiece(stm, BISHOP, to);
+        break;
     case BISHOP_PROMO_CAPTURE:
+        removePiece(~stm, to);
         placePiece(stm, BISHOP, to);
         break;
     case KNIGHT_PROMO:
+        placePiece(stm, KNIGHT, to);
+        break;
     case KNIGHT_PROMO_CAPTURE:
+        removePiece(~stm, to);
         placePiece(stm, KNIGHT, to);
         break;
     }
 
+    assert(popcount(pieces(KING)) == 2);
 
     stm = ~stm;
 }

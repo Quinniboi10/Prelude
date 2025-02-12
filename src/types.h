@@ -2,18 +2,10 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <cassert>
 #include <string>
 #include <array>
 #include <bit>
-
-#ifdef DEBUG
-constexpr bool ISDBG = true;
-#else
-constexpr bool ISDBG = false;
-#endif
-#define IFDBG if constexpr (ISDBG)
-
-#define ctzll(x) std::countr_zero(x)
 
 using u64 = uint64_t;
 using u32 = uint32_t;
@@ -123,29 +115,29 @@ extern array<array<u64, 64>, 64> LINESEG;
 
 struct Colors {
     // ANSI codes for colors https://raw.githubusercontent.com/fidian/ansi/master/images/color-codes.png
-    static constexpr string RESET = "\033[0m";
+    static constexpr std::string_view RESET = "\033[0m";
 
     // Basic colors
-    static constexpr string BLACK = "\033[30m";
-    static constexpr string RED = "\033[31m";
-    static constexpr string GREEN = "\033[32m";
-    static constexpr string YELLOW = "\033[33m";
-    static constexpr string BLUE = "\033[34m";
-    static constexpr string MAGENTA = "\033[35m";
-    static constexpr string CYAN = "\033[36m";
-    static constexpr string WHITE = "\033[37m";
+    static constexpr std::string_view BLACK = "\033[30m";
+    static constexpr std::string_view RED = "\033[31m";
+    static constexpr std::string_view GREEN = "\033[32m";
+    static constexpr std::string_view YELLOW = "\033[33m";
+    static constexpr std::string_view BLUE = "\033[34m";
+    static constexpr std::string_view MAGENTA = "\033[35m";
+    static constexpr std::string_view CYAN = "\033[36m";
+    static constexpr std::string_view WHITE = "\033[37m";
 
     // Bright colors
-    static constexpr string BRIGHT_BLACK = "\033[90m";
-    static constexpr string BRIGHT_RED = "\033[91m";
-    static constexpr string BRIGHT_GREEN = "\033[92m";
-    static constexpr string BRIGHT_YELLOW = "\033[93m";
-    static constexpr string BRIGHT_BLUE = "\033[94m";
-    static constexpr string BRIGHT_MAGENTA = "\033[95m";
-    static constexpr string BRIGHT_GYAN = "\033[96m";
-    static constexpr string BRIGHT_WHITE = "\033[97m";
+    static constexpr std::string_view BRIGHT_BLACK = "\033[90m";
+    static constexpr std::string_view BRIGHT_RED = "\033[91m";
+    static constexpr std::string_view BRIGHT_GREEN = "\033[92m";
+    static constexpr std::string_view BRIGHT_YELLOW = "\033[93m";
+    static constexpr std::string_view BRIGHT_BLUE = "\033[94m";
+    static constexpr std::string_view BRIGHT_MAGENTA = "\033[95m";
+    static constexpr std::string_view BRIGHT_GYAN = "\033[96m";
+    static constexpr std::string_view BRIGHT_WHITE = "\033[97m";
 
-    static constexpr string GREY = BRIGHT_BLACK;
+    static constexpr std::string_view GREY = BRIGHT_BLACK;
 };
 
 template<usize size>
