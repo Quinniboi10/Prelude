@@ -1,80 +1,85 @@
 #include "board.h"
 #include "types.h"
+#include "movegen.h"
 
 #include <cassert>
 
+constexpr array<u8, 64> CASTLING_RIGHTS = {0b1011, 0b1111, 0b1111, 0b1111, 0b0011, 0b1111, 0b1111, 0b0111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111,
+                                           0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111,
+                                           0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111,
+                                           0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1110, 0b1111, 0b1111, 0b1111, 0b1100, 0b1111, 0b1111, 0b1101};
+
 // Returns the piece on a square as a character
-char Board::getPieceAt(int i) const {
+char Board::getPieceAt(int sq) const {
+    if (((1ULL << sq) & pieces()) == 0)
+        return ' ';
     constexpr char whiteSymbols[] = {'P', 'N', 'B', 'R', 'Q', 'K'};
     constexpr char blackSymbols[] = {'p', 'n', 'b', 'r', 'q', 'k'};
-    for (int j = 0; j < 6; ++j) {
-        if (readBit(white[j], i))
-            return whiteSymbols[j];
-        if (readBit(black[j], i))
-            return blackSymbols[j];
-    }
-    return ' ';
+    if (((1ULL << sq) & byColor[WHITE]) != 0)
+        return whiteSymbols[getPiece(sq)];
+    return blackSymbols[getPiece(sq)];
 }
 
 void Board::placePiece(Color c, PieceType pt, int sq) {
     assert(sq >= 0);
     assert(sq < 64);
 
-    auto& BB = c == WHITE ? white[pt] : black[pt];
+    auto& BB = byPieces[pt];
 
     assert(!readBit(BB, sq));
 
     BB ^= 1ULL << sq;
+    byColor[c] ^= 1ULL << sq;
 }
 
 void Board::removePiece(Color c, PieceType pt, int sq) {
     assert(sq >= 0);
     assert(sq < 64);
 
-    auto& BB = c == WHITE ? white[pt] : black[pt];
+    auto& BB = byPieces[pt];
 
     assert(readBit(BB, sq));
 
     BB ^= 1ULL << sq;
+    byColor[c] ^= 1ULL << sq;
 }
 
 void Board::removePiece(Color c, int sq) {
     assert(sq >= 0);
     assert(sq < 64);
 
-    auto& BB = c == WHITE ? white[getPiece(sq)] : black[getPiece(sq)];
+    auto& BB = byPieces[getPiece(sq)];
 
     assert(readBit(BB, sq));
 
     BB ^= 1ULL << sq;
+    byColor[c] ^= 1ULL << sq;
 }
 
-u64 Board::pieces() const { return pieces(WHITE) | pieces(BLACK); }
-u64 Board::pieces(Color c) const {
-    if (c == WHITE) {
-        return white[0] | white[1] | white[2] | white[3] | white[4] | white[5];
-    }
-    return black[0] | black[1] | black[2] | black[3] | black[4] | black[5];
-}
-u64 Board::pieces(PieceType pt) const { return white[pt] | black[pt]; }
-u64 Board::pieces(Color c, PieceType pt) const { return c == WHITE ? white[pt] : black[pt]; }
-u64 Board::pieces(Color c, PieceType pt1, PieceType pt2) const { return c == WHITE ? white[pt1] | white[pt2] : black[pt1] | black[pt2]; }
+u64 Board::pieces() const { return byColor[WHITE] | byColor[BLACK]; }
+u64 Board::pieces(Color c) const { return byColor[c]; }
+u64 Board::pieces(PieceType pt) const { return byPieces[pt]; }
+u64 Board::pieces(Color c, PieceType pt) const { return byPieces[pt] & byColor[c]; }
+u64 Board::pieces(Color c, PieceType pt1, PieceType pt2) const { return (byPieces[pt1] | byPieces[pt2]) & byColor[c]; }
 
 // Reset the board to startpos
 void Board::reset() {
-    white[0] = 0xFF00ULL;
-    white[1] = 0x42ULL;
-    white[2] = 0x24ULL;
-    white[3] = 0x81ULL;
-    white[4] = 0x8ULL;
-    white[5] = 0x10ULL;
+    byPieces[PAWN]   = 0xFF00ULL;
+    byPieces[KNIGHT] = 0x42ULL;
+    byPieces[BISHOP] = 0x24ULL;
+    byPieces[ROOK]   = 0x81ULL;
+    byPieces[QUEEN]  = 0x8ULL;
+    byPieces[KING]   = 0x10ULL;
+    byColor[WHITE]   = byPieces[PAWN] | byPieces[KNIGHT] | byPieces[BISHOP] | byPieces[ROOK] | byPieces[QUEEN] | byPieces[KING];
 
-    black[0] = 0xFF000000000000ULL;
-    black[1] = 0x4200000000000000ULL;
-    black[2] = 0x2400000000000000ULL;
-    black[3] = 0x8100000000000000ULL;
-    black[4] = 0x800000000000000ULL;
-    black[5] = 0x1000000000000000ULL;
+    byPieces[PAWN] |= 0xFF000000000000ULL;
+    byPieces[KNIGHT] |= 0x4200000000000000ULL;
+    byPieces[BISHOP] |= 0x2400000000000000ULL;
+    byPieces[ROOK] |= 0x8100000000000000ULL;
+    byPieces[QUEEN] |= 0x800000000000000ULL;
+    byPieces[KING] |= 0x1000000000000000ULL;
+    byColor[BLACK] = 0xFF000000000000ULL | 0x4200000000000000ULL | 0x2400000000000000ULL | 0x8100000000000000ULL | 0x800000000000000ULL | 0x1000000000000000ULL;
+
 
     stm            = WHITE;
     castlingRights = 0b1111;
@@ -91,10 +96,8 @@ void Board::loadFromFEN(string fen) {
     reset();
 
     // Clear all squares
-    for (auto& bb : white)
-        bb = 0;
-    for (auto& bb : black)
-        bb = 0;
+    byPieces.fill(0);
+    byColor.fill(0);
 
     std::vector<string> tokens = split(fen, ' ');
 
@@ -113,11 +116,13 @@ void Board::loadFromFEN(string fen) {
             }
             for (int i = 0; i < 6; i++) {
                 if (c == whitePieces[i]) {
-                    setBit<1>(white[i], currIdx);
+                    setBit<1>(byPieces[i], currIdx);
+                    setBit<1>(byColor[WHITE], currIdx);
                     break;
                 }
                 if (c == blackPieces[i]) {
-                    setBit<1>(black[i], currIdx);
+                    setBit<1>(byPieces[i], currIdx);
+                    setBit<1>(byColor[BLACK], currIdx);
                     break;
                 }
             }
@@ -169,7 +174,7 @@ void Board::display() const {
 }
 
 // Return the type of the piece on the square
-PieceType Board::getPiece(int sq) {
+PieceType Board::getPiece(int sq) const {
     u64 mask = 1ULL << sq;
     if (mask & pieces(PAWN))
         return PAWN;
@@ -209,25 +214,25 @@ void Board::move(Move m) {
             epSquare = Square(stm == WHITE ? from + NORTH : from + SOUTH);
         break;
     case CASTLE_K:
-        placePiece(stm, pt, to);
-
         if (stm == WHITE) {
+            placePiece(stm, pt, g1);
             removePiece(stm, ROOK, h1);
             placePiece(stm, ROOK, f1);
         }
         else {
+            placePiece(stm, pt, g8);
             removePiece(stm, ROOK, h8);
             placePiece(stm, ROOK, f8);
         }
         break;
     case CASTLE_Q:
-        placePiece(stm, pt, to);
-
         if (stm == WHITE) {
+            placePiece(stm, pt, c1);
             removePiece(stm, ROOK, a1);
             placePiece(stm, ROOK, d1);
         }
         else {
+            placePiece(stm, pt, c8);
             removePiece(stm, ROOK, a8);
             placePiece(stm, ROOK, d8);
         }
@@ -269,8 +274,92 @@ void Board::move(Move m) {
 
     assert(popcount(pieces(KING)) == 2);
 
+    castlingRights &= CASTLING_RIGHTS[from];
+    castlingRights &= CASTLING_RIGHTS[to];
+
     stm = ~stm;
 }
 
+bool Board::canCastle(Color c, bool kingside) const { return readBit(castlingRights, castleIndex(c, kingside)); }
 
-bool Board::canCastle(Color c, bool kingside) { return readBit(castlingRights, c == WHITE ? (kingside ? 3 : 2) : (kingside ? 1 : 0)); }
+bool Board::isLegal(Move m) const {
+    assert(!m.isNull());
+
+    // Castling checks
+    if (m.typeOf() == CASTLE_K || m.typeOf() == CASTLE_Q) {
+        bool kingside = (m.typeOf() == CASTLE_K);
+        if (!canCastle(stm, kingside))
+            return false;
+        if (inCheck())
+            return false;
+        if (stm == WHITE) {
+            if (kingside) {
+                if ((pieces() & ((1ULL << f1) | (1ULL << g1))) != 0)
+                    return false;
+                if (isUnderAttack(WHITE, f1) || isUnderAttack(WHITE, g1))
+                    return false;
+            }
+            else {
+                if ((pieces() & ((1ULL << b1) | (1ULL << c1) | (1ULL << d1))) != 0)
+                    return false;
+                if (isUnderAttack(WHITE, d1) || isUnderAttack(WHITE, c1))
+                    return false;
+            }
+        }
+        else {
+            if (kingside) {
+                if ((pieces() & ((1ULL << f8) | (1ULL << g8))) != 0)
+                    return false;
+                if (isUnderAttack(BLACK, f8) || isUnderAttack(BLACK, g8))
+                    return false;
+            }
+            else {
+                if ((pieces() & ((1ULL << b8) | (1ULL << c8) | (1ULL << d8))) != 0)
+                    return false;
+                if (isUnderAttack(BLACK, d8) || isUnderAttack(BLACK, c8))
+                    return false;
+            }
+        }
+        return true;
+    }
+
+    Board testBoard = *this;
+    testBoard.move(m);
+    return !testBoard.isUnderAttack(stm, Square(ctzll(testBoard.pieces(stm, KING))));
+}
+
+bool Board::inCheck() const {
+    Square kingSq = Square(ctzll(pieces(stm, KING)));
+
+    return isUnderAttack(kingSq);
+}
+
+bool Board::isUnderAttack(Square square) const { return isUnderAttack(stm, square); }
+
+bool Board::isUnderAttack(Color c, Square square) const {
+    assert(square >= a1);
+    assert(square < NO_SQUARE);
+    // *** SLIDING PIECE ATTACKS ***
+    // Straight Directions (Rooks and Queens)
+    if (pieces(~c, ROOK, QUEEN) & Movegen::getRookAttacks(square, pieces()))
+        return true;
+
+    // Diagonal Directions (Bishops and Queens)
+    if (pieces(~c, BISHOP, QUEEN) & Movegen::getBishopAttacks(square, pieces()))
+        return true;
+
+    // *** KNIGHT ATTACKS ***
+    if (pieces(~c, KNIGHT) & Movegen::KNIGHT_ATTACKS[square])
+        return true;
+
+    // *** KING ATTACKS ***
+    if (pieces(~c, KING) & Movegen::KING_ATTACKS[square])
+        return true;
+
+
+    // *** PAWN ATTACKS ***
+    if (c == WHITE)
+        return (Movegen::pawnAttackBB(WHITE, square) & pieces(BLACK, PAWN)) != 0;
+    else
+        return (Movegen::pawnAttackBB(BLACK, square) & pieces(WHITE, PAWN)) != 0;
+}

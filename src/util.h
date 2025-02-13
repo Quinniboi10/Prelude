@@ -70,6 +70,7 @@ constexpr string squareToAlgebraic(int sq) { return string(1, 'a' + (sq % 8)) + 
 
 // Returns the end position for castling (uses FRC)
 constexpr Square castleSq(Color c, bool kingside) { return c == WHITE ? (kingside ? h1 : a1) : (kingside ? h8 : a8); }
+constexpr u8     castleIndex(Color c, bool kingside) { return c == WHITE ? (kingside ? 3 : 2) : (kingside ? 1 : 0); }
 
 // Print a bitboard (for debugging individual bitboards)
 inline void printBitboard(u64 bitboard) {
@@ -101,8 +102,29 @@ inline string formatNum(i64 v) {
     return s;
 }
 
+// Fancy formats a time
+inline string formatTime(u64 timeInMS) {
+    long long seconds = timeInMS / 1000;
+    long long hours   = seconds / 3600;
+    seconds %= 3600;
+    long long minutes = seconds / 60;
+    seconds %= 60;
+
+    string result;
+
+    if (hours > 0)
+        result += std::to_string(hours) + "h ";
+    if (minutes > 0 || hours > 0)
+        result += std::to_string(minutes) + "m ";
+    if (seconds > 0 || minutes > 0 || hours > 0)
+        result += std::to_string(seconds) + "s";
+    if (result == "")
+        return std::to_string(timeInMS) + "ms";
+    return result;
+}
+
 // Throws a segfault, useful for tracing the call stack
 inline void segFault() {
-        int* foo = (int*) -1;
-        printf("%d\n", *foo);
+    int* foo = (int*) -1;
+    printf("%d\n", *foo);
 }
