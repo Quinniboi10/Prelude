@@ -13,8 +13,7 @@ class Stopwatch {
 
     u64 pausedTime;
 
-    public:
-
+   public:
     Stopwatch() {
         startTime  = std::chrono::high_resolution_clock::now();
         pausedTime = 0;
@@ -39,7 +38,7 @@ class Stopwatch {
         paused    = true;
         pauseTime = std::chrono::high_resolution_clock::now();
     }
-    void resume() { 
+    void resume() {
         paused = false;
         pausedTime += std::chrono::duration_cast<Precision>(std::chrono::high_resolution_clock::now() - pauseTime).count();
     }

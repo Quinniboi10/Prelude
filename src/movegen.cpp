@@ -1,6 +1,7 @@
 #include "movegen.h"
 #include "types.h"
 
+#include <fstream>
 #include <cassert>
 
 array<array<u64, 64>, 64> LINE;
@@ -123,11 +124,11 @@ void initializeRookAttacks() {
 }
 
 //Returns the attacks bitboard for a rook at a given square, using the magic lookup table
-constexpr u64 getRookAttacks(Square square, u64 occ) { return ROOK_ATTACKS[square][((occ & ROOK_ATTACK_MASKS[square]) * ROOK_MAGICS[square]) >> ROOK_ATTACK_SHIFTS[square]]; }
+u64 Movegen::getRookAttacks(Square square, u64 occ) { return ROOK_ATTACKS[square][((occ & ROOK_ATTACK_MASKS[square]) * ROOK_MAGICS[square]) >> ROOK_ATTACK_SHIFTS[square]]; }
 
 //Returns the 'x-ray attacks' for a rook at a given square. X-ray attacks cover squares that are not immediately
 //accessible by the rook, but become available when the immediate blockers are removed from the board
-u64 getXrayRookAttacks(Square square, u64 occ, u64 blockers) {
+u64 Movegen::getXrayRookAttacks(Square square, u64 occ, u64 blockers) {
     u64 attacks = getRookAttacks(square, occ);
     blockers &= attacks;
     return attacks ^ getRookAttacks(square, occ ^ blockers);
@@ -173,11 +174,11 @@ void initializeBishopAttacks() {
 }
 
 //Returns the attacks bitboard for a bishop at a given square, using the magic lookup table
-constexpr u64 getBishopAttacks(Square square, u64 occ) { return BISHOP_ATTACKS[square][((occ & BISHOP_ATTACK_MASKS[square]) * BISHOP_MAGICS[square]) >> BISHOP_ATTACK_SHIFTS[square]]; }
+u64 Movegen::getBishopAttacks(Square square, u64 occ) { return BISHOP_ATTACKS[square][((occ & BISHOP_ATTACK_MASKS[square]) * BISHOP_MAGICS[square]) >> BISHOP_ATTACK_SHIFTS[square]]; }
 
 //Returns the 'x-ray attacks' for a bishop at a given square. X-ray attacks cover squares that are not immediately
 //accessible by the rook, but become available when the immediate blockers are removed from the board
-u64 getXrayBishopAttacks(Square square, u64 occ, u64 blockers) {
+u64 Movegen::getXrayBishopAttacks(Square square, u64 occ, u64 blockers) {
     u64 attacks = getBishopAttacks(square, occ);
     blockers &= attacks;
     return attacks ^ getBishopAttacks(square, occ ^ blockers);
@@ -241,7 +242,7 @@ u64 Movegen::pawnAttackBB(Color c, int sq) {
     return shift<SOUTH_EAST>(sqBB & ~MASK_FILE[HFILE]) | shift<SOUTH_WEST>(sqBB & ~MASK_FILE[AFILE]);
 }
 
-void Movegen::pawnMoves(Board& board, MoveList& moves) {
+void Movegen::pawnMoves(const Board& board, MoveList& moves) {
     u64 pawns = board.pieces(board.stm, PAWN);
     Direction pushDir      = board.stm == WHITE ? NORTH : SOUTH;
     u64       singlePushes = shift(pushDir, pawns) & ~board.pieces();
@@ -258,12 +259,10 @@ void Movegen::pawnMoves(Board& board, MoveList& moves) {
         assert(to >= 0);
         assert(to < 64);
 
-        if ((1ULL << to) & (MASK_RANK[RANK1] | MASK_RANK[RANK8])) {
-            moves.add(Move(from, to, QUEEN_PROMO & mt));
-            moves.add(Move(from, to, ROOK_PROMO & mt));
-            moves.add(Move(from, to, BISHOP_PROMO & mt));
-            moves.add(Move(from, to, KNIGHT_PROMO & mt));
-        }
+        moves.add(Move(from, to, QUEEN_PROMO | mt));
+        moves.add(Move(from, to, ROOK_PROMO | mt));
+        moves.add(Move(from, to, BISHOP_PROMO | mt));
+        moves.add(Move(from, to, KNIGHT_PROMO | mt));
     };
 
     int backshift = pushDir;
@@ -272,8 +271,10 @@ void Movegen::pawnMoves(Board& board, MoveList& moves) {
         Square to   = popLSB(singlePushes);
         Square from = Square(to - backshift);
 
-        addPromos(from, to);
-        moves.add(from, to);
+        if ((1ULL << to) & (MASK_RANK[RANK1] | MASK_RANK[RANK8]))
+            addPromos(from, to);
+        else
+            moves.add(from, to);
     }
 
     backshift += pushDir;
@@ -291,8 +292,10 @@ void Movegen::pawnMoves(Board& board, MoveList& moves) {
         Square to   = popLSB(captureEast);
         Square from = Square(to - backshift);
 
-        addPromos(from, to, CAPTURE);
-        moves.add(from, to, CAPTURE);
+        if ((1ULL << to) & (MASK_RANK[RANK1] | MASK_RANK[RANK8]))
+            addPromos(from, to, CAPTURE);
+        else
+            moves.add(from, to, CAPTURE);
     }
 
     backshift = pushDir + WEST;
@@ -301,8 +304,10 @@ void Movegen::pawnMoves(Board& board, MoveList& moves) {
         Square to   = popLSB(captureWest);
         Square from = Square(to - backshift);
 
-        addPromos(from, to, CAPTURE);
-        moves.add(from, to, CAPTURE);
+        if ((1ULL << to) & (MASK_RANK[RANK1] | MASK_RANK[RANK8]))
+            addPromos(from, to, CAPTURE);
+        else
+            moves.add(from, to, CAPTURE);
     }
 
     if (board.epSquare != NO_SQUARE) {
@@ -317,7 +322,7 @@ void Movegen::pawnMoves(Board& board, MoveList& moves) {
     }
 }
 
-void Movegen::knightMoves(Board& board, MoveList& moves) {
+void Movegen::knightMoves(const Board& board, MoveList& moves) {
     u64 knightBB = board.pieces(board.stm, KNIGHT);
 
     u64 occ = board.pieces();
@@ -336,7 +341,7 @@ void Movegen::knightMoves(Board& board, MoveList& moves) {
     }
 }
 
-void Movegen::bishopMoves(Board& board, MoveList& moves) {
+void Movegen::bishopMoves(const Board& board, MoveList& moves) {
     u64 bishopBB = board.pieces(board.stm, BISHOP, QUEEN);
 
     u64 occ = board.pieces();
@@ -355,7 +360,7 @@ void Movegen::bishopMoves(Board& board, MoveList& moves) {
     }
 }
 
-void Movegen::rookMoves(Board& board, MoveList& moves) {
+void Movegen::rookMoves(const Board& board, MoveList& moves) {
     u64 rookBB = board.pieces(board.stm, ROOK, QUEEN);
 
     u64 occ = board.pieces();
@@ -374,7 +379,7 @@ void Movegen::rookMoves(Board& board, MoveList& moves) {
     }
 }
 
-void Movegen::kingMoves(Board& board, MoveList& moves) {    
+void Movegen::kingMoves(const Board& board, MoveList& moves) {
     Square kingSq = Square(ctzll(board.pieces(board.stm, KING)));
 
     assert(kingSq >= a1);
@@ -383,16 +388,18 @@ void Movegen::kingMoves(Board& board, MoveList& moves) {
     u64 kingMoves = KING_ATTACKS[kingSq];
     kingMoves &= ~board.pieces(board.stm);
 
+    u64 occ = board.pieces();
+
     while (kingMoves > 0) {
         Square to = popLSB(kingMoves);
-        moves.add(kingSq, to, ((1ULL << to) & board.pieces()) ? CAPTURE : STANDARD_MOVE);
+        moves.add(kingSq, to, ((1ULL << to) & occ) ? CAPTURE : STANDARD_MOVE);
     }
     
     if (board.canCastle(board.stm, true)) moves.add(kingSq, castleSq(board.stm, true), CASTLE_K);
     if (board.canCastle(board.stm, false)) moves.add(kingSq, castleSq(board.stm, false), CASTLE_Q);
 }
 
-MoveList Movegen::generateMoves(Board& board) {
+MoveList Movegen::generateMoves(const Board& board) {
     MoveList moves;
     pawnMoves(board, moves);
     knightMoves(board, moves);
@@ -404,93 +411,7 @@ MoveList Movegen::generateMoves(Board& board) {
     return moves;
 }
 
-bool Movegen::isLegal(Board& board, Move m) {
-    int from = m.from();
-    int to   = m.to();
-
-    // Delete null moves
-    if (from == to)
-        return false;
-
-    // Castling checks
-    if (m.typeOf() == CASTLE_K || m.typeOf() == CASTLE_Q) {
-        bool kingside = (m.typeOf() == CASTLE_K);
-        if (!board.canCastle(board.stm, kingside))
-            return false;
-        if (inCheck(board))
-            return false;
-        if (board.stm == WHITE) {
-            if (kingside) {
-                if ((board.pieces() & ((1ULL << f1) | (1ULL << g1))) != 0)
-                    return false;
-                if (isUnderAttack(board, WHITE, f1) || isUnderAttack(board, WHITE, g1))
-                    return false;
-            }
-            else {
-                if ((board.pieces() & ((1ULL << b1) | (1ULL << c1) | (1ULL << d1))) != 0)
-                    return false;
-                if (isUnderAttack(board, WHITE, d1) || isUnderAttack(board, WHITE, c1))
-                    return false;
-            }
-        }
-        else {
-            if (kingside) {
-                if ((board.pieces() & ((1ULL << f8) | (1ULL << g8))) != 0)
-                    return false;
-                if (isUnderAttack(board, BLACK, f8) || isUnderAttack(board, BLACK, g8))
-                    return false;
-            }
-            else {
-                if ((board.pieces() & ((1ULL << b8) | (1ULL << c8) | (1ULL << d8))) != 0)
-                    return false;
-                if (isUnderAttack(board, BLACK, d8) || isUnderAttack(board, BLACK, c8))
-                    return false;
-            }
-        }
-    }
-
-    Board testBoard = board;
-    testBoard.move(m);
-    return !isUnderAttack(testBoard, board.stm, Square(ctzll(testBoard.pieces(board.stm, KING))));
-}
-
-bool Movegen::inCheck(Board& board) {
-    Square kingSq = Square(ctzll(board.pieces(board.stm, KING)));
-
-    return isUnderAttack(board, kingSq);
-}
-
-bool Movegen::isUnderAttack(Board& board, Square square) { return isUnderAttack(board, board.stm, square); }
-
-bool Movegen::isUnderAttack(Board& board, Color c, Square square) {
-    assert(square >= a1);
-    assert(square < NO_SQUARE);
-    // *** SLIDING PIECE ATTACKS ***
-    // Straight Directions (Rooks and Queens)
-    if (board.pieces(~c, ROOK, QUEEN) & getRookAttacks(square, board.pieces()))
-        return true;
-    
-    // Diagonal Directions (Bishops and Queens)
-    if (board.pieces(~c, BISHOP, QUEEN) & getBishopAttacks(square, board.pieces()))
-        return true;
-
-    // *** KNIGHT ATTACKS ***
-    if (board.pieces(~c, KNIGHT) & KNIGHT_ATTACKS[square])
-        return true;
-    
-    // *** KING ATTACKS ***
-    if (board.pieces(~c, KING) & KING_ATTACKS[square])
-        return true;
-    
-
-    // *** PAWN ATTACKS ***
-    if (c == WHITE)
-        return (pawnAttackBB(WHITE, square) & board.pieces(BLACK, PAWN)) != 0;
-    else
-        return (pawnAttackBB(BLACK, square) & board.pieces(WHITE, PAWN)) != 0;
-}
-
-u64 bulk(Board& board, usize depth) {
+u64 bulk(const Board& board, usize depth) {
     u64 nodes = 0;
 
     MoveList moves = Movegen::generateMoves(board);
@@ -501,7 +422,7 @@ u64 bulk(Board& board, usize depth) {
         return 1;
 
     for (Move m : moves) {
-        if (!Movegen::isLegal(board, m))
+        if (!board.isLegal(m))
             continue;
 
         if (depth == 1) {
@@ -518,7 +439,7 @@ u64 bulk(Board& board, usize depth) {
     return nodes;
 }
 
-u64 perft(Board& board, usize depth) {
+u64 perft(const Board& board, usize depth) {
     u64 nodes = 0;
 
     MoveList moves = Movegen::generateMoves(board);
@@ -529,7 +450,7 @@ u64 perft(Board& board, usize depth) {
         return 1;
 
     for (Move m : moves) {
-        if (!Movegen::isLegal(board, m))
+        if (!board.isLegal(m))
             continue;
 
         testBoard = board;
@@ -541,7 +462,7 @@ u64 perft(Board& board, usize depth) {
     return nodes;
 }
 
-void Movegen::perft(Board& board, usize depth, bool bulk) {
+void Movegen::perft(const Board& board, usize depth, bool bulk) {
     u64 nodes = 0;
 
     MoveList moves = generateMoves(board);
@@ -555,7 +476,7 @@ void Movegen::perft(Board& board, usize depth, bool bulk) {
     stopwatch.start();
 
     for (Move m : moves) {
-        if (!isLegal(board, m))
+        if (!board.isLegal(m))
             continue;
 
         testBoard = board;
@@ -575,4 +496,81 @@ void Movegen::perft(Board& board, usize depth, bool bulk) {
     cout << "Total nodes: " << formatNum(nodes) << endl;
     cout << "Time spent (ms): " << elapsedTime << endl;
     cout << "Nodes per second: " << formatNum(nodes * 1000 / elapsedTime) << endl;
+}
+
+void Movegen::perftSuite(const string filePath) {
+    Board board;
+
+    Stopwatch<std::chrono::milliseconds> sw;
+    sw.start();
+
+    std::ifstream file(filePath);
+
+    if (!file.is_open()) {
+        cerr << "Failed to open file: " << filePath << endl;
+        return;
+    }
+
+    string ln;
+
+    usize totalTests = 0;
+    usize passedTests = 0;
+    u64 totalNodes = 0;
+
+    while (std::getline(file, ln)) {
+        if (ln.empty())
+            continue;
+
+        Stopwatch<std::chrono::milliseconds> sw;
+        sw.start();
+
+        std::vector<string> tokens = split(ln, ';');
+
+        u64 nodes;
+
+        board.loadFromFEN(tokens[0]);
+
+        bool passed = true;
+        cout << "Testing position: " << tokens[0] << endl;
+
+        for (usize i = 1; i < tokens.size(); i++) {
+            std::vector<string> entry = split(tokens[i], ' ');
+
+            usize depth = stoi(entry[0].substr(1));
+            u64 target = stoi(entry[1]);
+
+            nodes = bulk(board, depth);
+
+            totalNodes += nodes;
+
+            bool pass = nodes == target;
+            cout << "Depth " << depth << ": Expected " << target << ", Got " << nodes << " -> " << (pass ? "PASS" : "FAIL") << endl;
+
+            totalTests++;
+            if (pass)
+                passedTests++;
+            else
+                passed = false;
+        }
+
+        u64 elapsed = sw.elapsed();
+        usize nps = nodes * 1000 / elapsed;
+
+        cout << "Time elapsed: " << formatTime(elapsed) << endl;
+        cout << "Found " << formatNum(nodes) << " nodes at " << formatNum(nps) << " nodes per second" << endl;
+
+        if (passed)
+            cout << "All tests passed for this position." << endl;
+        else
+            cout << "Some tests failed for this position." << endl;
+
+        cout << "----------------------------------------" << endl << endl;
+    }
+
+    cout << "Perft Suite Completed: " << passedTests << " / " << totalTests << " tests passed." << endl;
+    u64 elapsed = sw.elapsed();
+    usize nps = totalNodes * 1000 / elapsed;
+
+    cout << "Time elapsed: " << formatTime(elapsed) << endl;
+    cout << "Found a total of " << formatNum(totalNodes) << " nodes at " << formatNum(nps) << " nodes per second" << endl;
 }

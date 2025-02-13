@@ -28,20 +28,20 @@ constexpr u64 KING_ATTACKS[64] = {0x0000000000000302, 0x0000000000000705, 0x0000
 
 u64 pawnAttackBB(Color c, int sq);
 
-void pawnMoves(Board& board, MoveList& moves);
-void knightMoves(Board& board, MoveList& moves);
-void bishopMoves(Board& board, MoveList& moves);
-void rookMoves(Board& board, MoveList& moves);
-void kingMoves(Board& board, MoveList& moves);
+void pawnMoves(const Board& board, MoveList& moves);
+void knightMoves(const Board& board, MoveList& moves);
+void bishopMoves(const Board& board, MoveList& moves);
+void rookMoves(const Board& board, MoveList& moves);
+void kingMoves(const Board& board, MoveList& moves);
 void initializeAllDatabases();
 
-MoveList generateMoves(Board& board);
+MoveList generateMoves(const Board& board);
 
-bool isLegal(Board& board, Move m);
+void perft(const Board& board, usize depth, bool bulk);
+void perftSuite(const string filePath);
 
-bool inCheck(Board& board);
-bool isUnderAttack(Board& board, Square square);
-bool isUnderAttack(Board& board, Color c, Square square);
-
-void perft(Board& board, usize depth, bool bulk);
+u64 getBishopAttacks(Square square, u64 occ);
+u64 getXrayBishopAttacks(Square square, u64 occ, u64 blockers);
+u64 getRookAttacks(Square square, u64 occ);
+u64 getXrayRookAttacks(Square square, u64 occ, u64 blockers);
 }

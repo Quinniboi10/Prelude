@@ -6,8 +6,9 @@
 
 struct Board {
     // Indexed pawns, knights, bishops, rooks, queens, king
-    array<u64, 6> white;
-    array<u64, 6> black;
+    array<u64, 6> byPieces;
+    // Index is based on color so black is colors[0]
+    array<u64, 2> byColor;
 
     Square epSquare;
     // Only last 4 bits are meaningful, index KQkq
@@ -38,9 +39,15 @@ struct Board {
 
     void display() const;
 
-    PieceType getPiece(int sq);
+    PieceType getPiece(int sq) const;
 
     void move(Move m);
 
-    bool canCastle(Color c, bool kingside);
+    bool canCastle(Color c, bool kingside) const;
+
+    bool isLegal(Move m) const;
+
+    bool inCheck() const;
+    bool isUnderAttack(Square square) const;
+    bool isUnderAttack(Color c, Square square) const;
 };

@@ -60,19 +60,19 @@ string Move::toString() const {
     switch (mt) {
     case KNIGHT_PROMO:
     case KNIGHT_PROMO_CAPTURE:
-        moveStr = 'n';
+        moveStr += 'n';
         break;
     case BISHOP_PROMO:
     case BISHOP_PROMO_CAPTURE:
-        moveStr = 'b';
+        moveStr += 'b';
         break;
     case ROOK_PROMO:
     case ROOK_PROMO_CAPTURE:
-        moveStr = 'r';
+        moveStr += 'r';
         break;
     case QUEEN_PROMO:
     case QUEEN_PROMO_CAPTURE:
-        moveStr = 'q';
+        moveStr += 'q';
         break;
     default:
         break;
