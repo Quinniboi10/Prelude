@@ -16,7 +16,8 @@ class Move {
     u16 move;
 
    public:
-    constexpr Move() { move = 0; }
+    constexpr Move()  = default;
+    constexpr ~Move() = default;
 
     constexpr Move(u8 startSquare, u8 endSquare, int flags = STANDARD_MOVE) {
         assert(flags <= 0b1111);

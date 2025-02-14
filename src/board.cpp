@@ -30,6 +30,8 @@ void Board::placePiece(Color c, PieceType pt, int sq) {
 
     BB ^= 1ULL << sq;
     byColor[c] ^= 1ULL << sq;
+
+    mailbox[sq] = pt;
 }
 
 void Board::removePiece(Color c, PieceType pt, int sq) {
@@ -42,6 +44,8 @@ void Board::removePiece(Color c, PieceType pt, int sq) {
 
     BB ^= 1ULL << sq;
     byColor[c] ^= 1ULL << sq;
+
+    mailbox[sq] = NO_PIECE_TYPE;
 }
 
 void Board::removePiece(Color c, int sq) {
@@ -54,6 +58,28 @@ void Board::removePiece(Color c, int sq) {
 
     BB ^= 1ULL << sq;
     byColor[c] ^= 1ULL << sq;
+
+    mailbox[sq] = NO_PIECE_TYPE;
+}
+
+void Board::resetMailbox() {
+    mailbox.fill(NO_PIECE_TYPE);
+    for (int i = 0; i < 64; i++) {
+        PieceType& sq   = mailbox[i];
+        u64        mask = 1ULL << i;
+        if (mask & pieces(PAWN))
+            sq = PAWN;
+        else if (mask & pieces(KNIGHT))
+            sq = KNIGHT;
+        else if (mask & pieces(BISHOP))
+            sq = BISHOP;
+        else if (mask & pieces(ROOK))
+            sq = ROOK;
+        else if (mask & pieces(QUEEN))
+            sq = QUEEN;
+        else if (mask & pieces(KING))
+            sq = KING;
+    }
 }
 
 u64 Board::pieces() const { return byColor[WHITE] | byColor[BLACK]; }
@@ -88,6 +114,8 @@ void Board::reset() {
 
     halfMoveClock = 0;
     fullMoveClock = 1;
+
+    resetMailbox();
 }
 
 
@@ -154,6 +182,8 @@ void Board::loadFromFEN(string fen) {
 
     halfMoveClock = tokens.size() > 4 ? (stoi(tokens[5])) : 0;
     fullMoveClock = tokens.size() > 5 ? (stoi(tokens[5])) : 1;
+
+    resetMailbox();
 }
 
 // Print the board
@@ -174,24 +204,10 @@ void Board::display() const {
 }
 
 // Return the type of the piece on the square
-PieceType Board::getPiece(int sq) const {
-    u64 mask = 1ULL << sq;
-    if (mask & pieces(PAWN))
-        return PAWN;
-    else if (mask & pieces(KNIGHT))
-        return KNIGHT;
-    else if (mask & pieces(BISHOP))
-        return BISHOP;
-    else if (mask & pieces(ROOK))
-        return ROOK;
-    else if (mask & pieces(QUEEN))
-        return QUEEN;
-    return KING;
-}
+PieceType Board::getPiece(int sq) const { return mailbox[sq]; }
 
 // Make a move on the board
 void Board::move(Move m) {
-
     epSquare       = NO_SQUARE;
     Square    from = m.from();
     Square    to   = m.to();
