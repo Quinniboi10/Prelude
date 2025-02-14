@@ -37,7 +37,7 @@ debug: all
 # Debug Build
 .PHONY: profile
 profile: clean
-profile: CXXFLAGS = -O3 -g -march=native -ffast-math -funroll-loops -flto -fuse-ld=lld -std=c++20 -fno-omit-frame-pointer -static -DNDEBUG
+profile: CXXFLAGS = -O2 -g -march=native -ffast-math -funroll-loops -flto -fuse-ld=lld -std=c++20 -fno-omit-frame-pointer -static -DNDEBUG
 profile: all
 
 # Force rebuild
