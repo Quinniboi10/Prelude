@@ -9,6 +9,8 @@ struct Board {
     array<u64, 6> byPieces;
     // Index is based on color so black is colors[0]
     array<u64, 2> byColor;
+    // Index is based on square, returns the piece type
+    array<PieceType, 64> mailbox;
 
     Square epSquare;
     // Only last 4 bits are meaningful, index KQkq
@@ -25,6 +27,7 @@ struct Board {
     void placePiece(Color c, PieceType pt, int sq);
     void removePiece(Color c, PieceType pt, int sq);
     void removePiece(Color c, int sq);
+    void resetMailbox();
 
    public:
     u64 pieces() const;
