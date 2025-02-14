@@ -9,7 +9,7 @@ array<array<u64, 64>, 64> LINESEG;
 
 // Magic code from https://github.com/nkarve/surge/blob/master/src/tables.cpp
 constexpr int diagonalOf(Square s) { return 7 + rankOf(s) - fileOf(s); }
-constexpr int antiDiagonalOf(Square s) { return rankOf(s) + static_cast<Rank>(fileOf(s)); }
+constexpr int antiDiagonalOf(Square s) { return rankOf(s) + Rank(fileOf(s)); }
 
 //Precomputed diagonal masks
 const u64 MASK_DIAGONAL[15] = {
@@ -245,12 +245,20 @@ u64 Movegen::pawnAttackBB(Color c, int sq) {
 void Movegen::pawnMoves(const Board& board, MoveList& moves) {
     u64 pawns = board.pieces(board.stm, PAWN);
     Direction pushDir      = board.stm == WHITE ? NORTH : SOUTH;
-    u64       singlePushes = shift(pushDir, pawns) & ~board.pieces();
-    u64       doublePushes = shift(pushDir, singlePushes) & ~board.pieces();
+    u64 singlePushes = shift(pushDir, pawns) & ~board.pieces();
+    u64 pushPromo = singlePushes & (MASK_RANK[RANK1] | MASK_RANK[RANK8]);
+    singlePushes ^= pushPromo;
+
+    u64 doublePushes = shift(pushDir, singlePushes) & ~board.pieces();
     doublePushes &= board.stm == WHITE ? MASK_RANK[RANK4] : MASK_RANK[RANK5];
 
     u64 captureEast = shift(pushDir + EAST, pawns & ~MASK_FILE[HFILE]) & board.pieces(~board.stm);
     u64 captureWest = shift(pushDir + WEST, pawns & ~MASK_FILE[AFILE]) & board.pieces(~board.stm);
+
+    u64 eastPromo = captureEast & (MASK_RANK[RANK1] | MASK_RANK[RANK8]);
+    captureEast ^= eastPromo;
+    u64 westPromo = captureWest & (MASK_RANK[RANK1] | MASK_RANK[RANK8]);
+    captureWest ^= westPromo;
 
     auto addPromos = [&](Square from, Square to, MoveType mt = STANDARD_MOVE) {
         assert(from >= 0);
@@ -271,10 +279,14 @@ void Movegen::pawnMoves(const Board& board, MoveList& moves) {
         Square to   = popLSB(singlePushes);
         Square from = Square(to - backshift);
 
-        if ((1ULL << to) & (MASK_RANK[RANK1] | MASK_RANK[RANK8]))
-            addPromos(from, to);
-        else
-            moves.add(from, to);
+        moves.add(from, to);
+    }
+
+    while (pushPromo) {
+        Square to   = popLSB(pushPromo);
+        Square from = Square(to - backshift);
+
+        addPromos(from, to);
     }
 
     backshift += pushDir;
@@ -292,10 +304,14 @@ void Movegen::pawnMoves(const Board& board, MoveList& moves) {
         Square to   = popLSB(captureEast);
         Square from = Square(to - backshift);
 
-        if ((1ULL << to) & (MASK_RANK[RANK1] | MASK_RANK[RANK8]))
-            addPromos(from, to, CAPTURE);
-        else
-            moves.add(from, to, CAPTURE);
+        moves.add(from, to, CAPTURE);
+    }
+
+    while (eastPromo) {
+        Square to   = popLSB(eastPromo);
+        Square from = Square(to - backshift);
+
+        addPromos(from, to, CAPTURE);
     }
 
     backshift = pushDir + WEST;
@@ -304,16 +320,19 @@ void Movegen::pawnMoves(const Board& board, MoveList& moves) {
         Square to   = popLSB(captureWest);
         Square from = Square(to - backshift);
 
-        if ((1ULL << to) & (MASK_RANK[RANK1] | MASK_RANK[RANK8]))
-            addPromos(from, to, CAPTURE);
-        else
-            moves.add(from, to, CAPTURE);
+        moves.add(from, to, CAPTURE);
+    }
+
+    while (westPromo) {
+        Square to   = popLSB(westPromo);
+        Square from = Square(to - backshift);
+
+        addPromos(from, to, CAPTURE);
     }
 
     if (board.epSquare != NO_SQUARE) {
         u64 epMoves = pawnAttackBB(~board.stm, board.epSquare) & board.pieces(board.stm, PAWN);
 
-        if (!epMoves) board.display();
         while (epMoves) {
             Square from = popLSB(epMoves);
 
