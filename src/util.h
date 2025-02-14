@@ -34,9 +34,7 @@ inline Square popLSB(auto& bb) {
 }
 
 template<int dir>
-inline u64 shift(u64 bb) {
-    return dir > 0 ? bb << dir : bb >> -dir;
-}
+inline u64 shift(u64 bb) { return dir > 0 ? bb << dir : bb >> -dir; }
 
 inline u64 shift(int dir, u64 bb) { return dir > 0 ? bb << dir : bb >> -dir; }
 
