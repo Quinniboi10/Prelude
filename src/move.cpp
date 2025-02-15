@@ -7,9 +7,6 @@ Move::Move(string strIn, Board& board) {
 
     int flags = 0;
 
-    if (board.pieces(~board.stm) & (1ULL << to))
-        flags = CAPTURE;
-
     if (strIn.size() > 4) {  // Move must be promotion
         switch (strIn.at(4)) {
         case 'q':
@@ -59,19 +56,15 @@ string Move::toString() const {
 
     switch (mt) {
     case KNIGHT_PROMO:
-    case KNIGHT_PROMO_CAPTURE:
         moveStr += 'n';
         break;
     case BISHOP_PROMO:
-    case BISHOP_PROMO_CAPTURE:
         moveStr += 'b';
         break;
     case ROOK_PROMO:
-    case ROOK_PROMO_CAPTURE:
         moveStr += 'r';
         break;
     case QUEEN_PROMO:
-    case QUEEN_PROMO_CAPTURE:
         moveStr += 'q';
         break;
     default:
