@@ -37,12 +37,13 @@ class Move {
     MoveType typeOf() const { return MoveType(move >> 12); }  // Return the flag bits
 
     bool isNull() const { return move == 0; }
+    bool isCapture(u64 occ) const { return ((1ULL << to()) & occ) && typeOf() != CASTLE_K && typeOf() != CASTLE_Q; }
 
     // This should return false if
     // Move is a capture of any kind
     // Move is a queen promotion
     // Move is a knight promotion
-    bool isQuiet() const { return (typeOf() & CAPTURE) == 0 && typeOf() != QUEEN_PROMO && typeOf() != KNIGHT_PROMO; }
+    bool isQuiet(u64 occ) const { return !isCapture(occ) && typeOf() != QUEEN_PROMO && typeOf() != KNIGHT_PROMO; }
 
     // Convert a move into viri-style for datagen
     u16 toViri() const {

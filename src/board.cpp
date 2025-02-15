@@ -215,6 +215,8 @@ void Board::move(Move m) {
     PieceType pt   = getPiece(from);
 
     removePiece(stm, pt, from);
+    if (m.isCapture(pieces()))
+        removePiece(~stm, to);
 
     switch (mt) {
     case STANDARD_MOVE:
@@ -253,42 +255,22 @@ void Board::move(Move m) {
             placePiece(stm, ROOK, d8);
         }
         break;
-    case CAPTURE:
-        removePiece(~stm, to);
-        placePiece(stm, pt, to);
-        break;
-
     case QUEEN_PROMO:
-        placePiece(stm, QUEEN, to);
-        break;
-    case QUEEN_PROMO_CAPTURE:
-        removePiece(~stm, to);
         placePiece(stm, QUEEN, to);
         break;
     case ROOK_PROMO:
         placePiece(stm, ROOK, to);
         break;
-    case ROOK_PROMO_CAPTURE:
-        removePiece(~stm, to);
-        placePiece(stm, ROOK, to);
-        break;
     case BISHOP_PROMO:
-        placePiece(stm, BISHOP, to);
-        break;
-    case BISHOP_PROMO_CAPTURE:
-        removePiece(~stm, to);
         placePiece(stm, BISHOP, to);
         break;
     case KNIGHT_PROMO:
         placePiece(stm, KNIGHT, to);
         break;
-    case KNIGHT_PROMO_CAPTURE:
-        removePiece(~stm, to);
-        placePiece(stm, KNIGHT, to);
-        break;
     }
 
-    assert(popcount(pieces(KING)) == 2);
+    assert(popcount(pieces(WHITE, KING)) == 1);
+    assert(popcount(pieces(BLACK, KING)) == 1);
 
     castlingRights &= CASTLING_RIGHTS[from];
     castlingRights &= CASTLING_RIGHTS[to];

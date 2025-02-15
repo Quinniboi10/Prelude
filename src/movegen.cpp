@@ -260,17 +260,17 @@ void Movegen::pawnMoves(const Board& board, MoveList& moves) {
     u64 westPromo = captureWest & (MASK_RANK[RANK1] | MASK_RANK[RANK8]);
     captureWest ^= westPromo;
 
-    auto addPromos = [&](Square from, Square to, MoveType mt = STANDARD_MOVE) {
+    auto addPromos = [&](Square from, Square to) {
         assert(from >= 0);
         assert(from < 64);
 
         assert(to >= 0);
         assert(to < 64);
 
-        moves.add(Move(from, to, QUEEN_PROMO | mt));
-        moves.add(Move(from, to, ROOK_PROMO | mt));
-        moves.add(Move(from, to, BISHOP_PROMO | mt));
-        moves.add(Move(from, to, KNIGHT_PROMO | mt));
+        moves.add(Move(from, to, QUEEN_PROMO));
+        moves.add(Move(from, to, ROOK_PROMO));
+        moves.add(Move(from, to, BISHOP_PROMO));
+        moves.add(Move(from, to, KNIGHT_PROMO));
     };
 
     int backshift = pushDir;
@@ -304,14 +304,14 @@ void Movegen::pawnMoves(const Board& board, MoveList& moves) {
         Square to   = popLSB(captureEast);
         Square from = Square(to - backshift);
 
-        moves.add(from, to, CAPTURE);
+        moves.add(from, to);
     }
 
     while (eastPromo) {
         Square to   = popLSB(eastPromo);
         Square from = Square(to - backshift);
 
-        addPromos(from, to, CAPTURE);
+        addPromos(from, to);
     }
 
     backshift = pushDir + WEST;
@@ -320,14 +320,14 @@ void Movegen::pawnMoves(const Board& board, MoveList& moves) {
         Square to   = popLSB(captureWest);
         Square from = Square(to - backshift);
 
-        moves.add(from, to, CAPTURE);
+        moves.add(from, to);
     }
 
     while (westPromo) {
         Square to   = popLSB(westPromo);
         Square from = Square(to - backshift);
 
-        addPromos(from, to, CAPTURE);
+        addPromos(from, to);
     }
 
     if (board.epSquare != NO_SQUARE) {
@@ -355,7 +355,7 @@ void Movegen::knightMoves(const Board& board, MoveList& moves) {
 
         while (knightMoves > 0) {
             Square to = popLSB(knightMoves);
-            moves.add(currentSquare, to, ((1ULL << to) & occ) ? CAPTURE : STANDARD_MOVE);
+            moves.add(currentSquare, to);
         }
     }
 }
@@ -374,7 +374,7 @@ void Movegen::bishopMoves(const Board& board, MoveList& moves) {
 
         while (bishopMoves > 0) {
             Square to = popLSB(bishopMoves);
-            moves.add(currentSquare, to, ((1ULL << to) & occ) ? CAPTURE : STANDARD_MOVE);
+            moves.add(currentSquare, to);
         }
     }
 }
@@ -393,7 +393,7 @@ void Movegen::rookMoves(const Board& board, MoveList& moves) {
 
         while (rookMoves > 0) {
             Square to = popLSB(rookMoves);
-            moves.add(currentSquare, to, ((1ULL << to) & occ) ? CAPTURE : STANDARD_MOVE);
+            moves.add(currentSquare, to);
         }
     }
 }
@@ -411,7 +411,7 @@ void Movegen::kingMoves(const Board& board, MoveList& moves) {
 
     while (kingMoves > 0) {
         Square to = popLSB(kingMoves);
-        moves.add(kingSq, to, ((1ULL << to) & occ) ? CAPTURE : STANDARD_MOVE);
+        moves.add(kingSq, to);
     }
     
     if (board.canCastle(board.stm, true)) moves.add(kingSq, castleSq(board.stm, true), CASTLE_K);
