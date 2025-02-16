@@ -12,6 +12,12 @@ struct Board {
     // Index is based on square, returns the piece type
     array<PieceType, 64> mailbox;
 
+    bool          doubleCheck = false;
+    u64           checkMask   = 0;
+    u64           pinned      = 0;
+    array<u64, 2> pinnersPerC;
+
+
     Square epSquare;
     // Only last 4 bits are meaningful, index KQkq
     u8 castlingRights;
@@ -28,6 +34,7 @@ struct Board {
     void removePiece(Color c, PieceType pt, int sq);
     void removePiece(Color c, int sq);
     void resetMailbox();
+    void updateCheckPin();
 
    public:
     u64 pieces() const;
@@ -48,7 +55,7 @@ struct Board {
 
     bool canCastle(Color c, bool kingside) const;
 
-    bool isLegal(Move m) const;
+    bool isLegal(Move m);
 
     bool inCheck() const;
     bool isUnderAttack(Square square) const;

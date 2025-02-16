@@ -420,17 +420,20 @@ void Movegen::kingMoves(const Board& board, MoveList& moves) {
 
 MoveList Movegen::generateMoves(const Board& board) {
     MoveList moves;
+    kingMoves(board, moves);
+    if (board.doubleCheck)
+        return moves;
+
     pawnMoves(board, moves);
     knightMoves(board, moves);
     bishopMoves(board, moves);
     rookMoves(board, moves);
-    kingMoves(board, moves);
     // Note: Queen moves are done at the same time as bishop/rook moves
 
     return moves;
 }
 
-u64 bulk(const Board& board, usize depth) {
+u64 bulk(Board& board, usize depth) {
     u64 nodes = 0;
 
     MoveList moves = Movegen::generateMoves(board);
@@ -458,7 +461,7 @@ u64 bulk(const Board& board, usize depth) {
     return nodes;
 }
 
-u64 perft(const Board& board, usize depth) {
+u64 perft(Board& board, usize depth) {
     u64 nodes = 0;
 
     MoveList moves = Movegen::generateMoves(board);
@@ -481,7 +484,7 @@ u64 perft(const Board& board, usize depth) {
     return nodes;
 }
 
-void Movegen::perft(const Board& board, usize depth, bool bulk) {
+void Movegen::perft(Board& board, usize depth, bool bulk) {
     u64 nodes = 0;
 
     MoveList moves = generateMoves(board);

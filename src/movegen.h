@@ -37,7 +37,7 @@ void initializeAllDatabases();
 
 MoveList generateMoves(const Board& board);
 
-void perft(const Board& board, usize depth, bool bulk);
+void perft(Board& board, usize depth, bool bulk);
 void perftSuite(const string filePath);
 
 u64 getBishopAttacks(Square square, u64 occ);

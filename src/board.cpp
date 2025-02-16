@@ -82,6 +82,61 @@ void Board::resetMailbox() {
     }
 }
 
+// Updates checkers and pinners
+void Board::updateCheckPin() {
+    u64 kingBB = pieces(stm, KING);
+    int kingSq = ctzll(kingBB);
+
+    u64 ourPieces         = pieces(stm);
+    u64 enemyRookQueens   = pieces(~stm, ROOK, QUEEN);
+    u64 enemyBishopQueens = pieces(~stm, BISHOP, QUEEN);
+
+    // Direct attacks for potential checks
+    u64 rookChecks   = Movegen::getRookAttacks(Square(kingSq), pieces()) & enemyRookQueens;
+    u64 bishopChecks = Movegen::getBishopAttacks(Square(kingSq), pieces()) & enemyBishopQueens;
+    u64 checks       = rookChecks | bishopChecks;
+    checkMask        = 0;  // If no checks, will be set to all 1s later.
+
+    // *** KNIGHT ATTACKS ***
+    u64 knightAttacks = Movegen::KNIGHT_ATTACKS[kingSq] & pieces(~stm, KNIGHT);
+    while (knightAttacks) {
+        checkMask |= (1ULL << ctzll(knightAttacks));
+        knightAttacks &= knightAttacks - 1;
+    }
+
+    // *** PAWN ATTACKS ***
+    if (stm == WHITE) {
+        checkMask |= shift<NORTH_WEST>(kingBB & ~MASK_FILE[AFILE]) & pieces(BLACK, PAWN);
+        checkMask |= shift<NORTH_EAST>(kingBB & ~MASK_FILE[HFILE]) & pieces(BLACK, PAWN);
+    }
+    else {
+        checkMask |= shift<SOUTH_WEST>(kingBB & ~MASK_FILE[AFILE]) & pieces(WHITE, PAWN);
+        checkMask |= shift<SOUTH_EAST>(kingBB & ~MASK_FILE[HFILE]) & pieces(WHITE, PAWN);
+    }
+
+    doubleCheck = popcount(checks | checkMask) > 1;
+
+    while (checks) {
+        checkMask |= LINESEG[kingSq][ctzll(checks)];
+        checks &= checks - 1;
+    }
+
+    if (checkMask == 0)
+        checkMask = ~checkMask;  // If no checks, set to all ones
+
+    // ****** PIN STUFF HERE ******
+    u64 rookXrays    = Movegen::getXrayRookAttacks(Square(kingSq), pieces(), ourPieces) & enemyRookQueens;
+    u64 bishopXrays  = Movegen::getXrayBishopAttacks(Square(kingSq), pieces(), ourPieces) & enemyBishopQueens;
+    u64 pinners      = rookXrays | bishopXrays;
+    pinnersPerC[stm] = pinners;
+
+    pinned = 0;
+    while (pinners) {
+        pinned |= LINESEG[ctzll(pinners)][kingSq] & ourPieces;
+        pinners &= pinners - 1;
+    }
+}
+
 u64 Board::pieces() const { return byColor[WHITE] | byColor[BLACK]; }
 u64 Board::pieces(Color c) const { return byColor[c]; }
 u64 Board::pieces(PieceType pt) const { return byPieces[pt]; }
@@ -116,6 +171,7 @@ void Board::reset() {
     fullMoveClock = 1;
 
     resetMailbox();
+    updateCheckPin();
 }
 
 
@@ -184,6 +240,7 @@ void Board::loadFromFEN(string fen) {
     fullMoveClock = tokens.size() > 5 ? (stoi(tokens[5])) : 1;
 
     resetMailbox();
+    updateCheckPin();
 }
 
 // Print the board
@@ -267,11 +324,13 @@ void Board::move(Move m) {
     castlingRights &= CASTLING_RIGHTS[to];
 
     stm = ~stm;
+
+    updateCheckPin();
 }
 
 bool Board::canCastle(Color c, bool kingside) const { return readBit(castlingRights, castleIndex(c, kingside)); }
 
-bool Board::isLegal(Move m) const {
+bool Board::isLegal(Move m) {
     assert(!m.isNull());
 
     // Castling checks
@@ -312,18 +371,37 @@ bool Board::isLegal(Move m) const {
         return true;
     }
 
-    Board testBoard = *this;
-    testBoard.move(m);
-    return !testBoard.isUnderAttack(stm, Square(ctzll(testBoard.pieces(stm, KING))));
+    u64& king   = byPieces[KING];
+    int  kingSq = ctzll(king & byColor[stm]);
+
+    // King moves
+    if (king & (1ULL << m.from())) {
+        u64& pieces = byColor[stm];
+
+        pieces ^= king;
+        king ^= 1ULL << kingSq;
+
+        bool ans = !isUnderAttack(stm, m.to());
+        king ^= 1ULL << kingSq;
+        pieces ^= king;
+        return ans;
+    }
+
+    if (m.typeOf() == EN_PASSANT) {
+        Board testBoard = *this;
+        testBoard.move(m);
+        return !testBoard.isUnderAttack(stm, Square(ctzll(testBoard.pieces(stm, KING))));
+    }
+
+    // Direct checks
+    if ((1ULL << m.to()) & ~checkMask)
+        return false;
+
+    // Pins
+    return !(pinned & (1ULL << m.from())) || (LINE[m.from()][m.to()] & (king & byColor[stm]));
 }
 
-bool Board::inCheck() const {
-    Square kingSq = Square(ctzll(pieces(stm, KING)));
-
-    return isUnderAttack(kingSq);
-}
-
-bool Board::isUnderAttack(Square square) const { return isUnderAttack(stm, square); }
+bool Board::inCheck() const { return ~checkMask; }
 
 bool Board::isUnderAttack(Color c, Square square) const {
     assert(square >= a1);
