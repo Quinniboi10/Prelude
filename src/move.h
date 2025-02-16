@@ -19,11 +19,16 @@ class Move {
     constexpr Move()  = default;
     constexpr ~Move() = default;
 
-    constexpr Move(u8 startSquare, u8 endSquare, int flags = STANDARD_MOVE) {
-        assert(flags <= 0b1111);
-        move = startSquare;
+    constexpr Move(u8 startSquare, u8 endSquare, MoveType flags = STANDARD_MOVE) {
+        move = startSquare | flags;
         move |= endSquare << 6;
         move |= flags << 12;
+    }
+
+    constexpr Move(u8 startSquare, u8 endSquare, PieceType promo) {
+        move = startSquare | PROMOTION;
+        move |= endSquare << 6;
+        move |= (promo - 1) << 12;
     }
 
     Move(string strIn, Board& board);
@@ -34,55 +39,21 @@ class Move {
     Square from() const { return Square(move & 0b111111); }
     Square to() const { return Square((move >> 6) & 0b111111); }
 
-    MoveType typeOf() const { return MoveType(move >> 12); }  // Return the flag bits
+    MoveType typeOf() const { return MoveType(move & 0xC000); }  // Return the flag bits
+
+    PieceType promo() const {
+        assert(typeOf() == PROMOTION);
+        return PieceType(((move >> 12) & 0b11) + 1);
+    }
 
     bool isNull() const { return move == 0; }
-    bool isCapture(u64 occ) const { return ((1ULL << to()) & occ) && typeOf() != CASTLE_K && typeOf() != CASTLE_Q; }
+    bool isCapture(u64 occ) const { return ((1ULL << to()) & occ) && typeOf() != CASTLE; }
 
     // This should return false if
     // Move is a capture of any kind
     // Move is a queen promotion
     // Move is a knight promotion
-    bool isQuiet(u64 occ) const { return !isCapture(occ) && typeOf() != QUEEN_PROMO && typeOf() != KNIGHT_PROMO; }
-
-    // Convert a move into viri-style for datagen
-    u16 toViri() const {
-        static constexpr array MOVE_TYPES = {
-          static_cast<u16>(0x0000),  // None
-          static_cast<u16>(0xC000),  // Promo
-          static_cast<u16>(0x8000),  // Castling
-          static_cast<u16>(0x4000)   // EP
-        };
-
-        u16 viriMove = move & 0xFFF;  // Clear flags
-
-        if (typeOf() == EN_PASSANT)
-            viriMove |= MOVE_TYPES[3];
-        else if (typeOf() == CASTLE_K || typeOf() == CASTLE_Q) {
-            viriMove |= MOVE_TYPES[2];
-
-            // Issue here is Viri encoding is FRC style, so king takes rook
-            viriMove &= ~(0b111111 << 6);  // Clear the to square bits
-            if (typeOf() == CASTLE_K) {
-                if (from() == e1)
-                    viriMove |= h1 << 6;
-                else
-                    viriMove |= h8 << 6;
-            }
-            else {
-                if (from() == e1)
-                    viriMove |= a1 << 6;
-                else
-                    viriMove |= a8 << 6;
-            }
-        }
-        else if ((typeOf() & 0b1000) != 0) {
-            viriMove |= MOVE_TYPES[1];
-            viriMove |= move & (0b11 << 12);
-        }
-
-        return viriMove;
-    }
+    bool isQuiet(u64 occ) const { return !isCapture(occ) && (typeOf() != PROMOTION || promo() == QUEEN); }
 
     bool operator==(const Move other) const { return move == other.move; }
 
@@ -103,7 +74,8 @@ struct MoveList {
         moves[length++] = m;
     }
 
-    void add(u8 from, u8 to, int flags = STANDARD_MOVE) { add(Move(from, to, flags)); }
+    void add(u8 from, u8 to, MoveType flags = STANDARD_MOVE) { add(Move(from, to, flags)); }
+    void add(u8 from, u8 to, PieceType promo) { add(Move(from, to, promo)); }
 
     auto begin() { return moves.begin(); }
     auto end() { return moves.begin() + length; }

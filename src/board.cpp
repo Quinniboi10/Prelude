@@ -221,9 +221,7 @@ void Board::move(Move m) {
     switch (mt) {
     case STANDARD_MOVE:
         placePiece(stm, pt, to);
-        if (pt == PAWN
-            && (to + 16 == from
-                || to - 16 == from)
+        if (pt == PAWN && (to + 16 == from || to - 16 == from)
             && (pieces(~stm, PAWN) & (shift<EAST>((1ULL << to) & ~MASK_FILE[HFILE]) | shift<WEST>((1ULL << to) & ~MASK_FILE[AFILE]))))  // Only set EP square if it could be taken
             epSquare = Square(stm == WHITE ? from + NORTH : from + SOUTH);
         break;
@@ -231,41 +229,34 @@ void Board::move(Move m) {
         removePiece(~stm, PAWN, to + (stm == WHITE ? SOUTH : NORTH));
         placePiece(stm, pt, to);
         break;
-    case CASTLE_K:
-        if (stm == WHITE) {
-            placePiece(stm, pt, g1);
-            removePiece(stm, ROOK, h1);
-            placePiece(stm, ROOK, f1);
+    case CASTLE:
+        if (from < to) {  // Kingside
+            if (stm == WHITE) {
+                placePiece(stm, pt, g1);
+                removePiece(stm, ROOK, h1);
+                placePiece(stm, ROOK, f1);
+            }
+            else {
+                placePiece(stm, pt, g8);
+                removePiece(stm, ROOK, h8);
+                placePiece(stm, ROOK, f8);
+            }
         }
         else {
-            placePiece(stm, pt, g8);
-            removePiece(stm, ROOK, h8);
-            placePiece(stm, ROOK, f8);
+            if (stm == WHITE) {
+                placePiece(stm, pt, c1);
+                removePiece(stm, ROOK, a1);
+                placePiece(stm, ROOK, d1);
+            }
+            else {
+                placePiece(stm, pt, c8);
+                removePiece(stm, ROOK, a8);
+                placePiece(stm, ROOK, d8);
+            }
         }
         break;
-    case CASTLE_Q:
-        if (stm == WHITE) {
-            placePiece(stm, pt, c1);
-            removePiece(stm, ROOK, a1);
-            placePiece(stm, ROOK, d1);
-        }
-        else {
-            placePiece(stm, pt, c8);
-            removePiece(stm, ROOK, a8);
-            placePiece(stm, ROOK, d8);
-        }
-        break;
-    case QUEEN_PROMO:
-        placePiece(stm, QUEEN, to);
-        break;
-    case ROOK_PROMO:
-        placePiece(stm, ROOK, to);
-        break;
-    case BISHOP_PROMO:
-        placePiece(stm, BISHOP, to);
-        break;
-    case KNIGHT_PROMO:
-        placePiece(stm, KNIGHT, to);
+    case PROMOTION:
+        placePiece(stm, m.promo(), to);
         break;
     }
 
@@ -284,8 +275,8 @@ bool Board::isLegal(Move m) const {
     assert(!m.isNull());
 
     // Castling checks
-    if (m.typeOf() == CASTLE_K || m.typeOf() == CASTLE_Q) {
-        bool kingside = (m.typeOf() == CASTLE_K);
+    if (m.typeOf() == CASTLE) {
+        bool kingside = (m.from() < m.to());
         if (!canCastle(stm, kingside))
             return false;
         if (inCheck())

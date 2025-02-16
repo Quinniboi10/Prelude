@@ -267,10 +267,10 @@ void Movegen::pawnMoves(const Board& board, MoveList& moves) {
         assert(to >= 0);
         assert(to < 64);
 
-        moves.add(Move(from, to, QUEEN_PROMO));
-        moves.add(Move(from, to, ROOK_PROMO));
-        moves.add(Move(from, to, BISHOP_PROMO));
-        moves.add(Move(from, to, KNIGHT_PROMO));
+        moves.add(Move(from, to, QUEEN));
+        moves.add(Move(from, to, ROOK));
+        moves.add(Move(from, to, BISHOP));
+        moves.add(Move(from, to, KNIGHT));
     };
 
     int backshift = pushDir;
@@ -414,8 +414,8 @@ void Movegen::kingMoves(const Board& board, MoveList& moves) {
         moves.add(kingSq, to);
     }
     
-    if (board.canCastle(board.stm, true)) moves.add(kingSq, castleSq(board.stm, true), CASTLE_K);
-    if (board.canCastle(board.stm, false)) moves.add(kingSq, castleSq(board.stm, false), CASTLE_Q);
+    if (board.canCastle(board.stm, true)) moves.add(kingSq, castleSq(board.stm, true), CASTLE);
+    if (board.canCastle(board.stm, false)) moves.add(kingSq, castleSq(board.stm, false), CASTLE);
 }
 
 MoveList Movegen::generateMoves(const Board& board) {
