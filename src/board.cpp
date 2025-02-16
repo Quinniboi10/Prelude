@@ -345,6 +345,7 @@ void Board::move(Move m) {
     if (m.isCapture(pieces())) {
         halfMoveClock = 0;
         removePiece(~stm, to);
+        posHistory.clear();
     }
     else if (pt == PAWN)
         halfMoveClock = 0;
@@ -513,4 +514,19 @@ bool Board::isUnderAttack(Color c, Square square) const {
         return (Movegen::pawnAttackBB(WHITE, square) & pieces(BLACK, PAWN)) != 0;
     else
         return (Movegen::pawnAttackBB(BLACK, square) & pieces(WHITE, PAWN)) != 0;
+}
+
+bool Board::isDraw() const {
+    // 50 move rule
+    if (halfMoveClock > 100)
+        return !inCheck();
+
+    // Trifold
+    u8 seen = 0;
+    for (u64 hash : posHistory) {
+        seen += hash == zobrist;
+        if (seen >= 2)
+            return true;
+    }
+    return false;
 }

@@ -71,4 +71,6 @@ struct Board {
 
     bool inCheck() const;
     bool isUnderAttack(Color c, Square square) const;
+
+    bool isDraw() const;
 };
