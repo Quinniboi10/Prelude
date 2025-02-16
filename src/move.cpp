@@ -36,9 +36,6 @@ Move::Move(string strIn, Board& board) {
     if (to == board.epSquare && ((1ULL << from) & board.pieces(~board.stm, PAWN)))
         flags = EN_PASSANT;
 
-    if (board.getPiece(from) == PAWN && std::abs(to - from) == 16)
-        flags = DOUBLE_PUSH;
-
     *this = Move(from, to, flags);
 }
 

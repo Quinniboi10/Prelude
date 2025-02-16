@@ -103,7 +103,7 @@ static inline const bool IS_LITTLE_ENDIAN = *reinterpret_cast<const char*>(&Le) 
 
 // Names binary encoding flags from Move class
 enum MoveType {
-    STANDARD_MOVE = 0, DOUBLE_PUSH = 0b1, CASTLE_K = 0b10, CASTLE_Q = 0b11, EN_PASSANT = 0b101, PROMOTION = 0b1000, KNIGHT_PROMO = 0b1000, BISHOP_PROMO = 0b1001, ROOK_PROMO = 0b1010, QUEEN_PROMO = 0b1011
+    STANDARD_MOVE = 0, CASTLE_K = 0b10, CASTLE_Q = 0b11, EN_PASSANT = 0b101, PROMOTION = 0b1000, KNIGHT_PROMO = 0b1000, BISHOP_PROMO = 0b1001, ROOK_PROMO = 0b1010, QUEEN_PROMO = 0b1011
 };
 
 // TT flags
