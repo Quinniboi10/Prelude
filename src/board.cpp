@@ -221,15 +221,15 @@ void Board::move(Move m) {
     switch (mt) {
     case STANDARD_MOVE:
         placePiece(stm, pt, to);
+        if (pt == PAWN
+            && (to + 16 == from
+                || to - 16 == from)
+            && (pieces(~stm, PAWN) & (shift<EAST>((1ULL << to) & ~MASK_FILE[HFILE]) | shift<WEST>((1ULL << to) & ~MASK_FILE[AFILE]))))  // Only set EP square if it could be taken
+            epSquare = Square(stm == WHITE ? from + NORTH : from + SOUTH);
         break;
     case EN_PASSANT:
         removePiece(~stm, PAWN, to + (stm == WHITE ? SOUTH : NORTH));
         placePiece(stm, pt, to);
-        break;
-    case DOUBLE_PUSH:
-        placePiece(stm, pt, to);
-        if (pieces(~stm, PAWN) & (shift<EAST>((1ULL << to) & ~MASK_FILE[HFILE]) | shift<WEST>((1ULL << to) & ~MASK_FILE[AFILE])))  // Only set EP square if it could be taken
-            epSquare = Square(stm == WHITE ? from + NORTH : from + SOUTH);
         break;
     case CASTLE_K:
         if (stm == WHITE) {

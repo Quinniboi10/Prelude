@@ -295,7 +295,7 @@ void Movegen::pawnMoves(const Board& board, MoveList& moves) {
         Square to   = popLSB(doublePushes);
         Square from = Square(to - backshift);
 
-        moves.add(from, to, DOUBLE_PUSH);
+        moves.add(from, to);
     }
 
     backshift = pushDir + EAST;
