@@ -5,33 +5,28 @@ Move::Move(string strIn, Board& board) {
     Square from = parseSquare(strIn.substr(0, 2));
     Square to   = parseSquare(strIn.substr(2, 2));
 
-    int flags = 0;
+    MoveType flags = STANDARD_MOVE;
 
     if (strIn.size() > 4) {  // Move must be promotion
         switch (strIn.at(4)) {
         case 'q':
-            flags |= QUEEN_PROMO;
-            break;
+            *this = Move(from, to, QUEEN);
+            return;
         case 'r':
-            flags |= ROOK_PROMO;
-            break;
+            *this = Move(from, to, KNIGHT);
+            return;
         case 'b':
-            flags |= BISHOP_PROMO;
-            break;
+            *this = Move(from, to, BISHOP);
+            return;
         default:
-            flags |= KNIGHT_PROMO;
-            break;
+            *this = Move(from, to, KNIGHT);
+            return;
         }
     }
 
-    if (from == e1 && to == g1 && board.canCastle(WHITE, true))
-        flags = CASTLE_K;
-    else if (from == e1 && to == c1 && board.canCastle(WHITE, false))
-        flags = CASTLE_Q;
-    else if (from == e8 && to == g8 && board.canCastle(BLACK, true))
-        flags = CASTLE_K;
-    else if (from == e8 && to == c8 && board.canCastle(BLACK, false))
-        flags = CASTLE_Q;
+    if ((from == e1 && to == g1 && board.canCastle(WHITE, true)) || (from == e1 && to == c1 && board.canCastle(WHITE, false)) || (from == e8 && to == g8 && board.canCastle(BLACK, true))
+        || (from == e8 && to == c8 && board.canCastle(BLACK, false)))
+        flags = CASTLE;
 
     if (to == board.epSquare && ((1ULL << from) & board.pieces(~board.stm, PAWN)))
         flags = EN_PASSANT;
@@ -43,25 +38,25 @@ string Move::toString() const {
     MoveType mt = typeOf();
 
     string moveStr = squareToAlgebraic(from());
-    if (mt == CASTLE_K || mt == CASTLE_Q)
-        return moveStr + (squareToAlgebraic(to() + (mt == CASTLE_K ? WEST : EAST * 2)));
+    if (mt == CASTLE)
+        return moveStr + (squareToAlgebraic(to() + (from() < to() ? WEST : EAST * 2)));
 
     moveStr += squareToAlgebraic(to());
 
-    if ((mt & PROMOTION) == 0)
+    if (mt != PROMOTION)
         return moveStr;
 
-    switch (mt) {
-    case KNIGHT_PROMO:
+    switch (promo()) {
+    case KNIGHT:
         moveStr += 'n';
         break;
-    case BISHOP_PROMO:
+    case BISHOP:
         moveStr += 'b';
         break;
-    case ROOK_PROMO:
+    case ROOK:
         moveStr += 'r';
         break;
-    case QUEEN_PROMO:
+    case QUEEN:
         moveStr += 'q';
         break;
     default:
