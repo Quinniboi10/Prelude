@@ -11,10 +11,15 @@ struct Board {
     array<u64, 2> byColor;
     // Index is based on square, returns the piece type
     array<PieceType, 64> mailbox;
+    // Board zobrist hash
+    u64 zobrist;
 
-    bool          doubleCheck = false;
-    u64           checkMask   = 0;
-    u64           pinned      = 0;
+    // History of positions
+    std::vector<u64> posHistory;
+
+    bool          doubleCheck;
+    u64           checkMask;
+    u64           pinned;
     array<u64, 2> pinnersPerC;
 
 
@@ -24,8 +29,8 @@ struct Board {
 
     Color stm;
 
-    int halfMoveClock;
-    int fullMoveClock;
+    usize halfMoveClock;
+    usize fullMoveClock;
 
    private:
     char getPieceAt(int i) const;
@@ -34,9 +39,15 @@ struct Board {
     void removePiece(Color c, PieceType pt, int sq);
     void removePiece(Color c, int sq);
     void resetMailbox();
+    void resetZobrist();
     void updateCheckPin();
 
+    template<bool minimal>
+    void move(Move m);
+
    public:
+    static void fillZobristTable();
+
     u64 pieces() const;
     u64 pieces(Color c) const;
     u64 pieces(PieceType pt) const;
@@ -52,12 +63,12 @@ struct Board {
     PieceType getPiece(int sq) const;
 
     void move(Move m);
+    void minimalMove(Move m);
 
     bool canCastle(Color c, bool kingside) const;
 
     bool isLegal(Move m);
 
     bool inCheck() const;
-    bool isUnderAttack(Square square) const;
     bool isUnderAttack(Color c, Square square) const;
 };

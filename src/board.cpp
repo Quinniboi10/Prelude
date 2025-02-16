@@ -3,11 +3,41 @@
 #include "movegen.h"
 
 #include <cassert>
+#include <random>
 
 constexpr array<u8, 64> CASTLING_RIGHTS = {0b1011, 0b1111, 0b1111, 0b1111, 0b0011, 0b1111, 0b1111, 0b0111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111,
                                            0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111,
                                            0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111,
                                            0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1110, 0b1111, 0b1111, 0b1111, 0b1100, 0b1111, 0b1111, 0b1101};
+
+// Piece zobrist table
+array<array<array<u64, 64>, 6>, 2> PIECE_ZTABLE;
+// En passant zobrist table
+array<u64, 65> EP_ZTABLE;
+// Zobrist for stm
+u64 STM_ZHASH;
+// Zobrist for castling rights
+array<u64, 16> CASTLING_ZTABLE;
+
+void Board::fillZobristTable() {
+    std::random_device rd;
+    std::mt19937_64    engine(rd());
+    engine.seed(69420); // Nice
+    std::uniform_int_distribution<u64> dist(0, ~0ULL);
+
+    for (auto& stm : PIECE_ZTABLE)
+        for (auto& pt : stm)
+            for (auto& piece : pt)
+                piece = dist(engine);
+
+    for (auto& ep : EP_ZTABLE)
+        ep = dist(engine);
+
+    STM_ZHASH = dist(engine);
+
+    for (auto& right : CASTLING_ZTABLE)
+        right = dist(engine);
+}
 
 // Returns the piece on a square as a character
 char Board::getPieceAt(int sq) const {
@@ -28,6 +58,8 @@ void Board::placePiece(Color c, PieceType pt, int sq) {
 
     assert(!readBit(BB, sq));
 
+    zobrist ^= PIECE_ZTABLE[c][pt][sq];
+
     BB ^= 1ULL << sq;
     byColor[c] ^= 1ULL << sq;
 
@@ -41,6 +73,8 @@ void Board::removePiece(Color c, PieceType pt, int sq) {
     auto& BB = byPieces[pt];
 
     assert(readBit(BB, sq));
+
+    zobrist ^= PIECE_ZTABLE[c][pt][sq];
 
     BB ^= 1ULL << sq;
     byColor[c] ^= 1ULL << sq;
@@ -56,6 +90,8 @@ void Board::removePiece(Color c, int sq) {
 
     assert(readBit(BB, sq));
 
+    zobrist ^= PIECE_ZTABLE[c][getPiece(sq)][sq];
+
     BB ^= 1ULL << sq;
     byColor[c] ^= 1ULL << sq;
 
@@ -64,7 +100,7 @@ void Board::removePiece(Color c, int sq) {
 
 void Board::resetMailbox() {
     mailbox.fill(NO_PIECE_TYPE);
-    for (int i = 0; i < 64; i++) {
+    for (u8 i = 0; i < 64; i++) {
         PieceType& sq   = mailbox[i];
         u64        mask = 1ULL << i;
         if (mask & pieces(PAWN))
@@ -80,6 +116,27 @@ void Board::resetMailbox() {
         else if (mask & pieces(KING))
             sq = KING;
     }
+}
+
+void Board::resetZobrist() {
+    zobrist = 0;
+
+    for (PieceType pt = PAWN; pt <= KING; pt = PieceType(static_cast<int>(pt) + 1)) {
+        u64 pcs = pieces(WHITE, pt);
+        while (pcs) {
+            Square sq = popLSB(pcs);
+            zobrist ^= PIECE_ZTABLE[WHITE][pt][sq];
+        }
+
+        pcs = pieces(BLACK, pt);
+        while (pcs) {
+            Square sq = popLSB(pcs);
+            zobrist ^= PIECE_ZTABLE[BLACK][pt][sq];
+        }
+    }
+
+    zobrist ^= CASTLING_ZTABLE[castlingRights];
+    zobrist ^= EP_ZTABLE[epSquare];
 }
 
 // Updates checkers and pinners
@@ -171,6 +228,7 @@ void Board::reset() {
     fullMoveClock = 1;
 
     resetMailbox();
+    resetZobrist();
     updateCheckPin();
 }
 
@@ -240,6 +298,7 @@ void Board::loadFromFEN(string fen) {
     fullMoveClock = tokens.size() > 5 ? (stoi(tokens[5])) : 1;
 
     resetMailbox();
+    resetZobrist();
     updateCheckPin();
 }
 
@@ -258,12 +317,20 @@ void Board::display() const {
     }
     cout << "+---+---+---+---+---+---+---+---+" << endl;
     cout << "  a   b   c   d   e   f   g   h" << endl << endl;
+    cout << endl;
+    cout << "Board hash: 0x" << std::hex << std::uppercase << zobrist << std::dec << endl;
 }
 
 // Return the type of the piece on the square
 PieceType Board::getPiece(int sq) const { return mailbox[sq]; }
 
-// Make a move on the board
+// Make a move
+void Board::move(Move m) { move<false>(m); }
+// Make a move on the board, but don't update accumulators
+void Board::minimalMove(Move m) { move<true>(m); }
+
+// Backend for all moves
+template<bool minimal>
 void Board::move(Move m) {
     epSquare       = NO_SQUARE;
     Square    from = m.from();
@@ -271,9 +338,18 @@ void Board::move(Move m) {
     MoveType  mt   = m.typeOf();
     PieceType pt   = getPiece(from);
 
+    zobrist ^= CASTLING_ZTABLE[castlingRights];
+    zobrist ^= EP_ZTABLE[epSquare];
+
     removePiece(stm, pt, from);
-    if (m.isCapture(pieces()))
+    if (m.isCapture(pieces())) {
+        halfMoveClock = 0;
         removePiece(~stm, to);
+    }
+    else if (pt == PAWN)
+        halfMoveClock = 0;
+    else
+        halfMoveClock++;
 
     switch (mt) {
     case STANDARD_MOVE:
@@ -324,6 +400,14 @@ void Board::move(Move m) {
     castlingRights &= CASTLING_RIGHTS[to];
 
     stm = ~stm;
+
+    zobrist ^= CASTLING_ZTABLE[castlingRights];
+    zobrist ^= EP_ZTABLE[epSquare];
+    zobrist ^= STM_ZHASH;
+
+    posHistory.push_back(zobrist);
+
+    fullMoveClock += stm == WHITE;
 
     updateCheckPin();
 }
@@ -389,7 +473,7 @@ bool Board::isLegal(Move m) {
 
     if (m.typeOf() == EN_PASSANT) {
         Board testBoard = *this;
-        testBoard.move(m);
+        testBoard.minimalMove(m);
         return !testBoard.isUnderAttack(stm, Square(ctzll(testBoard.pieces(stm, KING))));
     }
 
