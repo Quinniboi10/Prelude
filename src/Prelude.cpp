@@ -5,7 +5,7 @@
 #include "types.h"
 #include "movegen.h"
 
-// ****** MAIN ENTRY POINT ******
+// ****** MAIN ENTRY POINT, HANDLES UCI ******
 int main(int argc, char* argv[]) {
     Board board;
 
@@ -13,6 +13,7 @@ int main(int argc, char* argv[]) {
     std::vector<string> tokens;
 
     Movegen::initializeAllDatabases();
+    Board::fillZobristTable();
 
     board.reset();
 
