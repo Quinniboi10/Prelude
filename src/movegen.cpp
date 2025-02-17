@@ -344,7 +344,6 @@ void Movegen::pawnMoves(const Board& board, MoveList& moves) {
 void Movegen::knightMoves(const Board& board, MoveList& moves) {
     u64 knightBB = board.pieces(board.stm, KNIGHT);
 
-    u64 occ = board.pieces();
     u64 friendly = board.pieces(board.stm);
 
     while (knightBB > 0) {
@@ -406,8 +405,6 @@ void Movegen::kingMoves(const Board& board, MoveList& moves) {
 
     u64 kingMoves = KING_ATTACKS[kingSq];
     kingMoves &= ~board.pieces(board.stm);
-
-    u64 occ = board.pieces();
 
     while (kingMoves > 0) {
         Square to = popLSB(kingMoves);

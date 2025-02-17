@@ -55,6 +55,27 @@ inline std::vector<string> split(const string& str, char delim) {
     return result;
 }
 
+// Function from stockfish
+template<typename IntType>
+inline IntType readLittleEndian(std::istream& stream) {
+    IntType result;
+
+    if (IS_LITTLE_ENDIAN)
+        stream.read(reinterpret_cast<char*>(&result), sizeof(IntType));
+    else {
+        std::uint8_t                  u[sizeof(IntType)];
+        std::make_unsigned_t<IntType> v = 0;
+
+        stream.read(reinterpret_cast<char*>(u), sizeof(IntType));
+        for (usize i = 0; i < sizeof(IntType); ++i)
+            v = (v << 8) | u[sizeof(IntType) - i - 1];
+
+        std::memcpy(&result, &v, sizeof(IntType));
+    }
+
+    return result;
+}
+
 constexpr Rank rankOf(Square s) { return Rank(s >> 3); }
 constexpr File fileOf(Square s) { return File(s & 0b111); }
 
@@ -121,6 +142,13 @@ inline string formatTime(u64 timeInMS) {
     if (result == "")
         return std::to_string(timeInMS) + "ms";
     return result;
+}
+
+inline string padStr(string str, usize target, u64 minPadding = 2) {
+    u64 padding = std::max(target - str.length(), minPadding);
+    for (u64 i = 0; i < padding; i++)
+        str += " ";
+    return str;
 }
 
 // Throws a segfault, useful for tracing the call stack

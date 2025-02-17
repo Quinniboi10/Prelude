@@ -228,6 +228,7 @@ void Board::reset() {
     fullMoveClock = 1;
 
     resetMailbox();
+    accumulators.resetAccumulators(*this);
     resetZobrist();
     updateCheckPin();
 }
@@ -298,6 +299,7 @@ void Board::loadFromFEN(string fen) {
     fullMoveClock = tokens.size() > 5 ? (stoi(tokens[5])) : 1;
 
     resetMailbox();
+    accumulators.resetAccumulators(*this);
     resetZobrist();
     updateCheckPin();
 }
@@ -337,20 +339,29 @@ void Board::move(Move m) {
     Square    to   = m.to();
     MoveType  mt   = m.typeOf();
     PieceType pt   = getPiece(from);
+    PieceType toPT = NO_PIECE_TYPE;
+    PieceType endPT = m.typeOf() == PROMOTION ? m.promo() : pt;
 
     zobrist ^= CASTLING_ZTABLE[castlingRights];
     zobrist ^= EP_ZTABLE[epSquare];
 
     removePiece(stm, pt, from);
     if (m.isCapture(pieces())) {
+        toPT = getPiece(to);
         halfMoveClock = 0;
-        removePiece(~stm, to);
         posHistory.clear();
+        if (mt != EN_PASSANT) {
+            if constexpr (!minimal)
+                accumulators.addSubSub(stm, to, endPT, from, pt, to, toPT);
+            removePiece(~stm, toPT, to);
+        }
     }
-    else if (pt == PAWN)
-        halfMoveClock = 0;
-    else
-        halfMoveClock++;
+    else {
+        if (!minimal && mt != CASTLE)
+            accumulators.addSub(stm, to, endPT, from, pt);
+        else if (pt == PAWN) halfMoveClock = 0;
+        else halfMoveClock++;
+    }
 
     switch (mt) {
     case STANDARD_MOVE:
@@ -360,6 +371,8 @@ void Board::move(Move m) {
             epSquare = Square(stm == WHITE ? from + NORTH : from + SOUTH);
         break;
     case EN_PASSANT:
+        if constexpr (!minimal)
+            accumulators.addSubSub(stm, to, PAWN, from, PAWN, to + (stm == WHITE ? SOUTH : NORTH), PAWN);
         removePiece(~stm, PAWN, to + (stm == WHITE ? SOUTH : NORTH));
         placePiece(stm, pt, to);
         break;
@@ -369,11 +382,15 @@ void Board::move(Move m) {
                 placePiece(stm, pt, g1);
                 removePiece(stm, ROOK, h1);
                 placePiece(stm, ROOK, f1);
+                if constexpr (!minimal)
+                    accumulators.addAddSubSub(stm, g1, KING, f1, ROOK, from, KING, h1, ROOK);
             }
             else {
                 placePiece(stm, pt, g8);
                 removePiece(stm, ROOK, h8);
                 placePiece(stm, ROOK, f8);
+                if constexpr (!minimal)
+                    accumulators.addAddSubSub(stm, g8, KING, f8, ROOK, from, KING, h8, ROOK);
             }
         }
         else {
@@ -381,11 +398,15 @@ void Board::move(Move m) {
                 placePiece(stm, pt, c1);
                 removePiece(stm, ROOK, a1);
                 placePiece(stm, ROOK, d1);
+                if constexpr (!minimal)
+                    accumulators.addAddSubSub(stm, c1, KING, d1, ROOK, from, KING, a1, ROOK);
             }
             else {
                 placePiece(stm, pt, c8);
                 removePiece(stm, ROOK, a8);
                 placePiece(stm, ROOK, d8);
+                if constexpr (!minimal)
+                    accumulators.addAddSubSub(stm, c8, KING, d8, ROOK, from, KING, a8, ROOK);
             }
         }
         break;
