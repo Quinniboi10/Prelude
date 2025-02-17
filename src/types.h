@@ -170,3 +170,5 @@ public:
         }
     }
 };
+
+struct Board;

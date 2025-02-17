@@ -28,7 +28,7 @@ Move::Move(string strIn, Board& board) {
         || (from == e8 && to == c8 && board.canCastle(BLACK, false)))
         flags = CASTLE;
 
-    if (to == board.epSquare && ((1ULL << from) & board.pieces(~board.stm, PAWN)))
+    if (to == board.epSquare && ((1ULL << from) & board.pieces(board.stm, PAWN)))
         flags = EN_PASSANT;
 
     *this = Move(from, to, flags);

@@ -2,11 +2,15 @@
 
 #include "board.h"
 #include "move.h"
+#include "nnue.h"
 #include "types.h"
 #include "movegen.h"
 
+NNUE nnue;
+
 // ****** MAIN ENTRY POINT, HANDLES UCI ******
 int main(int argc, char* argv[]) {
+    nnue.loadNetwork("./nnue.bin");
     Board board;
 
     string              command;
@@ -64,6 +68,10 @@ int main(int argc, char* argv[]) {
         }
         else if (tokens[0] == "move") {
             board.move(Move(tokens[1], board));
+        }
+        else if (command == "debug.eval") {
+            cout << "Raw eval: " << nnue.forwardPass(&board) << endl;
+            nnue.showBuckets(&board);
         }
         else if (command == "debug.moves") {
             MoveList moves = Movegen::generateMoves(board);

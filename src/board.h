@@ -3,14 +3,17 @@
 #include "util.h"
 #include "types.h"
 #include "move.h"
+#include "accumulator.h"
 
 struct Board {
+    // Set of accumulators for evaluation
+    AccumulatorPair accumulators;
+    // Index is based on square, returns the piece type
+    array<PieceType, 64> mailbox;
     // Indexed pawns, knights, bishops, rooks, queens, king
     array<u64, 6> byPieces;
     // Index is based on color so black is colors[0]
     array<u64, 2> byColor;
-    // Index is based on square, returns the piece type
-    array<PieceType, 64> mailbox;
     // Board zobrist hash
     u64 zobrist;
 
