@@ -151,6 +151,15 @@ inline string padStr(string str, usize target, u64 minPadding = 2) {
     return str;
 }
 
+inline int findIndexOf(const auto arr, string entry) {
+    auto it = std::find(arr.begin(), arr.end(), entry);
+    if (it != arr.end()) {
+        return std::distance(arr.begin(), it);  // Calculate the index
+    }
+    return -1;  // Not found
+}
+
+
 // Throws a segfault, useful for tracing the call stack
 inline void segFault() {
     int* foo = (int*) -1;

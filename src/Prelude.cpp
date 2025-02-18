@@ -8,12 +8,44 @@
 #include "movegen.h"
 #include "search.h"
 
+#ifndef EVALFILE
+    #define EVALFILE "./nnue.bin"
+#endif
+
+#ifdef _MSC_VER
+    #define MSVC
+    #pragma push_macro("_MSC_VER")
+    #undef _MSC_VER
+#endif
+
+#include "../external/incbin.h"
+
+#ifdef MSVC
+    #pragma pop_macro("_MSC_VER")
+    #undef MSVC
+#endif
+
+#if !defined(_MSC_VER) || defined(__clang__)
+INCBIN(EVAL, EVALFILE);
+#endif
+
 NNUE             nnue;
 std::atomic<u64> nodes;
 
 // ****** MAIN ENTRY POINT, HANDLES UCI ******
 int main(int argc, char* argv[]) {
-    nnue.loadNetwork("./nnue.bin");
+    auto loadDefaultNet = [&]([[maybe_unused]] bool warnMSVC = false) {
+#if defined(_MSC_VER) && !defined(__clang__)
+        nnue.loadNetwork(EVALFILE);
+        if (warnMSVC)
+            cerr << "WARNING: This file was compiled with MSVC, this means that an nnue was NOT embedded into the exe." << endl;
+#else
+        nnue = *reinterpret_cast<const NNUE*>(gEVALData);
+#endif
+    };
+
+    loadDefaultNet(true);
+
     Board board;
 
     string              command;
@@ -25,6 +57,11 @@ int main(int argc, char* argv[]) {
     board.reset();
 
     std::atomic<bool> stopSearch(false);
+
+    auto exists = [&](string sub) { return command.find(" " + sub + " ") != string::npos; };
+    auto index  = [&](string sub, int offset = 0) { return findIndexOf(tokens, sub) + offset; };
+
+    auto getValueFollowing = [&](string value, int defaultValue) { return exists(value) ? stoi(tokens[index(value, 1)]) : defaultValue; };
 
     cout << "Prelude ready and awaiting commands" << endl;
     while (true) {
@@ -38,6 +75,7 @@ int main(int argc, char* argv[]) {
             cout << "id author Quinniboi10" << endl;
             cout << "option name Threads type spin default 1 min 1 max 1" << endl;
             cout << "option name Hash type spin default 1 min 1 max 16384" << endl;
+            cout << "option name NNUE type string default internal" << endl;
             cout << "uciok" << endl;
         }
         else if (command == "isready")
@@ -51,23 +89,27 @@ int main(int argc, char* argv[]) {
                 board.loadFromFEN(command.substr(13));
         }
         else if (tokens[0] == "go") {
-            auto exists = [&](string sub) { return command.find(" " + sub + " ") != string::npos; };
-            auto index  = [&](string sub, int offset = 0) { return std::distance(tokens.begin(), std::find(tokens.begin(), tokens.end(), sub)) + offset; };
+            usize depth = getValueFollowing("depth", MAX_PLY);
 
-            auto getValueFromUCI = [&](string value, int defaultValue) { return exists(value) ? stoi(tokens[index(value, 1)]) : defaultValue; };
+            usize maxNodes = getValueFollowing("nodes", 0);
 
-            usize depth = getValueFromUCI("depth", MAX_PLY);
+            usize mtime = getValueFollowing("mtime", 0);
+            usize wtime = getValueFollowing("wtime", 0);
+            usize btime = getValueFollowing("btime", 0);
 
-            usize maxNodes = getValueFromUCI("nodes", 0);
-
-            usize mtime = getValueFromUCI("mtime", 0);
-            usize wtime = getValueFromUCI("wtime", 0);
-            usize btime = getValueFromUCI("btime", 0);
-
-            usize winc = getValueFromUCI("winc", 0);
-            usize binc = getValueFromUCI("binc", 0);
+            usize winc = getValueFollowing("winc", 0);
+            usize binc = getValueFollowing("binc", 0);
 
             Search::iterativeDeepening(board, depth, Search::ThreadInfo(Search::ThreadType::MAIN), Search::SearchParams(maxNodes, mtime, wtime, btime, winc, binc, &stopSearch));
+        }
+        else if (tokens[0] == "setoption") {
+            if (tokens[2] == "NNUE") {
+                string value = tokens[findIndexOf(tokens, "value") + 1];
+                if (value == "internal")
+                    loadDefaultNet();
+                else
+                    nnue.loadNetwork(value);
+            }
         }
         else if (command == "quit")
             return 0;
