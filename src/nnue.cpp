@@ -6,6 +6,7 @@
 
 #include <fstream>
 #include <format>
+#include <algorithm>
 #include <immintrin.h>
 
 i16 NNUE::ReLU(const i16 x) {
@@ -210,3 +211,5 @@ void NNUE::showBuckets(const Board* board) {
             cout << "+------------+------------+" << endl;
     }
 }
+
+i16 NNUE::evaluate(const Board& board) { return std::clamp(forwardPass(&board), -INF_I16, INF_I16); }

@@ -2,6 +2,13 @@
 
 #include "types.h"
 
+// ************ SEARCH ************
+constexpr u64 MAX_PLY = 255;
+
+// Time management
+constexpr usize DEFAULT_MOVES_TO_GO = 20;
+constexpr usize INC_DIVISOR         = 2;
+
 // ************ NNUE ************
 constexpr i16    QA             = 255;
 constexpr i16    QB             = 64;

@@ -1,12 +1,15 @@
 ﻿#include <bitset>
+#include <atomic>
 
 #include "board.h"
 #include "move.h"
 #include "nnue.h"
 #include "types.h"
 #include "movegen.h"
+#include "search.h"
 
-NNUE nnue;
+NNUE             nnue;
+std::atomic<u64> nodes;
 
 // ****** MAIN ENTRY POINT, HANDLES UCI ******
 int main(int argc, char* argv[]) {
@@ -21,6 +24,8 @@ int main(int argc, char* argv[]) {
 
     board.reset();
 
+    std::atomic<bool> stopSearch(false);
+
     cout << "Prelude ready and awaiting commands" << endl;
     while (true) {
         std::getline(std::cin, command);
@@ -31,6 +36,8 @@ int main(int argc, char* argv[]) {
         if (command == "uci") {
             cout << "id name Prelude" << endl;
             cout << "id author Quinniboi10" << endl;
+            cout << "option name Threads type spin default 1 min 1 max 1" << endl;
+            cout << "option name Hash type spin default 1 min 1 max 16384" << endl;
             cout << "uciok" << endl;
         }
         else if (command == "isready")
@@ -42,6 +49,25 @@ int main(int argc, char* argv[]) {
                 board.loadFromFEN("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
             else if (tokens[1] == "fen")
                 board.loadFromFEN(command.substr(13));
+        }
+        else if (tokens[0] == "go") {
+            auto exists = [&](string sub) { return command.find(" " + sub + " ") != string::npos; };
+            auto index  = [&](string sub, int offset = 0) { return std::distance(tokens.begin(), std::find(tokens.begin(), tokens.end(), sub)) + offset; };
+
+            auto getValueFromUCI = [&](string value, int defaultValue) { return exists(value) ? stoi(tokens[index(value, 1)]) : defaultValue; };
+
+            usize depth = getValueFromUCI("depth", MAX_PLY);
+
+            usize maxNodes = getValueFromUCI("nodes", 0);
+
+            usize mtime = getValueFromUCI("mtime", 0);
+            usize wtime = getValueFromUCI("wtime", 0);
+            usize btime = getValueFromUCI("btime", 0);
+
+            usize winc = getValueFromUCI("winc", 0);
+            usize binc = getValueFromUCI("binc", 0);
+
+            Search::iterativeDeepening(board, depth, Search::ThreadInfo(Search::ThreadType::MAIN), Search::SearchParams(maxNodes, mtime, wtime, btime, winc, binc, &stopSearch));
         }
         else if (command == "quit")
             return 0;

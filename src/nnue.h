@@ -18,6 +18,8 @@ struct NNUE {
 
     int  forwardPass(const Board* board);
     void showBuckets(const Board* board);
+
+    i16 evaluate(const Board& board);
 };
 
 extern NNUE nnue;
