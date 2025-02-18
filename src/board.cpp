@@ -22,7 +22,7 @@ array<u64, 16> CASTLING_ZTABLE;
 void Board::fillZobristTable() {
     std::random_device rd;
     std::mt19937_64    engine(rd());
-    engine.seed(69420); // Nice
+    engine.seed(69420);  // Nice
     std::uniform_int_distribution<u64> dist(0, ~0ULL);
 
     for (auto& stm : PIECE_ZTABLE)
@@ -334,12 +334,12 @@ void Board::minimalMove(Move m) { move<true>(m); }
 // Backend for all moves
 template<bool minimal>
 void Board::move(Move m) {
-    epSquare       = NO_SQUARE;
-    Square    from = m.from();
-    Square    to   = m.to();
-    MoveType  mt   = m.typeOf();
-    PieceType pt   = getPiece(from);
-    PieceType toPT = NO_PIECE_TYPE;
+    epSquare        = NO_SQUARE;
+    Square    from  = m.from();
+    Square    to    = m.to();
+    MoveType  mt    = m.typeOf();
+    PieceType pt    = getPiece(from);
+    PieceType toPT  = NO_PIECE_TYPE;
     PieceType endPT = m.typeOf() == PROMOTION ? m.promo() : pt;
 
     zobrist ^= CASTLING_ZTABLE[castlingRights];
@@ -347,7 +347,7 @@ void Board::move(Move m) {
 
     removePiece(stm, pt, from);
     if (m.isCapture(pieces())) {
-        toPT = getPiece(to);
+        toPT          = getPiece(to);
         halfMoveClock = 0;
         posHistory.clear();
         if (mt != EN_PASSANT) {
@@ -359,8 +359,10 @@ void Board::move(Move m) {
     else {
         if (!minimal && mt != CASTLE)
             accumulators.addSub(stm, to, endPT, from, pt);
-        else if (pt == PAWN) halfMoveClock = 0;
-        else halfMoveClock++;
+        else if (pt == PAWN)
+            halfMoveClock = 0;
+        else
+            halfMoveClock++;
     }
 
     switch (mt) {

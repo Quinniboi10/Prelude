@@ -3,6 +3,7 @@
 #include <cassert>
 
 #include "types.h"
+#include "config.h"
 
 struct Board;
 
@@ -60,6 +61,40 @@ class Move {
     friend std::ostream& operator<<(std::ostream& os, const Move& m) {
         os << m.toString();
         return os;
+    }
+};
+
+struct MoveEvaluation {
+    Move move;
+    i16  eval;
+
+    MoveEvaluation(Move move, i16 eval) {
+        this->move = move;
+        this->eval = eval;
+    }
+};
+
+struct PvList {
+    array<Move, MAX_PLY> moves;
+    u32                  length;
+
+    void update(Move move, const PvList& child) {
+        moves[0] = move;
+        std::copy(child.moves.begin(), child.moves.begin() + child.length, moves.begin() + 1);
+
+        length = child.length + 1;
+
+        assert(length == 1 || moves[0] != moves[1]);
+    }
+
+    auto begin() { return moves.begin(); }
+    auto end() { return moves.begin() + length; }
+
+    auto& operator=(const PvList& other) {
+        std::copy(other.moves.begin(), other.moves.begin() + other.length, moves.begin());
+        length = other.length;
+
+        return *this;
     }
 };
 
