@@ -328,6 +328,8 @@ PieceType Board::getPiece(int sq) const { return mailbox[sq]; }
 
 // Make a move
 void Board::move(Move m) { move<false>(m); }
+// Make a move from a string
+void Board::move(string str) { move<false>(Move(str, *this)); }
 // Make a move on the board, but don't update accumulators
 void Board::minimalMove(Move m) { move<true>(m); }
 

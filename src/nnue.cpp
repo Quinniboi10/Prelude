@@ -3,6 +3,7 @@
 #include "board.h"
 #include "util.h"
 #include "accumulator.h"
+#include "search.h"
 
 #include <fstream>
 #include <format>
@@ -212,4 +213,5 @@ void NNUE::showBuckets(const Board* board) {
     }
 }
 
-i16 NNUE::evaluate(const Board& board) { return std::clamp(forwardPass(&board), -INF_I16, INF_I16); }
+i16 NNUE::evaluate(const Board& board) { return std::clamp(forwardPass(&board), static_cast<int>(Search::MATED_IN_MAX_PLY), static_cast<int>(Search::MATE_IN_MAX_PLY));
+}

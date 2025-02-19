@@ -4,10 +4,13 @@
 
 // ************ SEARCH ************
 constexpr u64 MAX_PLY = 255;
+constexpr usize BENCH_DEPTH = 5;
 
 // Time management
 constexpr usize DEFAULT_MOVES_TO_GO = 20;
 constexpr usize INC_DIVISOR         = 2;
+
+extern usize MOVE_OVERHEAD;
 
 // ************ NNUE ************
 constexpr i16    QA             = 255;

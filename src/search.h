@@ -48,7 +48,7 @@ struct SearchParams {
 struct SearchLimit {
     Stopwatch<std::chrono::milliseconds> time;
     u64                                  maxNodes;
-    u64                                  searchTime;
+    i64                                  searchTime;
     std::atomic<bool>*                   breakFlag;
 
     SearchLimit(auto breakFlag, auto searchTime, auto maxNodes) {
@@ -81,4 +81,6 @@ inline bool isLoss(i16 score) { return score <= MATED_IN_MAX_PLY; }
 inline bool isDecisive(i16 score) { return isWin(score) || isLoss(score); }
 
 MoveEvaluation iterativeDeepening(Board board, usize depth, ThreadInfo thisThread, SearchParams sp);
+
+void bench();
 }
