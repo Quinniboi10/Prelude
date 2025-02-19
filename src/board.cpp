@@ -438,6 +438,8 @@ void Board::move(Move m) {
     updateCheckPin();
 }
 
+bool Board::isQuiet(Move m) const { return m.isQuiet(pieces()); }
+
 bool Board::canCastle(Color c, bool kingside) const { return readBit(castlingRights, castleIndex(c, kingside)); }
 
 bool Board::isLegal(Move m) {

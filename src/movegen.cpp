@@ -1,5 +1,6 @@
 #include "movegen.h"
 #include "types.h"
+#include "stopwatch.h"
 
 #include <fstream>
 #include <cassert>

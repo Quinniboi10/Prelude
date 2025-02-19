@@ -34,6 +34,7 @@ class Move {
 
     Move(string strIn, Board& board);
 
+    static constexpr Move null() { return Move(0, 0, STANDARD_MOVE); }
 
     string toString() const;
 

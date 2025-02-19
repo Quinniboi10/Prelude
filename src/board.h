@@ -69,6 +69,8 @@ struct Board {
     void move(string str);
     void minimalMove(Move m);
 
+    bool isQuiet(Move m) const;
+
     bool canCastle(Color c, bool kingside) const;
 
     bool isLegal(Move m);

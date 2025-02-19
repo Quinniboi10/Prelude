@@ -8,6 +8,7 @@
 #include "types.h"
 #include "movegen.h"
 #include "search.h"
+#include "transpostable.h"
 
 #ifndef EVALFILE
     #define EVALFILE "./nnue.bin"
@@ -30,9 +31,10 @@
 INCBIN(EVAL, EVALFILE);
 #endif
 
-usize            MOVE_OVERHEAD = 20;
-NNUE             nnue;
-std::atomic<u64> nodes;
+usize              MOVE_OVERHEAD = 20;
+NNUE               nnue;
+TranspositionTable TT;
+std::atomic<u64>   nodes;
 
 // ****** MAIN ENTRY POINT, HANDLES UCI ******
 int main(int argc, char* argv[]) {
@@ -68,6 +70,16 @@ int main(int argc, char* argv[]) {
         }
     };
 
+    // *********** ./Prelude <ARGS> ************
+    if (argc > 1) {
+        string arg1 = argv[1];
+        if (arg1 == "bench") {
+            Search::bench();
+        }
+        stopSearch();
+        return 0;
+    }
+
     auto exists = [&](string sub) { return command.find(" " + sub + " ") != string::npos; };
     auto index  = [&](string sub, int offset = 0) { return findIndexOf(tokens, sub) + offset; };
     auto getValueFollowing = [&](string value, int defaultValue) { return exists(value) ? stoi(tokens[index(value, 1)]) : defaultValue; };
@@ -83,7 +95,7 @@ int main(int argc, char* argv[]) {
             cout << "id name Prelude" << endl;
             cout << "id author Quinniboi10" << endl;
             cout << "option name Threads type spin default 1 min 1 max 1" << endl;
-            cout << "option name Hash type spin default 1 min 1 max 16384" << endl;
+            cout << "option name Hash type spin default 16 min 1 max 262144" << endl;
             cout << "option name Move Overhead type spin default 20 min 0 max 1000" << endl;
             cout << "option name NNUE type string default internal" << endl;
             cout << "uciok" << endl;
@@ -132,7 +144,9 @@ int main(int argc, char* argv[]) {
                     nnue.loadNetwork(value);
             }
             else if (tokens[2] == "Move" && tokens[3] == "Overhead")
-                MOVE_OVERHEAD = stoi(tokens[findIndexOf(tokens, "value") + 1]);
+                MOVE_OVERHEAD = getValueFollowing("value", 20);
+            else if (tokens[2] == "Hash")
+                TT = TranspositionTable(getValueFollowing("value", 16));
         }
         else if (command == "stop")
             stopSearch();

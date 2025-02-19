@@ -2,6 +2,7 @@
 #include "nnue.h"
 #include "movegen.h"
 #include "config.h"
+#include "movepicker.h"
 
 struct Stack {
     PvList pv;
@@ -20,8 +21,8 @@ i16 search(Board& board, i16 depth, i16 ply, int alpha, int beta, Stack* ss, Sea
 
     usize movesSeen = 0;
 
-    MoveList moves = Movegen::generateMoves(board);
-    for (const Move m : moves) {
+    Movepicker movepicker(board);
+    while (movepicker.hasNext()) {
         if (sl.stopFlag())
             return bestEval;
         if (sl.outOfNodes()) {
@@ -32,6 +33,8 @@ i16 search(Board& board, i16 depth, i16 ply, int alpha, int beta, Stack* ss, Sea
             sl.storeToFlag(true);
             return bestEval;
         }
+
+        const Move m = movepicker.getNext();
 
         if (!board.isLegal(m))
             continue;

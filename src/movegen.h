@@ -3,7 +3,6 @@
 #include "types.h"
 #include "move.h"
 #include "board.h"
-#include "stopwatch.h"
 
 namespace Movegen {
 // Tables from https://github.com/Disservin/chess-library/blob/cf3bd56474168605201a01eb78b3222b8f9e65e4/include/chess.hpp#L780
