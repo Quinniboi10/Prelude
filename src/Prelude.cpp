@@ -1,5 +1,6 @@
 ﻿#include <bitset>
 #include <atomic>
+#include <thread>
 
 #include "board.h"
 #include "move.h"
@@ -29,6 +30,7 @@
 INCBIN(EVAL, EVALFILE);
 #endif
 
+usize            MOVE_OVERHEAD = 20;
 NNUE             nnue;
 std::atomic<u64> nodes;
 
@@ -56,11 +58,18 @@ int main(int argc, char* argv[]) {
 
     board.reset();
 
-    std::atomic<bool> stopSearch(false);
+    std::atomic<bool> breakSearch(false);
+    std::thread       searchThread;
+    auto              stopSearch = [&]() {
+        breakSearch.store(true);
+
+        if (searchThread.joinable()) {
+            searchThread.join();
+        }
+    };
 
     auto exists = [&](string sub) { return command.find(" " + sub + " ") != string::npos; };
     auto index  = [&](string sub, int offset = 0) { return findIndexOf(tokens, sub) + offset; };
-
     auto getValueFollowing = [&](string value, int defaultValue) { return exists(value) ? stoi(tokens[index(value, 1)]) : defaultValue; };
 
     cout << "Prelude ready and awaiting commands" << endl;
@@ -75,32 +84,44 @@ int main(int argc, char* argv[]) {
             cout << "id author Quinniboi10" << endl;
             cout << "option name Threads type spin default 1 min 1 max 1" << endl;
             cout << "option name Hash type spin default 1 min 1 max 16384" << endl;
+            cout << "option name Move Overhead type spin default 20 min 0 max 1000" << endl;
             cout << "option name NNUE type string default internal" << endl;
             cout << "uciok" << endl;
         }
         else if (command == "isready")
             cout << "readyok" << endl;
         else if (tokens[0] == "position") {
-            if (tokens[1] == "startpos")
+            if (tokens[1] == "startpos") {
                 board.reset();
+                if (tokens.size() > 2 && tokens[2] == "moves")
+                    for (usize i = 3; i < tokens.size(); i++)
+                        board.move(tokens[i]);
+            }
             else if (tokens[1] == "kiwipete")
                 board.loadFromFEN("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
-            else if (tokens[1] == "fen")
+            else if (tokens[1] == "fen") {
                 board.loadFromFEN(command.substr(13));
+                if (tokens.size() > 8 && tokens[8] == "moves")
+                    for (usize i = 9; i < tokens.size(); i++)
+                        board.move(tokens[i]);
+            }
         }
         else if (tokens[0] == "go") {
+            stopSearch();
+
             usize depth = getValueFollowing("depth", MAX_PLY);
 
             usize maxNodes = getValueFollowing("nodes", 0);
 
-            usize mtime = getValueFollowing("mtime", 0);
+            usize mtime = getValueFollowing("movetime", 0);
             usize wtime = getValueFollowing("wtime", 0);
             usize btime = getValueFollowing("btime", 0);
 
             usize winc = getValueFollowing("winc", 0);
             usize binc = getValueFollowing("binc", 0);
 
-            Search::iterativeDeepening(board, depth, Search::ThreadInfo(Search::ThreadType::MAIN), Search::SearchParams(maxNodes, mtime, wtime, btime, winc, binc, &stopSearch));
+            searchThread =
+              std::thread(Search::iterativeDeepening, board, depth, Search::ThreadInfo(Search::ThreadType::MAIN), Search::SearchParams(maxNodes, mtime, wtime, btime, winc, binc, &breakSearch));
         }
         else if (tokens[0] == "setoption") {
             if (tokens[2] == "NNUE") {
@@ -110,9 +131,15 @@ int main(int argc, char* argv[]) {
                 else
                     nnue.loadNetwork(value);
             }
+            else if (tokens[2] == "Move" && tokens[3] == "Overhead")
+                MOVE_OVERHEAD = stoi(tokens[findIndexOf(tokens, "value") + 1]);
         }
-        else if (command == "quit")
+        else if (command == "stop")
+            stopSearch();
+        else if (command == "quit") {
+            stopSearch();
             return 0;
+        }
 
 
         // ************ NON-UCI ************
@@ -137,6 +164,8 @@ int main(int argc, char* argv[]) {
         else if (tokens[0] == "move") {
             board.move(Move(tokens[1], board));
         }
+        else if (command == "bench")
+            Search::bench();
         else if (command == "debug.eval") {
             cout << "Raw eval: " << nnue.forwardPass(&board) << endl;
             nnue.showBuckets(&board);

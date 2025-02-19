@@ -66,6 +66,7 @@ struct Board {
     PieceType getPiece(int sq) const;
 
     void move(Move m);
+    void move(string str);
     void minimalMove(Move m);
 
     bool canCastle(Color c, bool kingside) const;

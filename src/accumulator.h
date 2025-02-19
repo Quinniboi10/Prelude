@@ -7,12 +7,10 @@
 using Accumulator = array<i16, HL_SIZE>;
 
 struct AccumulatorPair {
-    Accumulator white;
-    Accumulator black;
+    alignas(32) Accumulator white;
+    alignas(32) Accumulator black;
 
     void resetAccumulators(const Board& board);
-
-    void update(const Move m);
 
     void addSub(Color stm, Square add, PieceType addPT, Square sub, PieceType subPT);
     void addSubSub(Color stm, Square add, PieceType addPT, Square sub1, PieceType subPT1, Square sub2, PieceType subPT2);
