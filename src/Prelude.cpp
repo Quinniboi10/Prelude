@@ -1,6 +1,7 @@
 ﻿#include <bitset>
 #include <atomic>
 #include <thread>
+#include <algorithm>
 
 #include "board.h"
 #include "move.h"

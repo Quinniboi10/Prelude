@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <iostream>
 #include <cassert>
+#include <limits>
 #include <string>
 #include <array>
 #include <bit>
