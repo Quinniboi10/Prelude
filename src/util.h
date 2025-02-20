@@ -4,6 +4,7 @@
 #include <vector>
 #include <sstream>
 #include <cassert>
+#include <cstring>
 
 #include "types.h"
 

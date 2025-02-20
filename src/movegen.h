@@ -5,6 +5,11 @@
 #include "board.h"
 #include "stopwatch.h"
 
+enum MovegenMode {
+    ALL_MOVES,
+    NOISY_ONLY
+};
+
 namespace Movegen {
 // Tables from https://github.com/Disservin/chess-library/blob/cf3bd56474168605201a01eb78b3222b8f9e65e4/include/chess.hpp#L780
 constexpr u64 KNIGHT_ATTACKS[64] = {0x0000000000020400, 0x0000000000050800, 0x00000000000A1100, 0x0000000000142200, 0x0000000000284400, 0x0000000000508800, 0x0000000000A01000, 0x0000000000402000,
@@ -28,13 +33,19 @@ constexpr u64 KING_ATTACKS[64] = {0x0000000000000302, 0x0000000000000705, 0x0000
 
 u64 pawnAttackBB(Color c, int sq);
 
+template<MovegenMode mode>
 void pawnMoves(const Board& board, MoveList& moves);
+template<MovegenMode mode>
 void knightMoves(const Board& board, MoveList& moves);
+template<MovegenMode mode>
 void bishopMoves(const Board& board, MoveList& moves);
+template<MovegenMode mode>
 void rookMoves(const Board& board, MoveList& moves);
+template<MovegenMode mode>
 void kingMoves(const Board& board, MoveList& moves);
 void initializeAllDatabases();
 
+template<MovegenMode mode>
 MoveList generateMoves(const Board& board);
 
 void perft(Board& board, usize depth, bool bulk);
@@ -45,3 +56,5 @@ u64 getXrayBishopAttacks(Square square, u64 occ, u64 blockers);
 u64 getRookAttacks(Square square, u64 occ);
 u64 getXrayRookAttacks(Square square, u64 occ, u64 blockers);
 }
+
+#include "movegen.tpp"

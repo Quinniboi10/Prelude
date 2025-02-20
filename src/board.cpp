@@ -326,6 +326,14 @@ void Board::display() const {
 // Return the type of the piece on the square
 PieceType Board::getPiece(int sq) const { return mailbox[sq]; }
 
+// This should return false if
+// Move is a capture of any kind
+// Move is a queen promotion
+// Move is a knight promotion
+bool Board::isQuiet(Move m) const { return !isCapture(m) && (m.typeOf() != PROMOTION || m.promo() == QUEEN); }
+
+bool Board::isCapture(Move m) const { return (1ULL << m.to() & pieces(~stm)) || m.typeOf() == EN_PASSANT; }
+
 // Make a move
 void Board::move(Move m) { move<false>(m); }
 // Make a move from a string
@@ -348,7 +356,7 @@ void Board::move(Move m) {
     zobrist ^= EP_ZTABLE[epSquare];
 
     removePiece(stm, pt, from);
-    if (m.isCapture(pieces())) {
+    if (isCapture(m)) {
         toPT          = getPiece(to);
         halfMoveClock = 0;
         posHistory.clear();

@@ -1,4 +1,5 @@
-﻿#include <bitset>
+﻿#include <algorithm>
+#include <bitset>
 #include <atomic>
 #include <thread>
 
@@ -67,6 +68,16 @@ int main(int argc, char* argv[]) {
             searchThread.join();
         }
     };
+
+    // *********** ./Prelude <ARGS> ************
+    if (argc > 1) {
+        string arg1 = argv[1];
+        if (arg1 == "bench") {
+            Search::bench();
+        }
+        stopSearch();
+        return 0;
+    }
 
     auto exists = [&](string sub) { return command.find(" " + sub + " ") != string::npos; };
     auto index  = [&](string sub, int offset = 0) { return findIndexOf(tokens, sub) + offset; };
@@ -171,7 +182,7 @@ int main(int argc, char* argv[]) {
             nnue.showBuckets(&board);
         }
         else if (command == "debug.moves") {
-            MoveList moves = Movegen::generateMoves(board);
+            MoveList moves = Movegen::generateMoves<ALL_MOVES>(board);
             for (Move m : moves) {
                 cout << m;
                 if (board.isLegal(m))
