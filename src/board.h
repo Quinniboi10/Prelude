@@ -64,6 +64,8 @@ struct Board {
     void display() const;
 
     PieceType getPiece(int sq) const;
+    bool      isCapture(Move m) const;
+    bool      isQuiet(Move m) const;
 
     void move(Move m);
     void move(string str);

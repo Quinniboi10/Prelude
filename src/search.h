@@ -63,7 +63,7 @@ struct SearchLimit {
     bool outOfTime() {
         if (searchTime <= 0)
             return false;
-        return time.elapsed() >= searchTime;
+        return static_cast<i64>(time.elapsed()) >= searchTime;
     }
 
     bool stopFlag() { return breakFlag->load(std::memory_order_relaxed); }

@@ -3,8 +3,8 @@
 #include "types.h"
 
 // ************ SEARCH ************
-constexpr u64 MAX_PLY = 255;
-constexpr usize BENCH_DEPTH = 5;
+constexpr usize MAX_PLY = 255;
+constexpr i16 BENCH_DEPTH = 5;
 
 // Time management
 constexpr usize DEFAULT_MOVES_TO_GO = 20;

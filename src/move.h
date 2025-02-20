@@ -48,13 +48,6 @@ class Move {
     }
 
     bool isNull() const { return move == 0; }
-    bool isCapture(u64 occ) const { return (((1ULL << to()) & occ) && typeOf() != CASTLE) || typeOf() == EN_PASSANT; }
-
-    // This should return false if
-    // Move is a capture of any kind
-    // Move is a queen promotion
-    // Move is a knight promotion
-    bool isQuiet(u64 occ) const { return !isCapture(occ) && (typeOf() != PROMOTION || promo() == QUEEN); }
 
     bool operator==(const Move other) const { return move == other.move; }
 

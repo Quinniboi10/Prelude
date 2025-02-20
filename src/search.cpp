@@ -20,7 +20,7 @@ i16 search(Board& board, i16 depth, i16 ply, int alpha, int beta, Stack* ss, Sea
 
     usize movesSeen = 0;
 
-    MoveList moves = Movegen::generateMoves(board);
+    MoveList moves = Movegen::generateMoves<ALL_MOVES>(board);
     for (const Move m : moves) {
         if (sl.stopFlag())
             return bestEval;
@@ -104,7 +104,10 @@ MoveEvaluation Search::iterativeDeepening(Board board, usize depth, ThreadInfo t
                 isMate = false;
 
             // Depth, time, score
-            cout << "info depth " << currDepth << " time " << sl.time.elapsed() << " score";
+            cout << "info depth " << currDepth << " time " << sl.time.elapsed() << " nodes " << nodes;
+            if (sl.time.elapsed() > 0)
+                cout << " nps " << nodes * 1000 / sl.time.elapsed();
+            cout << " score";
             if (isMate) {
                 cout << " mate ";
                 cout << ((eval < 0) ? "-" : "") << mateDist;
