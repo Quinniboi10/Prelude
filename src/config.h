@@ -6,6 +6,9 @@
 constexpr usize MAX_PLY = 255;
 constexpr i16 BENCH_DEPTH = 6;
 
+constexpr int DEFAULT_HISTORY_VALUE = 0;
+constexpr int MAX_HISTORY           = 16384;
+
 // Time management
 constexpr usize DEFAULT_MOVES_TO_GO = 20;
 constexpr usize INC_DIVISOR         = 2;
