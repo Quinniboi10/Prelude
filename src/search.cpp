@@ -2,6 +2,7 @@
 #include "nnue.h"
 #include "movegen.h"
 #include "config.h"
+#include "movepicker.h"
 
 struct Stack {
     PvList pv;
@@ -18,8 +19,8 @@ i16 qsearch(Board& board, int alpha, int beta, Search::SearchLimit& sl) {
     if (alpha < bestEval)
         alpha = bestEval;
 
-    MoveList moves = Movegen::generateMoves<NOISY_ONLY>(board);
-    for (const Move m : moves) {
+    Movepicker<NOISY_ONLY> picker(board);
+    while (picker.hasNext()) {
         if (sl.stopFlag())
             return bestEval;
         if (sl.outOfNodes()) {
@@ -30,6 +31,8 @@ i16 qsearch(Board& board, int alpha, int beta, Search::SearchLimit& sl) {
             sl.storeToFlag(true);
             return bestEval;
         }
+
+        const Move m = picker.getNext();
 
         if (!board.isLegal(m))
             continue;
@@ -65,8 +68,8 @@ i16 search(Board& board, i16 depth, i16 ply, int alpha, int beta, Stack* ss, Sea
 
     usize movesSeen = 0;
 
-    MoveList moves = Movegen::generateMoves<ALL_MOVES>(board);
-    for (const Move m : moves) {
+    Movepicker<ALL_MOVES> picker(board);
+    while (picker.hasNext()) {
         if (sl.stopFlag())
             return bestEval;
         if (sl.outOfNodes()) {
@@ -77,6 +80,8 @@ i16 search(Board& board, i16 depth, i16 ply, int alpha, int beta, Stack* ss, Sea
             sl.storeToFlag(true);
             return bestEval;
         }
+
+        const Move m = picker.getNext();
 
         if (!board.isLegal(m))
             continue;
