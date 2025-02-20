@@ -6,6 +6,8 @@
 #include "stopwatch.h"
 
 #include <atomic>
+#include <cstring>
+#include <algorithm>
 
 extern std::atomic<u64> nodes;
 
@@ -20,9 +22,24 @@ enum NodeType {
 };
 
 struct ThreadInfo {
+    // History is indexed [stm][from][to]
+    array<array<array<int, 64>, 64>, 2> history;
+
     ThreadType type;
 
-    ThreadInfo(ThreadType type) { this->type = type; }
+
+    ThreadInfo(ThreadType type) {
+        std::memset(&history, DEFAULT_HISTORY_VALUE, sizeof(history));
+        this->type = type;
+    }
+
+    void updateHist(Color stm, Move m, int bonus) {
+        int clampedBonus = std::clamp(bonus, -MAX_HISTORY, MAX_HISTORY);
+        history[stm][m.from()][m.to()] += clampedBonus - history[stm][m.from()][m.to()] * abs(clampedBonus) / MAX_HISTORY;
+    }
+
+    int getHist(Color stm, Move m) { return history[stm][m.from()][m.to()];
+    }
 };
 
 struct SearchParams {
