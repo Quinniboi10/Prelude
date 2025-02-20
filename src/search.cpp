@@ -90,7 +90,14 @@ i16 search(Board& board, i16 depth, i16 ply, int alpha, int beta, Stack* ss, Sea
         nodes++;
         movesSeen++;
 
-        i16 eval = -search<isPV>(testBoard, depth - 1, ply + 1, -beta, -alpha, ss + 1, thisThread, sl);
+        i16 eval;
+        if (movesSeen == 1)
+            eval = -search<isPV>(testBoard, depth - 1, ply + 1, -beta, -alpha, ss + 1, thisThread, sl);
+        else {
+            eval = -search<Search::NodeType::NONPV>(testBoard, depth - 1, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
+            if (eval > alpha && eval < beta)
+                eval = -search<isPV>(testBoard, depth - 1, ply + 1, -beta, -alpha, ss + 1, thisThread, sl);
+        }
 
         if (eval > bestEval) {
             bestEval = eval;
