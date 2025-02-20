@@ -64,6 +64,12 @@ i16 search(Board& board, i16 depth, i16 ply, int alpha, int beta, Stack* ss, Sea
     if (depth <= 0)
         return qsearch(board, alpha, beta, thisThread, sl);
 
+    i16 staticEval = nnue.evaluate(board);
+
+    int rfpMargin = 100 * depth;
+    if (staticEval - rfpMargin >= beta)
+        return staticEval;
+
     int bestEval = -INF_INT;
 
     usize movesSeen = 0;
@@ -146,7 +152,7 @@ MoveEvaluation Search::iterativeDeepening(Board board, usize depth, ThreadInfo t
 
     depth = std::min(depth, MAX_PLY);
 
-    i16 lastEval;
+    i16    lastEval;
     PvList lastPV;
 
     bool isMate = false;
