@@ -66,9 +66,12 @@ i16 search(Board& board, i16 depth, i16 ply, int alpha, int beta, Stack* ss, Sea
 
     i16 staticEval = nnue.evaluate(board);
 
-    int rfpMargin = 100 * depth;
-    if (staticEval - rfpMargin >= beta)
-        return staticEval;
+    if (!isPV && ply > 0 && !board.inCheck()) {
+        // Reverse futility pruning
+        int rfpMargin = 100 * depth;
+        if (staticEval - rfpMargin >= beta)
+            return staticEval;
+    }
 
     int bestEval = -INF_INT;
 
