@@ -9,7 +9,7 @@ struct Stack {
 };
 
 // Quiesence search
-i16 qsearch(Board& board, int alpha, int beta, Search::SearchLimit& sl) {
+i16 qsearch(Board& board, int alpha, int beta, Search::ThreadInfo& thisThread, Search::SearchLimit& sl) {
     int staticEval = nnue.evaluate(board);
 
     int bestEval = staticEval;
@@ -19,7 +19,7 @@ i16 qsearch(Board& board, int alpha, int beta, Search::SearchLimit& sl) {
     if (alpha < bestEval)
         alpha = bestEval;
 
-    Movepicker<NOISY_ONLY> picker(board);
+    Movepicker<NOISY_ONLY> picker(board, thisThread);
     while (picker.hasNext()) {
         if (sl.stopFlag())
             return bestEval;
@@ -41,7 +41,7 @@ i16 qsearch(Board& board, int alpha, int beta, Search::SearchLimit& sl) {
         testBoard.move(m);
         nodes++;
 
-        i16 eval = -qsearch(testBoard, -beta, -alpha, sl);
+        i16 eval = -qsearch(testBoard, -beta, -alpha, thisThread, sl);
 
         if (eval > bestEval) {
             bestEval = eval;
@@ -62,13 +62,13 @@ i16 search(Board& board, i16 depth, i16 ply, int alpha, int beta, Stack* ss, Sea
         depth = 255 - ply;
     ss->pv.length = 0;
     if (depth <= 0)
-        return qsearch(board, alpha, beta, sl);
+        return qsearch(board, alpha, beta, thisThread, sl);
 
     int bestEval = -INF_INT;
 
     usize movesSeen = 0;
 
-    Movepicker<ALL_MOVES> picker(board);
+    Movepicker<ALL_MOVES> picker(board, thisThread);
     while (picker.hasNext()) {
         if (sl.stopFlag())
             return bestEval;
@@ -101,6 +101,9 @@ i16 search(Board& board, i16 depth, i16 ply, int alpha, int beta, Stack* ss, Sea
             }
         }
         if (eval >= beta) {
+            if (board.isQuiet(m)) {
+                thisThread.updateHist(board.stm, m, 20 * depth * depth);
+            }
             break;
         }
     }

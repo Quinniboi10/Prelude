@@ -4,6 +4,21 @@
 #include "move.h"
 #include "board.h"
 #include "movegen.h"
+#include "search.h"
+
+int evaluate(Board& board, Search::ThreadInfo& thisThread, Move m) {
+    auto evaluateMVVLVA = [&]() {
+        int victim   = PIECE_VALUES[board.getPiece(m.to())];
+        int attacker = PIECE_VALUES[board.getPiece(m.from())];
+
+        return (victim * 100) - attacker;
+    };
+    if (board.isCapture(m)) {
+        return evaluateMVVLVA();
+    }
+    else
+        return thisThread.getHist(board.stm, m);
+}
 
 template<MovegenMode mode>
 struct Movepicker {
@@ -11,12 +26,12 @@ struct Movepicker {
     array<int, 256> moveScores;
     u16             seen;
 
-    Movepicker(Board& board) {
+    Movepicker(Board& board, Search::ThreadInfo& thisThread) {
         moves = Movegen::generateMoves<mode>(board);
         seen  = 0;
         
         for (usize i = 0; i < moves.length; i++) {
-            moveScores[i] = board.evaluate(moves.moves[i]);
+            moveScores[i] = evaluate(board, thisThread, moves.moves[i]);
         }
     }
 

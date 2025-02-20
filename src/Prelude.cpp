@@ -59,6 +59,8 @@ int main(int argc, char* argv[]) {
 
     board.reset();
 
+    Search::ThreadInfo mainThread(Search::ThreadType::MAIN);
+
     std::atomic<bool> breakSearch(false);
     std::thread       searchThread;
     auto              stopSearch = [&]() {
@@ -132,7 +134,7 @@ int main(int argc, char* argv[]) {
             usize binc = getValueFollowing("binc", 0);
 
             searchThread =
-              std::thread(Search::iterativeDeepening, board, depth, Search::ThreadInfo(Search::ThreadType::MAIN), Search::SearchParams(maxNodes, mtime, wtime, btime, winc, binc, &breakSearch));
+              std::thread(Search::iterativeDeepening, board, depth, mainThread, Search::SearchParams(maxNodes, mtime, wtime, btime, winc, binc, &breakSearch));
         }
         else if (tokens[0] == "setoption") {
             if (tokens[2] == "NNUE") {

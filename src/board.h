@@ -79,6 +79,4 @@ struct Board {
     bool isUnderAttack(Color c, Square square) const;
 
     bool isDraw() const;
-
-    int evaluate(Move m) const;
 };

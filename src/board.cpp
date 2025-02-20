@@ -1,6 +1,7 @@
 #include "board.h"
 #include "types.h"
 #include "movegen.h"
+#include "search.h"
 
 #include <cassert>
 #include <random>
@@ -562,19 +563,4 @@ bool Board::isDraw() const {
             return true;
     }
     return false;
-}
-
-
-int Board::evaluate(Move m) const {
-    auto evaluateMVVLVA = [&]() {
-        int victim   = PIECE_VALUES[getPiece(m.to())];
-        int attacker = PIECE_VALUES[getPiece(m.from())];
-
-        return (victim * 100) - attacker;
-    };
-    if (isCapture(m)) {
-        return evaluateMVVLVA();
-    }
-    else
-        return 0;
 }
