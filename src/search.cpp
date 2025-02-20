@@ -138,7 +138,7 @@ i16 search(Board& board, i16 depth, i16 ply, int alpha, int beta, Stack* ss, Sea
 MoveEvaluation Search::iterativeDeepening(Board board, usize depth, ThreadInfo thisThread, SearchParams sp) {
     const bool isMain = thisThread.type == MAIN;
 
-    u64 searchTime;
+    i64 searchTime;
     if (sp.mtime)
         searchTime = sp.mtime;
     else
