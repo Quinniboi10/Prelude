@@ -7,6 +7,51 @@ struct Stack {
     PvList pv;
 };
 
+// Quiesence search
+i16 qsearch(Board& board, int alpha, int beta, Search::SearchLimit& sl) {
+    int staticEval = nnue.evaluate(board);
+
+    int bestEval = staticEval;
+
+    if (bestEval >= beta)
+        return bestEval;
+    if (alpha < bestEval)
+        alpha = bestEval;
+
+    MoveList moves = Movegen::generateMoves<NOISY_ONLY>(board);
+    for (const Move m : moves) {
+        if (sl.stopFlag())
+            return bestEval;
+        if (sl.outOfNodes()) {
+            sl.storeToFlag(true);
+            return bestEval;
+        }
+        if (nodes % 2048 == 0 && sl.outOfTime()) {
+            sl.storeToFlag(true);
+            return bestEval;
+        }
+
+        if (!board.isLegal(m))
+            continue;
+
+        Board testBoard = board;
+        testBoard.move(m);
+        nodes++;
+
+        i16 eval = -qsearch(testBoard, -beta, -alpha, sl);
+
+        if (eval > bestEval) {
+            bestEval = eval;
+            if (eval > alpha)
+                alpha = eval;
+        }
+        if (eval >= beta)
+            break;
+    }
+
+    return bestEval;
+}
+
 // Main search
 template<Search::NodeType isPV>
 i16 search(Board& board, i16 depth, i16 ply, int alpha, int beta, Stack* ss, Search::ThreadInfo& thisThread, Search::SearchLimit& sl) {
@@ -14,7 +59,7 @@ i16 search(Board& board, i16 depth, i16 ply, int alpha, int beta, Stack* ss, Sea
         depth = 255 - ply;
     ss->pv.length = 0;
     if (depth <= 0)
-        return nnue.evaluate(board);
+        return qsearch(board, alpha, beta, sl);
 
     int bestEval = -INF_INT;
 
@@ -40,7 +85,7 @@ i16 search(Board& board, i16 depth, i16 ply, int alpha, int beta, Stack* ss, Sea
         nodes++;
         movesSeen++;
 
-        int eval = -search<isPV>(testBoard, depth - 1, ply + 1, -beta, -alpha, ss + 1, thisThread, sl);
+        i16 eval = -search<isPV>(testBoard, depth - 1, ply + 1, -beta, -alpha, ss + 1, thisThread, sl);
 
         if (eval > bestEval) {
             bestEval = eval;
