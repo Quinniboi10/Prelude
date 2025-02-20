@@ -13,7 +13,7 @@ Move::Move(string strIn, Board& board) {
             *this = Move(from, to, QUEEN);
             return;
         case 'r':
-            *this = Move(from, to, KNIGHT);
+            *this = Move(from, to, ROOK);
             return;
         case 'b':
             *this = Move(from, to, BISHOP);
