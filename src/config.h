@@ -4,7 +4,7 @@
 
 // ************ SEARCH ************
 constexpr usize MAX_PLY = 255;
-constexpr i16 BENCH_DEPTH = 4;
+constexpr i16 BENCH_DEPTH = 6;
 
 // Time management
 constexpr usize DEFAULT_MOVES_TO_GO = 20;
