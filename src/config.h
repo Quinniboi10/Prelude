@@ -3,8 +3,8 @@
 #include "types.h"
 
 // ************ SEARCH ************
-constexpr usize MAX_PLY = 255;
-constexpr i16 BENCH_DEPTH = 6;
+constexpr usize MAX_PLY     = 255;
+constexpr i16   BENCH_DEPTH = 6;
 
 constexpr int DEFAULT_HISTORY_VALUE = 0;
 constexpr int MAX_HISTORY           = 16384;
