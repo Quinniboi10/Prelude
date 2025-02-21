@@ -64,6 +64,25 @@ i16 search(Board& board, i16 depth, i16 ply, int alpha, int beta, Stack* ss, Sea
     if (depth <= 0)
         return qsearch(board, alpha, beta, thisThread, sl);
 
+    // Mate distance pruning
+    if (ply > 0) {
+        i16 mateValue = Search::MATE_SCORE - ply;
+
+        if (mateValue < beta) {
+            beta = mateValue;
+            if (alpha >= mateValue)
+                return mateValue;
+        }
+
+        mateValue = -mateValue;
+
+        if (mateValue > alpha) {
+            alpha = mateValue;
+            if (beta <= mateValue)
+                return mateValue;
+        }
+    }
+
     i16 staticEval = nnue.evaluate(board);
 
     if (!isPV && ply > 0 && !board.inCheck()) {
