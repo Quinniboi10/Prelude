@@ -57,7 +57,7 @@ i16 qsearch(Board& board, int alpha, int beta, Search::ThreadInfo& thisThread, S
 
 // Main search
 template<Search::NodeType isPV>
-i16 search(Board& board, i16 depth, i16 ply, int alpha, int beta, Stack* ss, Search::ThreadInfo& thisThread, Search::SearchLimit& sl) {
+i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Search::ThreadInfo& thisThread, Search::SearchLimit& sl) {
     if (depth + ply > 255)
         depth = 255 - ply;
     ss->pv.length = 0;
@@ -66,21 +66,11 @@ i16 search(Board& board, i16 depth, i16 ply, int alpha, int beta, Stack* ss, Sea
 
     // Mate distance pruning
     if (ply > 0) {
-        i16 mateValue = Search::MATE_SCORE - ply;
+        alpha = std::max(alpha, static_cast<int>(-Search::MATE_SCORE + ply));
+        beta  = std::min(beta, static_cast<int>(Search::MATE_SCORE - ply - 1));
 
-        if (mateValue < beta) {
-            beta = mateValue;
-            if (alpha >= mateValue)
-                return mateValue;
-        }
-
-        mateValue = -mateValue;
-
-        if (mateValue > alpha) {
-            alpha = mateValue;
-            if (beta <= mateValue)
-                return mateValue;
-        }
+        if (alpha >= beta)
+            return alpha;
     }
 
     i16 staticEval = nnue.evaluate(board);
@@ -174,14 +164,14 @@ MoveEvaluation Search::iterativeDeepening(Board board, usize depth, ThreadInfo t
 
     depth = std::min(depth, MAX_PLY);
 
-    i16    lastEval;
+    i32    lastEval;
     PvList lastPV;
 
     bool isMate = false;
     int  mateDist;
 
     for (usize currDepth = 1; currDepth <= depth; currDepth++) {
-        i16 eval = search<PV>(board, currDepth, 0, -INF_I16, INF_I16, ss, thisThread, sl);
+        i32 eval = search<PV>(board, currDepth, 0, -INF_I16, INF_I16, ss, thisThread, sl);
 
         if (isMain) {
             if (std::abs(eval) >= MATE_IN_MAX_PLY) {

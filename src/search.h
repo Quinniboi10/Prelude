@@ -38,8 +38,7 @@ struct ThreadInfo {
         history[stm][m.from()][m.to()] += clampedBonus - history[stm][m.from()][m.to()] * abs(clampedBonus) / MAX_HISTORY;
     }
 
-    int getHist(Color stm, Move m) { return history[stm][m.from()][m.to()];
-    }
+    int getHist(Color stm, Move m) { return history[stm][m.from()][m.to()]; }
 };
 
 struct SearchParams {
@@ -89,13 +88,13 @@ struct SearchLimit {
     bool stopSearch() { return outOfNodes() || outOfTime() || stopFlag(); }
 };
 
-constexpr i16 MATE_SCORE       = 32767;
-constexpr i16 MATE_IN_MAX_PLY  = MATE_SCORE - MAX_PLY;
-constexpr i16 MATED_IN_MAX_PLY = -MATE_SCORE + MAX_PLY;
+constexpr i32 MATE_SCORE       = 32767;
+constexpr i32 MATE_IN_MAX_PLY  = MATE_SCORE - MAX_PLY;
+constexpr i32 MATED_IN_MAX_PLY = -MATE_SCORE + MAX_PLY;
 
-inline bool isWin(i16 score) { return score >= MATE_IN_MAX_PLY; }
-inline bool isLoss(i16 score) { return score <= MATED_IN_MAX_PLY; }
-inline bool isDecisive(i16 score) { return isWin(score) || isLoss(score); }
+inline bool isWin(i32 score) { return score >= MATE_IN_MAX_PLY; }
+inline bool isLoss(i32 score) { return score <= MATED_IN_MAX_PLY; }
+inline bool isDecisive(i32 score) { return isWin(score) || isLoss(score); }
 
 MoveEvaluation iterativeDeepening(Board board, usize depth, ThreadInfo thisThread, SearchParams sp);
 

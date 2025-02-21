@@ -81,8 +81,8 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    auto exists = [&](string sub) { return command.find(" " + sub + " ") != string::npos; };
-    auto index  = [&](string sub, int offset = 0) { return findIndexOf(tokens, sub) + offset; };
+    auto exists            = [&](string sub) { return command.find(" " + sub + " ") != string::npos; };
+    auto index             = [&](string sub, int offset = 0) { return findIndexOf(tokens, sub) + offset; };
     auto getValueFollowing = [&](string value, int defaultValue) { return exists(value) ? stoi(tokens[index(value, 1)]) : defaultValue; };
 
     cout << "Prelude ready and awaiting commands" << endl;
@@ -133,8 +133,7 @@ int main(int argc, char* argv[]) {
             usize winc = getValueFollowing("winc", 0);
             usize binc = getValueFollowing("binc", 0);
 
-            searchThread =
-              std::thread(Search::iterativeDeepening, board, depth, mainThread, Search::SearchParams(maxNodes, mtime, wtime, btime, winc, binc, &breakSearch));
+            searchThread = std::thread(Search::iterativeDeepening, board, depth, mainThread, Search::SearchParams(maxNodes, mtime, wtime, btime, winc, binc, &breakSearch));
         }
         else if (tokens[0] == "setoption") {
             if (tokens[2] == "NNUE") {

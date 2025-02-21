@@ -1,9 +1,9 @@
 template<MovegenMode mode>
 void Movegen::pawnMoves(const Board& board, MoveList& moves) {
-    u64 pawns = board.pieces(board.stm, PAWN);
+    u64       pawns        = board.pieces(board.stm, PAWN);
     Direction pushDir      = board.stm == WHITE ? NORTH : SOUTH;
-    u64 singlePushes = shift(pushDir, pawns) & ~board.pieces();
-    u64 pushPromo = singlePushes & (MASK_RANK[RANK1] | MASK_RANK[RANK8]);
+    u64       singlePushes = shift(pushDir, pawns) & ~board.pieces();
+    u64       pushPromo    = singlePushes & (MASK_RANK[RANK1] | MASK_RANK[RANK8]);
     singlePushes ^= pushPromo;
 
     u64 doublePushes = shift(pushDir, singlePushes) & ~board.pieces();
@@ -132,7 +132,7 @@ template<MovegenMode mode>
 void Movegen::bishopMoves(const Board& board, MoveList& moves) {
     u64 bishopBB = board.pieces(board.stm, BISHOP, QUEEN);
 
-    u64 occ = board.pieces();
+    u64 occ      = board.pieces();
     u64 friendly = board.pieces(board.stm);
 
     while (bishopBB > 0) {
@@ -154,7 +154,7 @@ template<MovegenMode mode>
 void Movegen::rookMoves(const Board& board, MoveList& moves) {
     u64 rookBB = board.pieces(board.stm, ROOK, QUEEN);
 
-    u64 occ = board.pieces();
+    u64 occ      = board.pieces();
     u64 friendly = board.pieces(board.stm);
 
     while (rookBB > 0) {
@@ -188,9 +188,11 @@ void Movegen::kingMoves(const Board& board, MoveList& moves) {
         Square to = popLSB(kingMoves);
         moves.add(kingSq, to);
     }
-    
-    if (board.canCastle(board.stm, true)) moves.add(kingSq, castleSq(board.stm, true), CASTLE);
-    if (board.canCastle(board.stm, false)) moves.add(kingSq, castleSq(board.stm, false), CASTLE);
+
+    if (board.canCastle(board.stm, true))
+        moves.add(kingSq, castleSq(board.stm, true), CASTLE);
+    if (board.canCastle(board.stm, false))
+        moves.add(kingSq, castleSq(board.stm, false), CASTLE);
 }
 
 template<MovegenMode mode>

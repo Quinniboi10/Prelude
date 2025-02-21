@@ -29,7 +29,7 @@ struct Movepicker {
     Movepicker(Board& board, Search::ThreadInfo& thisThread) {
         moves = Movegen::generateMoves<mode>(board);
         seen  = 0;
-        
+
         for (usize i = 0; i < moves.length; i++) {
             moveScores[i] = evaluate(board, thisThread, moves.moves[i]);
         }
@@ -37,7 +37,7 @@ struct Movepicker {
 
     [[nodiscard]] u16 findNext() {
         u16 best      = seen;
-        int   bestScore = moveScores[seen];
+        int bestScore = moveScores[seen];
 
         for (u16 i = seen; i < moves.length; i++) {
             if (moveScores[i] > bestScore) {

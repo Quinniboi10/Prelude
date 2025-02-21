@@ -213,5 +213,4 @@ void NNUE::showBuckets(const Board* board) {
     }
 }
 
-i16 NNUE::evaluate(const Board& board) { return std::clamp(forwardPass(&board), static_cast<int>(Search::MATED_IN_MAX_PLY), static_cast<int>(Search::MATE_IN_MAX_PLY));
-}
+i16 NNUE::evaluate(const Board& board) { return std::clamp(forwardPass(&board), static_cast<int>(Search::MATED_IN_MAX_PLY), static_cast<int>(Search::MATE_IN_MAX_PLY)); }
