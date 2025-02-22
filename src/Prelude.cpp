@@ -9,6 +9,7 @@
 #include "types.h"
 #include "movegen.h"
 #include "search.h"
+#include "ttable.h"
 
 #ifndef EVALFILE
     #define EVALFILE "./nnue.bin"
@@ -31,9 +32,10 @@
 INCBIN(EVAL, EVALFILE);
 #endif
 
-usize            MOVE_OVERHEAD = 20;
-NNUE             nnue;
-std::atomic<u64> nodes;
+TranspositionTable TT;
+usize              MOVE_OVERHEAD = 20;
+NNUE               nnue;
+std::atomic<u64>   nodes;
 
 // ****** MAIN ENTRY POINT, HANDLES UCI ******
 int main(int argc, char* argv[]) {
