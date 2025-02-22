@@ -83,6 +83,9 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
     }
 
     int bestEval = -INF_INT;
+    Move bestMove;
+
+    TTFlag ttFlag = FAIL_LOW;
 
     usize movesSeen = 0;
 
@@ -119,13 +122,16 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
 
         if (eval > bestEval) {
             bestEval = eval;
+            bestMove = m;
             if (eval > alpha) {
+                ttFlag = EXACT;
                 alpha = eval;
                 if constexpr (isPV)
                     ss->pv.update(m, (ss + 1)->pv);
             }
         }
         if (eval >= beta) {
+            ttFlag = BETA_CUTOFF;
             if (board.isQuiet(m)) {
                 thisThread.updateHist(board.stm, m, 20 * depth * depth);
             }
@@ -139,6 +145,8 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
         }
         return 0;
     }
+
+    *TT.getEntry(board.zobrist) = Transposition(board.zobrist, bestMove, ttFlag, bestEval, depth);
 
     return bestEval;
 }
