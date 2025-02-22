@@ -108,7 +108,7 @@ enum MoveType {
 };
 
 // TT flags
-enum TTFlag {
+enum TTFlag : u8 {
     UNDEFINED, FAIL_LOW, BETA_CUTOFF, EXACT
 };
 

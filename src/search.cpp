@@ -64,6 +64,18 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
     if (depth <= 0)
         return qsearch(board, alpha, beta, thisThread, sl);
 
+    Transposition* ttEntry = TT.getEntry(board.zobrist);
+
+    if (!isPV
+        && ttEntry->zobrist == board.zobrist
+        && ttEntry->depth >= depth
+        && (ttEntry->flag == EXACT                                      // Exact score
+            || (ttEntry->flag == BETA_CUTOFF && ttEntry->eval >= beta)  // Lower bound, fail high
+            || (ttEntry->flag == FAIL_LOW && ttEntry->eval <= alpha)    // Upper bound, fail low
+            )) {
+        return ttEntry->eval;
+    }
+
     // Mate distance pruning
     if (ply > 0) {
         alpha = std::max(alpha, static_cast<int>(-Search::MATE_SCORE + ply));
@@ -82,7 +94,7 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
             return staticEval;
     }
 
-    int bestEval = -INF_INT;
+    int  bestEval = -INF_INT;
     Move bestMove;
 
     TTFlag ttFlag = FAIL_LOW;
@@ -125,7 +137,7 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
             bestMove = m;
             if (eval > alpha) {
                 ttFlag = EXACT;
-                alpha = eval;
+                alpha  = eval;
                 if constexpr (isPV)
                     ss->pv.update(m, (ss + 1)->pv);
             }
@@ -146,7 +158,7 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
         return 0;
     }
 
-    *TT.getEntry(board.zobrist) = Transposition(board.zobrist, bestMove, ttFlag, bestEval, depth);
+    *ttEntry = Transposition(board.zobrist, bestMove, ttFlag, bestEval, depth);
 
     return bestEval;
 }
