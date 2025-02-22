@@ -14,17 +14,17 @@ struct Transposition {
 
     Transposition() {
         zobrist = 0;
-        move   = Move();
-        flag       = 0;
-        eval      = 0;
-        depth      = 0;
+        move    = Move();
+        flag    = 0;
+        eval    = 0;
+        depth   = 0;
     }
     Transposition(u64 zobristKey, Move bestMove, u8 flag, i16 score, u8 depth) {
         this->zobrist = zobristKey;
-        this->move   = bestMove;
-        this->flag       = flag;
-        this->eval      = score;
-        this->depth      = depth;
+        this->move    = bestMove;
+        this->flag    = flag;
+        this->eval    = score;
+        this->depth   = depth;
     }
 };
 
@@ -49,9 +49,7 @@ struct TranspositionTable {
 
     u64 index(u64 key) { return key % size; }
 
-    void setEntry(u64 key, Transposition& entry) {
-        table[index(key)] = entry;
-    }
+    void setEntry(u64 key, Transposition& entry) { table[index(key)] = entry; }
 
     Transposition* getEntry(u64 key) { return &table[index(key)]; }
 };
