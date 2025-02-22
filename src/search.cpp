@@ -191,7 +191,24 @@ MoveEvaluation Search::iterativeDeepening(Board board, usize depth, ThreadInfo t
     int  mateDist;
 
     for (usize currDepth = 1; currDepth <= depth; currDepth++) {
-        i32 eval = search<PV>(board, currDepth, 0, -INF_I16, INF_I16, ss, thisThread, sl);
+        i32 eval;
+        if (currDepth < MIN_ASP_WINDOW_DEPTH)
+            eval = search<PV>(board, currDepth, 0, -INF_I16, INF_I16, ss, thisThread, sl);
+        else {
+            int delta = INITIAL_ASP_WINDOW;
+            int alpha = std::max(lastEval - delta, -INF_I16);
+            int beta  = std::min(lastEval + delta, INF_I16);
+
+            while (!sl.stopSearch()) {
+                eval = search<PV>(board, currDepth, 0, alpha, beta, ss, thisThread, sl);
+                if (eval <= alpha || eval >= beta) {
+                    alpha = -INF_I16;
+                    beta  = INF_I16;
+                }
+                else
+                    break;
+            }
+        }
 
         if (isMain) {
             if (std::abs(eval) >= MATE_IN_MAX_PLY) {
