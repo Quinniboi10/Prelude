@@ -9,6 +9,9 @@ constexpr i16   BENCH_DEPTH = 8;
 constexpr int DEFAULT_HISTORY_VALUE = 0;
 constexpr int MAX_HISTORY           = 16384;
 
+constexpr int MIN_ASP_WINDOW_DEPTH = 5;
+constexpr int INITIAL_ASP_WINDOW   = 30;
+
 // Time management
 constexpr usize DEFAULT_MOVES_TO_GO = 20;
 constexpr usize INC_DIVISOR         = 2;
