@@ -14,24 +14,24 @@ struct Stack {
 i16 qsearch(Board& board, int alpha, int beta, Search::ThreadInfo& thisThread, Search::SearchLimit& sl) {
     int staticEval = nnue.evaluate(board);
 
-    int bestEval = staticEval;
+    int bestScore = staticEval;
 
-    if (bestEval >= beta)
-        return bestEval;
-    if (alpha < bestEval)
-        alpha = bestEval;
+    if (bestScore >= beta)
+        return bestScore;
+    if (alpha < bestScore)
+        alpha = bestScore;
 
     Movepicker<NOISY_ONLY> picker(board, thisThread);
     while (picker.hasNext()) {
         if (sl.stopFlag())
-            return bestEval;
+            return bestScore;
         if (sl.outOfNodes()) {
             sl.storeToFlag(true);
-            return bestEval;
+            return bestScore;
         }
         if (nodes % 2048 == 0 && sl.outOfTime()) {
             sl.storeToFlag(true);
-            return bestEval;
+            return bestScore;
         }
 
         const Move m = picker.getNext();
@@ -43,18 +43,18 @@ i16 qsearch(Board& board, int alpha, int beta, Search::ThreadInfo& thisThread, S
         testBoard.move(m);
         nodes++;
 
-        i16 eval = -qsearch(testBoard, -beta, -alpha, thisThread, sl);
+        i16 score = -qsearch(testBoard, -beta, -alpha, thisThread, sl);
 
-        if (eval > bestEval) {
-            bestEval = eval;
-            if (eval > alpha)
-                alpha = eval;
+        if (score > bestScore) {
+            bestScore = score;
+            if (score > alpha)
+                alpha = score;
         }
-        if (eval >= beta)
+        if (score >= beta)
             break;
     }
 
-    return bestEval;
+    return bestScore;
 }
 
 // Main search
@@ -70,10 +70,10 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
 
     if (!isPV && ttEntry->zobrist == board.zobrist && ttEntry->depth >= depth
         && (ttEntry->flag == EXACT                                      // Exact score
-            || (ttEntry->flag == BETA_CUTOFF && ttEntry->eval >= beta)  // Lower bound, fail high
-            || (ttEntry->flag == FAIL_LOW && ttEntry->eval <= alpha)    // Upper bound, fail low
+            || (ttEntry->flag == BETA_CUTOFF && ttEntry->score >= beta)  // Lower bound, fail high
+            || (ttEntry->flag == FAIL_LOW && ttEntry->score <= alpha)    // Upper bound, fail low
             )) {
-        return ttEntry->eval;
+        return ttEntry->score;
     }
 
     // Mate distance pruning
@@ -104,7 +104,7 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
         }
     }
 
-    int  bestEval = -INF_INT;
+    int  bestScore = -INF_INT;
     Move bestMove;
 
     TTFlag ttFlag = FAIL_LOW;
@@ -114,14 +114,14 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
     Movepicker<ALL_MOVES> picker(board, thisThread);
     while (picker.hasNext()) {
         if (sl.stopFlag())
-            return bestEval;
+            return bestScore;
         if (sl.outOfNodes()) {
             sl.storeToFlag(true);
-            return bestEval;
+            return bestScore;
         }
         if (nodes % 2048 == 0 && sl.outOfTime()) {
             sl.storeToFlag(true);
-            return bestEval;
+            return bestScore;
         }
 
         const Move m = picker.getNext();
@@ -155,8 +155,8 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
         if (isPV && (movesSeen == 1 || score > alpha))
             score = -search<isPV>(testBoard, depth - 1, ply + 1, -beta, -alpha, ss + 1, thisThread, sl);
 
-        if (score > bestEval) {
-            bestEval = score;
+        if (score > bestScore) {
+            bestScore = score;
             bestMove = m;
             if (score > alpha) {
                 ttFlag = EXACT;
@@ -181,9 +181,9 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
         return 0;
     }
 
-    *ttEntry = Transposition(board.zobrist, bestMove, ttFlag, bestEval, depth);
+    *ttEntry = Transposition(board.zobrist, bestMove, ttFlag, bestScore, depth);
 
-    return bestEval;
+    return bestScore;
 }
 
 // This can't take a board as a reference because isLegal can change the current board state for a few dozen clock cycles
@@ -209,26 +209,25 @@ MoveEvaluation Search::iterativeDeepening(Board board, usize depth, ThreadInfo t
 
     depth = std::min(depth, MAX_PLY);
 
-    i32    lastEval;
+    i32    lastScore;
     PvList lastPV;
 
-    bool isMate = false;
     int  mateDist;
 
     for (usize currDepth = 1; currDepth <= depth; currDepth++) {
         SearchLimit& sl = currDepth == 1 ? depthOneSl : mainSl;
 
-        i32 eval;
+        i32 score;
         if (currDepth < MIN_ASP_WINDOW_DEPTH)
-            eval = search<PV>(board, currDepth, 0, -INF_I16, INF_I16, ss, thisThread, sl);
+            score = search<PV>(board, currDepth, 0, -INF_I16, INF_I16, ss, thisThread, sl);
         else {
             int delta = INITIAL_ASP_WINDOW;
-            int alpha = std::max(lastEval - delta, -INF_I16);
-            int beta  = std::min(lastEval + delta, INF_I16);
+            int alpha = std::max(lastScore - delta, -INF_I16);
+            int beta  = std::min(lastScore + delta, INF_I16);
 
             while (!sl.stopSearch()) {
-                eval = search<PV>(board, currDepth, 0, alpha, beta, ss, thisThread, sl);
-                if (eval <= alpha || eval >= beta) {
+                score = search<PV>(board, currDepth, 0, alpha, beta, ss, thisThread, sl);
+                if (score <= alpha || score >= beta) {
                     alpha = -INF_I16;
                     beta  = INF_I16;
                 }
@@ -238,24 +237,20 @@ MoveEvaluation Search::iterativeDeepening(Board board, usize depth, ThreadInfo t
         }
 
         if (isMain) {
-            if (std::abs(eval) >= MATE_IN_MAX_PLY) {
-                isMate   = true;
-                mateDist = (MATE_SCORE - std::abs(eval)) / 2 + 1;
-            }
-            else
-                isMate = false;
+            if (isDecisive(score))
+                mateDist = (MATE_SCORE - std::abs(score)) / 2 + 1;
 
             // Depth, time, score
             cout << "info depth " << currDepth << " time " << sl.time.elapsed() << " nodes " << nodes;
             if (sl.time.elapsed() > 0)
                 cout << " nps " << nodes * 1000 / sl.time.elapsed();
             cout << " score";
-            if (isMate) {
+            if (isDecisive(score)) {
                 cout << " mate ";
-                cout << ((eval < 0) ? "-" : "") << mateDist;
+                cout << ((score < 0) ? "-" : "") << mateDist;
             }
             else
-                cout << " cp " << eval;
+                cout << " cp " << score;
 
             // PV line
             cout << " pv";
@@ -267,14 +262,14 @@ MoveEvaluation Search::iterativeDeepening(Board board, usize depth, ThreadInfo t
         if (sl.stopSearch())
             break;
 
-        lastEval = eval;
+        lastScore = score;
         lastPV   = ss->pv;
     }
 
     if (isMain)
         cout << "bestmove " << lastPV.moves[0] << endl;
 
-    return MoveEvaluation(lastPV.moves[0], lastEval);
+    return MoveEvaluation(lastPV.moves[0], lastScore);
 }
 
 void Search::bench() {

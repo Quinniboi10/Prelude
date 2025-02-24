@@ -8,7 +8,7 @@
 struct Transposition {
     u64  zobrist;
     Move move;
-    i16  eval;
+    i16  score;
     u8   flag;
     u8   depth;
 
@@ -16,14 +16,14 @@ struct Transposition {
         zobrist = 0;
         move    = Move();
         flag    = 0;
-        eval    = 0;
+        score    = 0;
         depth   = 0;
     }
     Transposition(u64 zobristKey, Move bestMove, u8 flag, i16 score, u8 depth) {
         this->zobrist = zobristKey;
         this->move    = bestMove;
         this->flag    = flag;
-        this->eval    = score;
+        this->score    = score;
         this->depth   = depth;
     }
 };
