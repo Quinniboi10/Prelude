@@ -4,6 +4,8 @@
 #include "config.h"
 #include "movepicker.h"
 
+#include <cmath>
+
 struct Stack {
     PvList pv;
 };
@@ -126,31 +128,44 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
 
         if (!board.isLegal(m))
             continue;
+
         Board testBoard = board;
         testBoard.move(m);
         nodes++;
         movesSeen++;
 
-        i16 eval;
-        if (movesSeen == 1)
-            eval = -search<isPV>(testBoard, depth - 1, ply + 1, -beta, -alpha, ss + 1, thisThread, sl);
-        else {
-            eval = -search<Search::NodeType::NONPV>(testBoard, depth - 1, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
-            if (eval > alpha && eval < beta)
-                eval = -search<isPV>(testBoard, depth - 1, ply + 1, -beta, -alpha, ss + 1, thisThread, sl);
-        }
+        i16 score;
+        if (depth >= 2 && movesSeen >= 5 + 2 * (ply == 0) && !testBoard.inCheck()) {
+            // Calculate reduction factor for late move reduction
+            // Based on Weiss's formulas
+            int depthReduction = 0;
+            if (board.isQuiet(m))
+                depthReduction = 1.35 + std::log(depth) * std::log(movesSeen) / 2.75;
+            else
+                depthReduction = 0.20 + std::log(depth) * std::log(movesSeen) / 3.35;
 
-        if (eval > bestEval) {
-            bestEval = eval;
+            i32 reducedDepth = depth - 1 - depthReduction;
+
+            score = -search<Search::NodeType::NONPV>(testBoard, depth - 1 - depthReduction, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
+            if (score > alpha)
+                score = -search<Search::NodeType::NONPV>(testBoard, depth - 1, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
+        }
+        else if (!isPV || movesSeen > 1)
+            score = -search<Search::NodeType::NONPV>(testBoard, depth - 1, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
+        if (isPV && (movesSeen == 1 || score > alpha))
+            score = -search<isPV>(testBoard, depth - 1, ply + 1, -beta, -alpha, ss + 1, thisThread, sl);
+
+        if (score > bestEval) {
+            bestEval = score;
             bestMove = m;
-            if (eval > alpha) {
+            if (score > alpha) {
                 ttFlag = EXACT;
-                alpha  = eval;
+                alpha  = score;
                 if constexpr (isPV)
                     ss->pv.update(m, (ss + 1)->pv);
             }
         }
-        if (eval >= beta) {
+        if (score >= beta) {
             ttFlag = BETA_CUTOFF;
             if (board.isQuiet(m)) {
                 thisThread.updateHist(board.stm, m, 20 * depth * depth);
