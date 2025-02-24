@@ -1,4 +1,5 @@
 #include "board.h"
+#include "util.h"
 #include "types.h"
 #include "movegen.h"
 #include "search.h"
@@ -228,6 +229,8 @@ void Board::reset() {
     halfMoveClock = 0;
     fullMoveClock = 1;
 
+    fromNull = false;
+
     resetMailbox();
     accumulators.resetAccumulators(*this);
     resetZobrist();
@@ -299,6 +302,8 @@ void Board::loadFromFEN(string fen) {
     halfMoveClock = tokens.size() > 4 ? (stoi(tokens[5])) : 0;
     fullMoveClock = tokens.size() > 5 ? (stoi(tokens[5])) : 1;
 
+    fromNull = false;
+
     resetMailbox();
     accumulators.resetAccumulators(*this);
     resetZobrist();
@@ -346,6 +351,7 @@ void Board::minimalMove(Move m) { move<true>(m); }
 template<bool minimal>
 void Board::move(Move m) {
     epSquare        = NO_SQUARE;
+    fromNull        = false;
     Square    from  = m.from();
     Square    to    = m.to();
     MoveType  mt    = m.typeOf();
@@ -444,6 +450,32 @@ void Board::move(Move m) {
 
     fullMoveClock += stm == WHITE;
 
+    updateCheckPin();
+}
+
+bool Board::canNullMove() const {
+    // Don't allow back-to-back null moves
+    if (fromNull == true)
+        return false;
+    // Pawn + king only endgame
+    if (popcount(pieces(stm)) - popcount(pieces(stm, PAWN)) == 1)
+        return false;
+
+    return true;
+}
+
+void Board::nullMove() {
+    // En passant
+    zobrist ^= EP_ZTABLE[epSquare];
+    zobrist ^= EP_ZTABLE[NO_SQUARE];
+
+    epSquare = NO_SQUARE;
+
+    // Stm
+    zobrist ^= STM_ZHASH;
+    stm = ~stm;
+
+    fromNull = true;
     updateCheckPin();
 }
 
