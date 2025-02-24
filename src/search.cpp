@@ -177,7 +177,9 @@ MoveEvaluation Search::iterativeDeepening(Board board, usize depth, ThreadInfo t
 
     sp.breakFlag->store(false);
 
-    SearchLimit sl(sp.breakFlag, searchTime, sp.nodes);
+    std::atomic<bool> falseFlag(false);
+    SearchLimit       depthOneSl(&falseFlag, 0, sp.nodes);
+    SearchLimit       mainSl(sp.breakFlag, searchTime, sp.nodes);
 
     array<Stack, MAX_PLY> stack;
     Stack*                ss = &stack[0];
@@ -191,6 +193,8 @@ MoveEvaluation Search::iterativeDeepening(Board board, usize depth, ThreadInfo t
     int  mateDist;
 
     for (usize currDepth = 1; currDepth <= depth; currDepth++) {
+        SearchLimit& sl = currDepth == 1 ? depthOneSl : mainSl;
+
         i32 eval;
         if (currDepth < MIN_ASP_WINDOW_DEPTH)
             eval = search<PV>(board, currDepth, 0, -INF_I16, INF_I16, ss, thisThread, sl);
