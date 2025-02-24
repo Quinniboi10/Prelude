@@ -12,6 +12,8 @@ constexpr int MAX_HISTORY           = 16384;
 constexpr int MIN_ASP_WINDOW_DEPTH = 5;
 constexpr int INITIAL_ASP_WINDOW   = 30;
 
+constexpr int NMP_REDUCTION = 3;
+
 // Time management
 constexpr usize DEFAULT_MOVES_TO_GO = 20;
 constexpr usize INC_DIVISOR         = 2;

@@ -66,9 +66,7 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
 
     Transposition* ttEntry = TT.getEntry(board.zobrist);
 
-    if (!isPV
-        && ttEntry->zobrist == board.zobrist
-        && ttEntry->depth >= depth
+    if (!isPV && ttEntry->zobrist == board.zobrist && ttEntry->depth >= depth
         && (ttEntry->flag == EXACT                                      // Exact score
             || (ttEntry->flag == BETA_CUTOFF && ttEntry->eval >= beta)  // Lower bound, fail high
             || (ttEntry->flag == FAIL_LOW && ttEntry->eval <= alpha)    // Upper bound, fail low
@@ -92,6 +90,16 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
         int rfpMargin = 100 * depth;
         if (staticEval - rfpMargin >= beta)
             return staticEval;
+
+        // Null move pruning
+        if (board.canNullMove()) {
+            Board testBoard = board;
+            testBoard.nullMove();
+            i32 eval = -search<Search::NodeType::NONPV>(testBoard, depth - NMP_REDUCTION, ply + 1, -beta, -beta + 1, ss + 1, thisThread, sl);
+
+            if (eval >= beta)
+                return eval;
+        }
     }
 
     int  bestEval = -INF_INT;
