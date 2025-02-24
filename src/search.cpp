@@ -111,6 +111,8 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
 
     usize movesSeen = 0;
 
+    MoveList seenQuiets;
+
     Movepicker<ALL_MOVES> picker(board, thisThread);
     while (picker.hasNext()) {
         if (sl.stopFlag())
@@ -128,6 +130,9 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
 
         if (!board.isLegal(m))
             continue;
+
+        if (board.isQuiet(m))
+            seenQuiets.add(m);
 
         Board testBoard = board;
         testBoard.move(m);
@@ -169,6 +174,12 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
             ttFlag = BETA_CUTOFF;
             if (board.isQuiet(m)) {
                 thisThread.updateHist(board.stm, m, 20 * depth * depth);
+                // History malus
+                for (const Move quietMove : seenQuiets) {
+                    if (quietMove == m)
+                        continue;
+                    thisThread.updateHist(board.stm, quietMove, -20 * depth * depth);
+                }
             }
             break;
         }
