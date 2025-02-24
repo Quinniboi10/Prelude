@@ -36,6 +36,8 @@ struct Board {
     usize fullMoveClock;
 
    private:
+    bool fromNull;
+
     char getPieceAt(int i) const;
 
     void placePiece(Color c, PieceType pt, int sq);
@@ -70,6 +72,9 @@ struct Board {
     void move(Move m);
     void move(string str);
     void minimalMove(Move m);
+
+    bool canNullMove() const;
+    void nullMove();
 
     bool canCastle(Color c, bool kingside) const;
 
