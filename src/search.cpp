@@ -39,6 +39,9 @@ i16 qsearch(Board& board, int alpha, int beta, Search::ThreadInfo& thisThread, S
         if (!board.isLegal(m))
             continue;
 
+        if (!board.see(m, 0))
+            continue;
+
         Board testBoard = board;
         testBoard.move(m);
         nodes++;

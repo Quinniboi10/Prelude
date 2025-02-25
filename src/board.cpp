@@ -200,7 +200,13 @@ u64 Board::pieces() const { return byColor[WHITE] | byColor[BLACK]; }
 u64 Board::pieces(Color c) const { return byColor[c]; }
 u64 Board::pieces(PieceType pt) const { return byPieces[pt]; }
 u64 Board::pieces(Color c, PieceType pt) const { return byPieces[pt] & byColor[c]; }
+u64 Board::pieces(PieceType pt1, PieceType pt2) const { return byPieces[pt1] | byPieces[pt2]; }
 u64 Board::pieces(Color c, PieceType pt1, PieceType pt2) const { return (byPieces[pt1] | byPieces[pt2]) & byColor[c]; }
+
+u64 Board::attackersTo(Square sq, u64 occ) const {
+    return (Movegen::getRookAttacks(sq, occ) & pieces(ROOK, QUEEN)) | (Movegen::getBishopAttacks(sq, occ) & pieces(BISHOP, QUEEN)) | (Movegen::pawnAttackBB(WHITE, sq) & pieces(BLACK, PAWN))
+         | (Movegen::pawnAttackBB(BLACK, sq) & pieces(WHITE, PAWN)) | (Movegen::KNIGHT_ATTACKS[sq] & pieces(KNIGHT)) | (Movegen::KING_ATTACKS[sq] & pieces(KING));
+}
 
 // Reset the board to startpos
 void Board::reset() {
@@ -595,4 +601,92 @@ bool Board::isDraw() const {
             return true;
     }
     return false;
+}
+
+// Uses the swap-off algorithm, code from Stockfish
+bool Board::see(Move m, int threshold) const {
+    if (m.typeOf() != STANDARD_MOVE)
+        return 0 >= threshold;
+
+    Square from = m.from();
+    Square to   = m.to();
+
+    int swap = PIECE_VALUES[getPiece(to)] - threshold;
+    if (swap <= 0)
+        return false;
+
+    swap = PIECE_VALUES[getPiece(from)] - swap;
+    if (swap <= 0)
+        return true;
+
+    u64   occ       = pieces() ^ (1ULL << from) ^ (1ULL << to);
+    Color stm       = this->stm;
+    u64   attackers = attackersTo(to, occ);
+    u64   stmAttackers, bb;
+
+    int res = 1;
+
+    while (true) {
+        stm = ~stm;
+        attackers &= occ;
+
+        stmAttackers = attackers & pieces(stm);
+        if (!(stmAttackers))
+            break;
+
+        if (pinnersPerC[~stm] & occ) {
+            stmAttackers &= ~pinned;
+            if (!stmAttackers)
+                break;
+        }
+
+        res ^= 1;
+
+        if ((bb = stmAttackers & pieces(PAWN))) {
+            swap = PIECE_VALUES[PAWN] - swap;
+            if (swap < res)
+                break;
+            occ ^= 1ULL << ctzll(bb);  // LSB as a bitboard
+
+            attackers |= Movegen::getBishopAttacks(to, occ) & pieces(BISHOP, QUEEN);
+        }
+
+        else if ((bb = stmAttackers & pieces(KNIGHT))) {
+            swap = PIECE_VALUES[KNIGHT] - swap;
+            if (swap < res)
+                break;
+            occ ^= 1ULL << ctzll(bb);
+        }
+
+        else if ((bb = stmAttackers & pieces(BISHOP))) {
+            swap = PIECE_VALUES[BISHOP] - swap;
+            if (swap < res)
+                break;
+            occ ^= 1ULL << ctzll(bb);
+
+            attackers |= Movegen::getBishopAttacks(to, occ) & pieces(BISHOP, QUEEN);
+        }
+
+        else if ((bb = stmAttackers & pieces(ROOK))) {
+            swap = PIECE_VALUES[ROOK] - swap;
+            if (swap < res)
+                break;
+            occ ^= 1ULL << ctzll(bb);
+
+            attackers |= Movegen::getRookAttacks(to, occ) & pieces(ROOK, QUEEN);
+        }
+
+        else if ((bb = stmAttackers & pieces(QUEEN))) {
+            swap = PIECE_VALUES[QUEEN] - swap;
+            if (swap < res)
+                break;
+            occ ^= 1ULL << ctzll(bb);
+
+            attackers |= (Movegen::getBishopAttacks(to, occ) & pieces(BISHOP, QUEEN)) | (Movegen::getRookAttacks(to, occ) & pieces(ROOK, QUEEN));
+        }
+        else
+            return (attackers & ~pieces(stm)) ? res ^ 1 : res;  // King capture so flip side if enemy has attackers
+    }
+
+    return res;
 }
