@@ -31,13 +31,13 @@ $(EXE): $(SRCS)
 # Debug Build
 .PHONY: debug
 debug: clean
-debug: CXXFLAGS = -march=native -std=c++20 -O2 -DDEBUG -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -Wall -Wextra
+debug: CXXFLAGS = -march=native -std=c++20 -O3 -DDEBUG -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -Wall -Wextra
 debug: all
 
 # Debug Build
 .PHONY: profile
 profile: clean
-profile: CXXFLAGS = -O3 -g -march=native -ffast-math -funroll-loops -flto -fuse-ld=lld -std=c++20 -static -DNDEBUG
+profile: CXXFLAGS = -O2 -g -march=native -ffast-math -funroll-loops -flto -fuse-ld=lld -std=c++20 -fno-omit-frame-pointer -static -DNDEBUG
 profile: all
 
 # Force rebuild

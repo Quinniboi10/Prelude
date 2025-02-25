@@ -1,19 +1,13 @@
 #pragma once
 
 #include <cstdlib>
+#include <cstdint>
 #include <iostream>
+#include <cassert>
 #include <string>
+#include <limits>
 #include <array>
-
-#define ctzll(x) std::countr_zero(x)
-#define popcountll(x) std::popcount(x)
-
-#ifdef DEBUG
-constexpr bool ISDBG = true;
-#else
-constexpr bool ISDBG = false;
-#endif
-#define IFDBG if constexpr (ISDBG)
+#include <bit>
 
 using u64 = uint64_t;
 using u32 = uint32_t;
@@ -26,21 +20,16 @@ using i16 = int16_t;
 
 using usize = size_t;
 
-using std::cerr;
+using std::popcount;
 using std::string;
 using std::array;
+using std::cerr;
 using std::cout;
 using std::endl;
-
-#define m_assert(expr, msg) assert(((void) (msg), (expr)))
 
 constexpr u64 INF_U64 = std::numeric_limits<u64>::max();
 constexpr int INF_INT = std::numeric_limits<int>::max();
 constexpr int INF_I16 = std::numeric_limits<i16>::max();
-
-#include "config.h"
-
-using Accumulator = array<i16, HL_SIZE>;
 
 enum Color : int {
     WHITE = 1,
@@ -59,7 +48,7 @@ enum PieceType : int {
     KING,
     NO_PIECE_TYPE
 };
-array<int, 7> PIECE_VALUES = {100, 316, 328, 493, 982, 0, 0};
+inline array<int, 7> PIECE_VALUES = {100, 316, 328, 493, 982, 0, 0};
 
 // clang-format off
 enum Square : int {
@@ -91,15 +80,23 @@ enum File : int {
     AFILE, BFILE, CFILE, DFILE, EFILE, FFILE, GFILE, HFILE
 };
 
+constexpr u64 MASK_FILE[8] = {
+  0x101010101010101, 0x202020202020202, 0x404040404040404, 0x808080808080808, 0x1010101010101010, 0x2020202020202020, 0x4040404040404040, 0x8080808080808080,
+};
+
+constexpr u64 MASK_RANK[8] = {
+    0xff, 0xff00, 0xff0000, 0xff000000, 0xff00000000, 0xff0000000000, 0xff000000000000, 0xff00000000000000
+};
+
 enum Rank : int {
     RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8
 };
-Square& operator++(Square& s) { return s = Square(int(s) + 1); }
-Square& operator--(Square& s) { return s = Square(int(s) - 1); }
+inline Square& operator++(Square& s) { return s = Square(int(s) + 1); }
+inline Square& operator--(Square& s) { return s = Square(int(s) - 1); }
 constexpr Square operator+(Square s, Direction d) { return Square(int(s) + int(d)); }
 constexpr Square operator-(Square s, Direction d) { return Square(int(s) - int(d)); }
-Square& operator+=(Square& s, Direction d) { return s = s + d; }
-Square& operator-=(Square& s, Direction d) { return s = s - d; }
+inline Square& operator+=(Square& s, Direction d) { return s = s + d; }
+inline Square& operator-=(Square& s, Direction d) { return s = s - d; }
 //clang-format on
 
 static inline const u16  Le               = 1;
@@ -107,38 +104,42 @@ static inline const bool IS_LITTLE_ENDIAN = *reinterpret_cast<const char*>(&Le) 
 
 // Names binary encoding flags from Move class
 enum MoveType {
-    STANDARD_MOVE = 0, DOUBLE_PUSH = 0b1, CASTLE_K = 0b10, CASTLE_Q = 0b11, CAPTURE = 0b100, EN_PASSANT = 0b101, PROMOTION = 0b1000, KNIGHT_PROMO = 0b1000, BISHOP_PROMO = 0b1001, ROOK_PROMO = 0b1010, QUEEN_PROMO = 0b1011, KNIGHT_PROMO_CAPTURE = 0b1100, BISHOP_PROMO_CAPTURE = 0b1101, ROOK_PROMO_CAPTURE = 0b1110, QUEEN_PROMO_CAPTURE = 0b1111
+    STANDARD_MOVE = 0, EN_PASSANT = 0x4000, CASTLE = 0x8000, PROMOTION = 0xC000
 };
 
-enum flags {
+// TT flags
+enum TTFlag : u8 {
     UNDEFINED, FAIL_LOW, BETA_CUTOFF, EXACT
 };
 
+extern array<array<u64, 64>, 64> LINE;
+extern array<array<u64, 64>, 64> LINESEG;
+
 struct Colors {
     // ANSI codes for colors https://raw.githubusercontent.com/fidian/ansi/master/images/color-codes.png
-    static constexpr string RESET = "\033[0m";
+    static constexpr std::string_view RESET = "\033[0m";
 
     // Basic colors
-    static constexpr string BLACK = "\033[30m";
-    static constexpr string RED = "\033[31m";
-    static constexpr string GREEN = "\033[32m";
-    static constexpr string YELLOW = "\033[33m";
-    static constexpr string BLUE = "\033[34m";
-    static constexpr string MAGENTA = "\033[35m";
-    static constexpr string CYAN = "\033[36m";
-    static constexpr string WHITE = "\033[37m";
+    static constexpr std::string_view BLACK = "\033[30m";
+    static constexpr std::string_view RED = "\033[31m";
+    static constexpr std::string_view GREEN = "\033[32m";
+    static constexpr std::string_view YELLOW = "\033[33m";
+    static constexpr std::string_view BLUE = "\033[34m";
+    static constexpr std::string_view MAGENTA = "\033[35m";
+    static constexpr std::string_view CYAN = "\033[36m";
+    static constexpr std::string_view WHITE = "\033[37m";
 
     // Bright colors
-    static constexpr string BRIGHT_BLACK = "\033[90m";
-    static constexpr string BRIGHT_RED = "\033[91m";
-    static constexpr string BRIGHT_GREEN = "\033[92m";
-    static constexpr string BRIGHT_YELLOW = "\033[93m";
-    static constexpr string BRIGHT_BLUE = "\033[94m";
-    static constexpr string BRIGHT_MAGENTA = "\033[95m";
-    static constexpr string BRIGHT_GYAN = "\033[96m";
-    static constexpr string BRIGHT_WHITE = "\033[97m";
+    static constexpr std::string_view BRIGHT_BLACK = "\033[90m";
+    static constexpr std::string_view BRIGHT_RED = "\033[91m";
+    static constexpr std::string_view BRIGHT_GREEN = "\033[92m";
+    static constexpr std::string_view BRIGHT_YELLOW = "\033[93m";
+    static constexpr std::string_view BRIGHT_BLUE = "\033[94m";
+    static constexpr std::string_view BRIGHT_MAGENTA = "\033[95m";
+    static constexpr std::string_view BRIGHT_GYAN = "\033[96m";
+    static constexpr std::string_view BRIGHT_WHITE = "\033[97m";
 
-    static constexpr string GREY = BRIGHT_BLACK;
+    static constexpr std::string_view GREY = BRIGHT_BLACK;
 };
 
 template<usize size>
@@ -170,3 +171,5 @@ public:
         }
     }
 };
+
+struct Board;
