@@ -37,7 +37,7 @@ struct TranspositionTable {
 
     TranspositionTable(usize sizeInMB = 16) { resize(sizeInMB); }
 
-    void clear() { table.clear(); }
+    void clear() { std::fill(table.begin(), table.end(), Transposition{}); }
 
     void resize(usize newSizeMiB) {
         // Find number of bytes allowed

@@ -39,6 +39,12 @@ struct ThreadInfo {
     }
 
     int getHist(Color stm, Move m) { return history[stm][m.from()][m.to()]; }
+
+    void reset() {
+        for (auto& stm : history)
+            for (auto& from : stm)
+                from.fill(DEFAULT_HISTORY_VALUE);
+    }
 };
 
 struct SearchParams {
