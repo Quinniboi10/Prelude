@@ -15,7 +15,7 @@ int evaluate(Board& board, Search::ThreadInfo& thisThread, Move m) {
         return (victim * 100) - attacker;
     };
     if (board.isCapture(m)) {
-        return evaluateMVVLVA();
+        return evaluateMVVLVA() - 200'000 * !board.see(m, -50);
     }
     else
         return thisThread.getHist(board.stm, m);
