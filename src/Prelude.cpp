@@ -87,6 +87,8 @@ int main(int argc, char* argv[]) {
     auto index             = [&](string sub, int offset = 0) { return findIndexOf(tokens, sub) + offset; };
     auto getValueFollowing = [&](string value, int defaultValue) { return exists(value) ? stoi(tokens[index(value, 1)]) : defaultValue; };
 
+    // ************ UCI ************
+
     cout << "Prelude ready and awaiting commands" << endl;
     while (true) {
         std::getline(std::cin, command);
@@ -102,6 +104,10 @@ int main(int argc, char* argv[]) {
             cout << "option name Move Overhead type spin default 20 min 0 max 1000" << endl;
             cout << "option name NNUE type string default internal" << endl;
             cout << "uciok" << endl;
+        }
+        else if (command == "ucinewgame") {
+            TT.clear();
+            mainThread.reset();
         }
         else if (command == "isready")
             cout << "readyok" << endl;
