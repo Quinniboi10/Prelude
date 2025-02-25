@@ -57,7 +57,10 @@ struct Board {
     u64 pieces(Color c) const;
     u64 pieces(PieceType pt) const;
     u64 pieces(Color c, PieceType pt) const;
+    u64 pieces(PieceType pt1, PieceType pt2) const;
     u64 pieces(Color c, PieceType pt1, PieceType pt2) const;
+
+    u64 attackersTo(Square sq, u64 occ) const;
 
     void reset();
 
@@ -84,4 +87,6 @@ struct Board {
     bool isUnderAttack(Color c, Square square) const;
 
     bool isDraw() const;
+
+    bool see(Move m, int threshold) const;
 };
