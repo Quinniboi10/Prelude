@@ -116,6 +116,8 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
 
     MoveList seenQuiets;
 
+    bool skipQuiets = false;
+
     Movepicker<ALL_MOVES> picker(board, thisThread);
     while (picker.hasNext()) {
         if (sl.stopFlag())
@@ -131,11 +133,21 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
 
         const Move m = picker.getNext();
 
-        if (!board.isLegal(m))
+        if (skipQuiets && board.isQuiet(m))
             continue;
 
         if (board.isQuiet(m))
             seenQuiets.add(m);
+
+        if (!board.isLegal(m))
+            continue;
+
+
+        // Late move pruning
+        if (!skipQuiets && board.isQuiet(m) && movesSeen >= 6 + depth * depth) {
+            skipQuiets = true;
+            continue;
+        }
 
         Board testBoard = board;
         testBoard.move(m);
