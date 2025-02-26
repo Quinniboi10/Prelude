@@ -4,7 +4,7 @@
 
 // ************ SEARCH ************
 constexpr usize MAX_PLY     = 255;
-constexpr i16   BENCH_DEPTH = 8;
+constexpr i16   BENCH_DEPTH = 12;
 
 constexpr int DEFAULT_HISTORY_VALUE = 0;
 constexpr int MAX_HISTORY           = 16384;

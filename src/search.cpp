@@ -79,6 +79,10 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
         return ttEntry->score;
     }
 
+    // Internal iterative reductions
+    if ((ttEntry->zobrist != board.zobrist || ttEntry->move.isNull()) && depth > 5)
+        depth--;
+
     // Mate distance pruning
     if (ply > 0) {
         alpha = std::max(alpha, static_cast<int>(-Search::MATE_SCORE + ply));
