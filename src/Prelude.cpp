@@ -65,12 +65,29 @@ int main(int argc, char* argv[]) {
 
     std::atomic<bool> breakSearch(false);
     std::thread       searchThread;
-    auto              stopSearch = [&]() {
+
+    std::vector<std::thread> workers;
+    usize                    setWorkerThreads = 0;
+
+    auto startWorker = [&]() {
+        Search::ThreadInfo newThread = mainThread;
+        newThread.type = Search::ThreadType::SECONDARY;
+
+        workers.emplace_back(std::thread(Search::iterativeDeepening, board, MAX_PLY, newThread, Search::SearchParams(0, 0, 0, 0, 0, 0, &breakSearch)));
+    };
+
+    auto stopSearch = [&]() {
         breakSearch.store(true);
 
-        if (searchThread.joinable()) {
+        if (searchThread.joinable())
             searchThread.join();
-        }
+
+        if (workers.size() > 0)
+            for (std::thread& t : workers)
+                if (t.joinable())
+                    t.join();
+
+        workers.clear();
     };
 
     // *********** ./Prelude <ARGS> ************
@@ -99,7 +116,7 @@ int main(int argc, char* argv[]) {
         if (command == "uci") {
             cout << "id name Prelude" << endl;
             cout << "id author Quinniboi10" << endl;
-            cout << "option name Threads type spin default 1 min 1 max 1" << endl;
+            cout << "option name Threads type spin default 1 min 1 max 512" << endl;
             cout << "option name Hash type spin default 1 min 1 max 16384" << endl;
             cout << "option name Move Overhead type spin default 20 min 0 max 1000" << endl;
             cout << "option name NNUE type string default internal" << endl;
@@ -142,6 +159,10 @@ int main(int argc, char* argv[]) {
             usize binc = getValueFollowing("binc", 0);
 
             searchThread = std::thread(Search::iterativeDeepening, board, depth, mainThread, Search::SearchParams(maxNodes, mtime, wtime, btime, winc, binc, &breakSearch));
+
+            if (setWorkerThreads > 0)
+                for (usize i = 0; i < setWorkerThreads; i++)
+                    startWorker();
         }
         else if (tokens[0] == "setoption") {
             if (tokens[2] == "NNUE") {
@@ -153,6 +174,8 @@ int main(int argc, char* argv[]) {
             }
             else if (tokens[2] == "Move" && tokens[3] == "Overhead")
                 MOVE_OVERHEAD = stoi(tokens[findIndexOf(tokens, "value") + 1]);
+            else if (tokens[2] == "Threads")
+                setWorkerThreads = stoi(tokens[findIndexOf(tokens, "value") + 1]);
         }
         else if (command == "stop")
             stopSearch();

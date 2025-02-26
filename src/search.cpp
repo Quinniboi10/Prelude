@@ -126,13 +126,16 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
     while (picker.hasNext()) {
         if (sl.stopFlag())
             return bestScore;
-        if (sl.outOfNodes()) {
-            sl.storeToFlag(true);
-            return bestScore;
-        }
-        if (nodes % 2048 == 0 && sl.outOfTime()) {
-            sl.storeToFlag(true);
-            return bestScore;
+        // Only the main thread will handle time/node limits
+        if (thisThread.type == Search::ThreadType::MAIN) {
+            if (sl.outOfNodes()) {
+                sl.storeToFlag(true);
+                return bestScore;
+            }
+            if (nodes % 2048 == 0 && sl.outOfTime()) {
+                sl.storeToFlag(true);
+                return bestScore;
+            }
         }
 
         const Move m = picker.getNext();
