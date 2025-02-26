@@ -153,6 +153,10 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
             continue;
         }
 
+        // History pruning
+        if (!Search::isLoss(bestScore) && board.isQuiet(m) && movesSeen > 0 && thisThread.getHist(board.stm, m) < HISTORY_PRUNING_SCALAR * depth)
+            continue;
+
         Board testBoard = board;
         testBoard.move(m);
         nodes++;
