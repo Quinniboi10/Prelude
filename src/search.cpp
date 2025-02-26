@@ -116,7 +116,7 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
 
     TTFlag ttFlag = FAIL_LOW;
 
-    usize movesSeen = 0;
+    int movesSeen = 0;
 
     MoveList seenQuiets;
 
@@ -167,8 +167,6 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
                 depthReduction = 1.35 + std::log(depth) * std::log(movesSeen) / 2.75;
             else
                 depthReduction = 0.20 + std::log(depth) * std::log(movesSeen) / 3.35;
-
-            i32 reducedDepth = depth - 1 - depthReduction;
 
             score = -search<Search::NodeType::NONPV>(testBoard, depth - 1 - depthReduction, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
             if (score > alpha)
