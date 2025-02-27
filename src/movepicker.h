@@ -32,7 +32,7 @@ struct Movepicker {
         moves = Movegen::generateMoves<mode>(board);
         seen  = 0;
 
-        TTMove = TT.getEntry(board.zobrist)->move;
+        TTMove = thisThread.TT.getEntry(board.zobrist)->move;
 
         for (usize i = 0; i < moves.length; i++) {
             moveScores[i] = evaluate(board, thisThread, moves.moves[i]);
