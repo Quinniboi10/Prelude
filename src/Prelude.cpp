@@ -10,6 +10,7 @@
 #include "movegen.h"
 #include "search.h"
 #include "ttable.h"
+#include "searcher.h"
 
 #ifndef EVALFILE
     #define EVALFILE "./nnue.bin"
@@ -32,10 +33,9 @@
 INCBIN(EVAL, EVALFILE);
 #endif
 
-TranspositionTable TT;
-usize              MOVE_OVERHEAD = 20;
-NNUE               nnue;
-std::atomic<u64>   nodes;
+
+usize MOVE_OVERHEAD = 20;
+NNUE  nnue;
 
 // ****** MAIN ENTRY POINT, HANDLES UCI ******
 int main(int argc, char* argv[]) {
@@ -61,17 +61,7 @@ int main(int argc, char* argv[]) {
 
     board.reset();
 
-    Search::ThreadInfo mainThread(Search::ThreadType::MAIN);
-
-    std::atomic<bool> breakSearch(false);
-    std::thread       searchThread;
-    auto              stopSearch = [&]() {
-        breakSearch.store(true);
-
-        if (searchThread.joinable()) {
-            searchThread.join();
-        }
-    };
+    Searcher searcher;
 
     // *********** ./Prelude <ARGS> ************
     if (argc > 1) {
@@ -79,7 +69,6 @@ int main(int argc, char* argv[]) {
         if (arg1 == "bench") {
             Search::bench();
         }
-        stopSearch();
         return 0;
     }
 
@@ -106,10 +95,8 @@ int main(int argc, char* argv[]) {
             cout << "option name NNUE type string default internal" << endl;
             cout << "uciok" << endl;
         }
-        else if (command == "ucinewgame") {
-            TT.clear();
-            mainThread.reset();
-        }
+        else if (command == "ucinewgame")
+            searcher.reset();
         else if (command == "isready")
             cout << "readyok" << endl;
         else if (tokens[0] == "position") {
@@ -129,7 +116,7 @@ int main(int argc, char* argv[]) {
             }
         }
         else if (tokens[0] == "go") {
-            stopSearch();
+            searcher.stop();
 
             usize depth = getValueFollowing("depth", MAX_PLY);
 
@@ -141,8 +128,8 @@ int main(int argc, char* argv[]) {
 
             usize winc = getValueFollowing("winc", 0);
             usize binc = getValueFollowing("binc", 0);
-
-            searchThread = std::thread(Search::iterativeDeepening, board, depth, mainThread, Search::SearchParams(commandTime, maxNodes, mtime, wtime, btime, winc, binc, &breakSearch));
+            
+            searcher.start(board, Search::SearchParams(commandTime, depth, maxNodes, mtime, wtime, btime, winc, binc));
         }
         else if (tokens[0] == "setoption") {
             if (tokens[2] == "NNUE") {
@@ -156,9 +143,9 @@ int main(int argc, char* argv[]) {
                 MOVE_OVERHEAD = stoi(tokens[findIndexOf(tokens, "value") + 1]);
         }
         else if (command == "stop")
-            stopSearch();
+            searcher.stop();
         else if (command == "quit") {
-            stopSearch();
+            searcher.stop();
             return 0;
         }
 

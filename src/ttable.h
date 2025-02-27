@@ -53,5 +53,3 @@ struct TranspositionTable {
 
     Transposition* getEntry(u64 key) { return &table[index(key)]; }
 };
-
-extern TranspositionTable TT;
