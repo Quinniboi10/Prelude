@@ -27,7 +27,6 @@ struct ThreadInfo {
 
     ThreadType type;
 
-
     ThreadInfo(ThreadType type) {
         std::memset(&history, DEFAULT_HISTORY_VALUE, sizeof(history));
         this->type = type;
@@ -48,6 +47,7 @@ struct ThreadInfo {
 };
 
 struct SearchParams {
+    Stopwatch<std::chrono::milliseconds>& time;
     u64                nodes;
     u64                mtime;
     u64                wtime;
@@ -56,34 +56,33 @@ struct SearchParams {
     u64                binc;
     std::atomic<bool>* breakFlag;
 
-    SearchParams(u64 nodes, u64 mtime, u64 wtime, u64 btime, u64 winc, u64 binc, std::atomic<bool>* breakFlag) {
-        this->nodes     = nodes;
-        this->mtime     = mtime;
-        this->wtime     = wtime;
-        this->btime     = btime;
-        this->winc      = winc;
-        this->binc      = binc;
-        this->breakFlag = breakFlag;
-    }
+    SearchParams(Stopwatch<std::chrono::milliseconds>& time, u64 nodes, u64 mtime, u64 wtime, u64 btime, u64 winc, u64 binc, std::atomic<bool>* breakFlag) :
+        time(time),
+        nodes(nodes),
+        mtime(mtime),
+        wtime(wtime),
+        btime(btime),
+        winc(winc),
+        binc(binc),
+        breakFlag(breakFlag) {}
 };
 
 struct SearchLimit {
-    Stopwatch<std::chrono::milliseconds> time;
+    Stopwatch<std::chrono::milliseconds>& time;
     u64                                  maxNodes;
     i64                                  searchTime;
     std::atomic<bool>*                   breakFlag;
 
-    SearchLimit(auto breakFlag, auto searchTime, auto maxNodes) {
-        time.start();
-        this->breakFlag  = breakFlag;
-        this->searchTime = searchTime;
-        this->maxNodes   = maxNodes;
-    }
+    SearchLimit(auto& time, auto breakFlag, auto searchTime, auto maxNodes) :
+        time(time),
+        maxNodes(maxNodes),
+        searchTime(searchTime),
+        breakFlag(breakFlag) {}
 
     bool outOfNodes() { return nodes >= maxNodes && maxNodes > 0; }
 
     bool outOfTime() {
-        if (searchTime <= 0)
+        if (searchTime == 0)
             return false;
         return static_cast<i64>(time.elapsed()) >= searchTime;
     }

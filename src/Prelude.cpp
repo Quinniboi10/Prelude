@@ -92,6 +92,7 @@ int main(int argc, char* argv[]) {
     cout << "Prelude ready and awaiting commands" << endl;
     while (true) {
         std::getline(std::cin, command);
+        Stopwatch<std::chrono::milliseconds> commandTime;
         if (command == "")
             continue;
         tokens = split(command, ' ');
@@ -141,7 +142,7 @@ int main(int argc, char* argv[]) {
             usize winc = getValueFollowing("winc", 0);
             usize binc = getValueFollowing("binc", 0);
 
-            searchThread = std::thread(Search::iterativeDeepening, board, depth, mainThread, Search::SearchParams(maxNodes, mtime, wtime, btime, winc, binc, &breakSearch));
+            searchThread = std::thread(Search::iterativeDeepening, board, depth, mainThread, Search::SearchParams(commandTime, maxNodes, mtime, wtime, btime, winc, binc, &breakSearch));
         }
         else if (tokens[0] == "setoption") {
             if (tokens[2] == "NNUE") {

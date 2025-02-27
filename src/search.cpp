@@ -116,7 +116,7 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
 
     TTFlag ttFlag = FAIL_LOW;
 
-    usize movesSeen = 0;
+    int movesSeen = 0;
 
     MoveList seenQuiets;
 
@@ -167,8 +167,6 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Sea
                 depthReduction = 1.35 + std::log(depth) * std::log(movesSeen) / 2.75;
             else
                 depthReduction = 0.20 + std::log(depth) * std::log(movesSeen) / 3.35;
-
-            i32 reducedDepth = depth - 1 - depthReduction;
 
             score = -search<Search::NodeType::NONPV>(testBoard, depth - 1 - depthReduction, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
             if (score > alpha)
@@ -226,13 +224,14 @@ MoveEvaluation Search::iterativeDeepening(Board board, usize depth, ThreadInfo t
     else
         searchTime = (board.stm == WHITE ? sp.wtime : sp.btime) / DEFAULT_MOVES_TO_GO + (board.stm == WHITE ? sp.winc : sp.binc) / INC_DIVISOR;
 
-    searchTime -= MOVE_OVERHEAD;
+    if (searchTime != 0)
+        searchTime -= MOVE_OVERHEAD;
 
     sp.breakFlag->store(false);
 
     std::atomic<bool> falseFlag(false);
-    SearchLimit       depthOneSl(&falseFlag, 0, sp.nodes);
-    SearchLimit       mainSl(sp.breakFlag, searchTime, sp.nodes);
+    SearchLimit       depthOneSl(sp.time, &falseFlag, 0, sp.nodes);
+    SearchLimit       mainSl(sp.time, sp.breakFlag, searchTime, sp.nodes);
 
     array<Stack, MAX_PLY> stack;
     Stack*                ss = &stack[0];
@@ -372,11 +371,11 @@ void Search::bench() {
 
         // Set up for iterative deepening
         std::atomic<bool>                    benchBreakFlag(false);
+        Search::ThreadInfo thisThread(Search::ThreadType::SECONDARY);
         Stopwatch<std::chrono::milliseconds> time;
-        time.start();
 
         // Start the iterative deepening search
-        Search::iterativeDeepening(board, BENCH_DEPTH, Search::ThreadInfo(Search::ThreadType::SECONDARY), Search::SearchParams(0, 0, 0, 0, 0, 0, &benchBreakFlag));
+        Search::iterativeDeepening(board, BENCH_DEPTH, thisThread, Search::SearchParams(time, 0, 0, 0, 0, 0, 0, &benchBreakFlag));
 
         u64 durationMs = time.elapsed();
 
