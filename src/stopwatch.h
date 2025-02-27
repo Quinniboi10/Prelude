@@ -14,17 +14,15 @@ class Stopwatch {
     u64 pausedTime;
 
    public:
-    Stopwatch() {
-        startTime  = std::chrono::high_resolution_clock::now();
-        pausedTime = 0;
-        paused     = false;
-    }
+    Stopwatch() { start(); }
 
     void start() {
         startTime  = std::chrono::high_resolution_clock::now();
         pausedTime = 0;
         paused     = false;
     }
+
+    void reset() { start(); }
 
     u64 elapsed() {
         u64 pausedTime = this->pausedTime;
