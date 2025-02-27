@@ -3,13 +3,13 @@
 #include "types.h"
 #include "board.h"
 #include "config.h"
+#include "ttable.h"
 #include "stopwatch.h"
 
 #include <atomic>
 #include <cstring>
+#include <thread>
 #include <algorithm>
-
-extern std::atomic<u64> nodes;
 
 namespace Search {
 enum ThreadType {
@@ -27,9 +27,17 @@ struct ThreadInfo {
 
     ThreadType type;
 
-    ThreadInfo(ThreadType type) {
+    public:
+    TranspositionTable& TT;
+    std::atomic<bool>  breakFlag;
+
+    std::atomic<u64> nodes;
+
+    ThreadInfo(ThreadType type, TranspositionTable& TT) :
+        type(type),
+        TT(TT) {
         std::memset(&history, DEFAULT_HISTORY_VALUE, sizeof(history));
-        this->type = type;
+        breakFlag.store(false, std::memory_order_relaxed);
     }
 
     void updateHist(Color stm, Move m, int bonus) {
@@ -47,50 +55,44 @@ struct ThreadInfo {
 };
 
 struct SearchParams {
-    Stopwatch<std::chrono::milliseconds>& time;
+    Stopwatch<std::chrono::milliseconds> time;
+
+    usize              depth;
     u64                nodes;
     u64                mtime;
     u64                wtime;
     u64                btime;
     u64                winc;
     u64                binc;
-    std::atomic<bool>* breakFlag;
 
-    SearchParams(Stopwatch<std::chrono::milliseconds>& time, u64 nodes, u64 mtime, u64 wtime, u64 btime, u64 winc, u64 binc, std::atomic<bool>* breakFlag) :
+    SearchParams(Stopwatch<std::chrono::milliseconds> time, usize depth, u64 nodes, u64 mtime, u64 wtime, u64 btime, u64 winc, u64 binc) :
         time(time),
+        depth(depth),
         nodes(nodes),
         mtime(mtime),
         wtime(wtime),
         btime(btime),
         winc(winc),
-        binc(binc),
-        breakFlag(breakFlag) {}
+        binc(binc) {}
 };
 
 struct SearchLimit {
     Stopwatch<std::chrono::milliseconds>& time;
     u64                                  maxNodes;
     i64                                  searchTime;
-    std::atomic<bool>*                   breakFlag;
 
-    SearchLimit(auto& time, auto breakFlag, auto searchTime, auto maxNodes) :
+    SearchLimit(auto& time, auto searchTime, auto maxNodes) :
         time(time),
         maxNodes(maxNodes),
-        searchTime(searchTime),
-        breakFlag(breakFlag) {}
+        searchTime(searchTime) {}
 
-    bool outOfNodes() { return nodes >= maxNodes && maxNodes > 0; }
+    bool outOfNodes(u64 nodes) { return nodes >= maxNodes && maxNodes > 0; }
 
     bool outOfTime() {
         if (searchTime == 0)
             return false;
         return static_cast<i64>(time.elapsed()) >= searchTime;
     }
-
-    bool stopFlag() { return breakFlag->load(std::memory_order_relaxed); }
-    void storeToFlag(bool v) { breakFlag->store(v, std::memory_order_relaxed); }
-
-    bool stopSearch() { return outOfNodes() || outOfTime() || stopFlag(); }
 };
 
 constexpr i32 MATE_SCORE       = 32767;
@@ -101,7 +103,7 @@ inline bool isWin(i32 score) { return score >= MATE_IN_MAX_PLY; }
 inline bool isLoss(i32 score) { return score <= MATED_IN_MAX_PLY; }
 inline bool isDecisive(i32 score) { return isWin(score) || isLoss(score); }
 
-MoveEvaluation iterativeDeepening(Board board, usize depth, ThreadInfo thisThread, SearchParams sp);
+MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchParams sp);
 
 void bench();
 }
