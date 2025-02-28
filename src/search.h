@@ -11,6 +11,8 @@
 #include <thread>
 #include <algorithm>
 
+struct Searcher;
+
 namespace Search {
 enum ThreadType {
     MAIN      = 1,
@@ -27,17 +29,26 @@ struct ThreadInfo {
 
     ThreadType type;
 
-    public:
     TranspositionTable& TT;
-    std::atomic<bool>  breakFlag;
+    std::atomic<bool>&  breakFlag;
 
     std::atomic<u64> nodes;
 
-    ThreadInfo(ThreadType type, TranspositionTable& TT) :
+    ThreadInfo(ThreadType type, TranspositionTable& TT, std::atomic<bool>& breakFlag) :
         type(type),
-        TT(TT) {
+        TT(TT),
+        breakFlag(breakFlag) {
         std::memset(&history, DEFAULT_HISTORY_VALUE, sizeof(history));
         breakFlag.store(false, std::memory_order_relaxed);
+    }
+
+    // Copy constructor
+    ThreadInfo(const ThreadInfo& other) :
+        history(other.history),
+        type(other.type),
+        TT(other.TT),
+        breakFlag(other.breakFlag) {
+        nodes.store(other.nodes.load(std::memory_order_relaxed), std::memory_order_relaxed);
     }
 
     void updateHist(Color stm, Move m, int bonus) {
@@ -103,7 +114,7 @@ inline bool isWin(i32 score) { return score >= MATE_IN_MAX_PLY; }
 inline bool isLoss(i32 score) { return score <= MATED_IN_MAX_PLY; }
 inline bool isDecisive(i32 score) { return isWin(score) || isLoss(score); }
 
-MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchParams sp);
+MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchParams sp, Searcher* searcher = nullptr);
 
 void bench();
 }
