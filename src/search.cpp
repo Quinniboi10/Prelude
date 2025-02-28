@@ -148,9 +148,14 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
         if (!board.isLegal(m))
             continue;
 
-
         // Late move pruning
         if (!skipQuiets && board.isQuiet(m) && movesSeen >= 6 + depth * depth) {
+            skipQuiets = true;
+            continue;
+        }
+
+        // Futility pruning
+        if (!board.inCheck() && ply > 0 && depth < 6 && !isLoss(bestScore) && board.isQuiet(m) && staticEval + FUTILITY_PRUNING_MARGIN < alpha) {
             skipQuiets = true;
             continue;
         }
