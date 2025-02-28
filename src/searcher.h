@@ -5,16 +5,24 @@
 
 struct Searcher {
     TranspositionTable TT;
-    Search::ThreadInfo threadData = Search::ThreadInfo(Search::ThreadType::MAIN, TT);
-    std::thread        searchThread;
+    std::atomic<bool>  stopFlag;
+    Search::ThreadInfo mainData = Search::ThreadInfo(Search::ThreadType::MAIN, TT, stopFlag);
+    std::thread        mainThread;
+
+    std::vector<Search::ThreadInfo> workerData;
+    std::vector<std::thread>        workers;
 
     void start(Board& board, Search::SearchParams sp);
     void stop();
+
+    void makeThreads(int threads);
 
     void resizeTT(usize size) { TT.resize(size); }
 
     void reset() {
         TT.clear();
-        threadData.reset();
+        mainData.reset();
+        for (Search::ThreadInfo& w : workerData)
+            w.reset();
     }
 };
