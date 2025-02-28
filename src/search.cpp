@@ -217,7 +217,7 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
 }
 
 // This can't take a board as a reference because isLegal can change the current board state for a few dozen clock cycles
-MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchParams sp) {
+MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchParams sp, Searcher* searcher) {
     thisThread.breakFlag.store(false);
     const bool isMain = thisThread.type == MAIN;
 
@@ -243,9 +243,22 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
 
     int mateDist;
 
+    auto countNodes = [&]() {
+        assert(searcher != nullptr);
+        u64 nodes = thisThread.nodes;
+        for (ThreadInfo& w : searcher->workerData)
+            nodes += w.nodes;
+        return nodes;
+    };
+
     for (usize currDepth = 1; currDepth <= depth; currDepth++) {
         SearchLimit& sl              = currDepth == 1 ? depthOneSl : mainSl;
-        auto         searchCancelled = [&]() { return sl.outOfNodes(thisThread.nodes) || sl.outOfTime() || thisThread.breakFlag.load(std::memory_order_relaxed); };
+        auto         searchCancelled = [&]() {
+            if (thisThread.type == MAIN)
+                return sl.outOfNodes(countNodes()) || sl.outOfTime() || thisThread.breakFlag.load(std::memory_order_relaxed);
+            else
+                return thisThread.breakFlag.load(std::memory_order_relaxed);
+            };
 
         i32 score;
         if (currDepth < MIN_ASP_WINDOW_DEPTH)
@@ -271,9 +284,9 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
                 mateDist = (MATE_SCORE - std::abs(score)) / 2 + 1;
 
             // Depth, time, score
-            cout << "info depth " << currDepth << " time " << sl.time.elapsed() << " nodes " << thisThread.nodes;
+            cout << "info depth " << currDepth << " time " << sl.time.elapsed() << " nodes " << countNodes();
             if (sl.time.elapsed() > 0)
-                cout << " nps " << thisThread.nodes * 1000 / sl.time.elapsed();
+                cout << " nps " << countNodes() * 1000 / sl.time.elapsed();
             cout << " score";   
             if (isDecisive(score)) {
                 cout << " mate ";
@@ -299,7 +312,7 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
     if (isMain)
         cout << "bestmove " << lastPV.moves[0] << endl;
 
-    thisThread.breakFlag.store(false, std::memory_order_relaxed);
+    thisThread.breakFlag.store(true, std::memory_order_relaxed);
 
     return MoveEvaluation(lastPV.moves[0], lastScore);
 }
@@ -373,7 +386,7 @@ void bench() {
         // Set up for iterative deepening
         std::atomic<bool>                    benchBreakFlag(false);
         TranspositionTable                   TT;
-        Search::ThreadInfo                   thisThread(Search::ThreadType::SECONDARY, TT);
+        Search::ThreadInfo                   thisThread(Search::ThreadType::SECONDARY, TT, benchBreakFlag);
         Stopwatch<std::chrono::milliseconds> time;
 
         // Start the iterative deepening search

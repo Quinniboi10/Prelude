@@ -72,9 +72,9 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    auto exists            = [&](string sub) { return command.find(" " + sub + " ") != string::npos; };
-    auto index             = [&](string sub, int offset = 0) { return findIndexOf(tokens, sub) + offset; };
-    auto getValueFollowing = [&](string value, int defaultValue) { return exists(value) ? stoi(tokens[index(value, 1)]) : defaultValue; };
+    auto exists            = [&](const string& sub) { return command.find(" " + sub + " ") != string::npos; };
+    auto index             = [&](const string& sub, int offset = 0) { return findIndexOf(tokens, sub) + offset; };
+    auto getValueFollowing = [&](const string& value, int defaultValue) { return exists(value) ? stoi(tokens[index(value, 1)]) : defaultValue; };
 
     // ************ UCI ************
 
@@ -89,10 +89,10 @@ int main(int argc, char* argv[]) {
         if (command == "uci") {
             cout << "id name Prelude" << endl;
             cout << "id author Quinniboi10" << endl;
-            cout << "option name Threads type spin default 1 min 1 max 1" << endl;
-            cout << "option name Hash type spin default 1 min 1 max 16384" << endl;
+            cout << "option name Threads type spin default 1 min 1 max 512" << endl;
+            cout << "option name Hash type spin default 1 min 1 max 524288" << endl;
             cout << "option name Move Overhead type spin default 20 min 0 max 1000" << endl;
-            cout << "option name NNUE type string default internal" << endl;
+            cout << "option name EvalFile type string default internal" << endl;
             cout << "uciok" << endl;
         }
         else if (command == "ucinewgame")
@@ -132,7 +132,7 @@ int main(int argc, char* argv[]) {
             searcher.start(board, Search::SearchParams(commandTime, depth, maxNodes, mtime, wtime, btime, winc, binc));
         }
         else if (tokens[0] == "setoption") {
-            if (tokens[2] == "NNUE") {
+            if (tokens[2] == "EvalFile") {
                 string value = tokens[findIndexOf(tokens, "value") + 1];
                 if (value == "internal")
                     loadDefaultNet();
@@ -141,6 +141,8 @@ int main(int argc, char* argv[]) {
             }
             else if (tokens[2] == "Move" && tokens[3] == "Overhead")
                 MOVE_OVERHEAD = stoi(tokens[findIndexOf(tokens, "value") + 1]);
+            else if (tokens[2] == "Threads")
+                searcher.makeThreads(stoi(tokens[findIndexOf(tokens, "value") + 1]));
         }
         else if (command == "stop")
             searcher.stop();
