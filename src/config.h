@@ -14,6 +14,9 @@ constexpr int INITIAL_ASP_WINDOW   = 30;
 
 constexpr int NMP_REDUCTION = 3;
 
+constexpr int FUTILITY_PRUNING_MARGIN = 100;
+constexpr int FUTILITY_PRUNING_SCALAR = 80;
+
 // Time management
 constexpr usize DEFAULT_MOVES_TO_GO = 20;
 constexpr usize INC_DIVISOR         = 2;
