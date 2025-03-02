@@ -103,7 +103,7 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
             return staticEval;
 
         // Null move pruning
-        if (board.canNullMove()) {
+        if (board.canNullMove() && staticEval >= beta) {
             Board testBoard = board;
             testBoard.nullMove();
             i32 eval = -search<NodeType::NONPV>(testBoard, depth - NMP_REDUCTION, ply + 1, -beta, -beta + 1, ss + 1, thisThread, sl);
