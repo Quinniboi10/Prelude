@@ -102,6 +102,13 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
         if (staticEval - rfpMargin >= beta && depth < 7)
             return staticEval;
 
+        // Razoring
+        if (depth <= 4 && std::abs(alpha) < 2000 && staticEval + RAZORING_MARGIN * depth <= alpha) {
+            i16 score = qsearch(board, alpha, alpha + 1, thisThread, sl);
+            if (score <= alpha)
+                return score;
+        }
+
         // Null move pruning
         if (board.canNullMove() && staticEval >= beta) {
             Board testBoard = board;
