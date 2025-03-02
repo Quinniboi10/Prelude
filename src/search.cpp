@@ -99,7 +99,7 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
     if (!isPV && ply > 0 && !board.inCheck()) {
         // Reverse futility pruning
         int rfpMargin = 100 * depth;
-        if (staticEval - rfpMargin >= beta)
+        if (staticEval - rfpMargin >= beta && depth < 7)
             return staticEval;
 
         // Null move pruning
