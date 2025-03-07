@@ -226,6 +226,7 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
 // This can't take a board as a reference because isLegal can change the current board state for a few dozen clock cycles
 MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchParams sp, Searcher* searcher) {
     thisThread.breakFlag.store(false);
+    thisThread.nodes  = 0;
     const bool isMain = thisThread.type == MAIN;
 
     i64 searchTime;
@@ -237,8 +238,8 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
     if (searchTime != 0)
         searchTime -= MOVE_OVERHEAD;
 
-    SearchLimit       depthOneSl(sp.time, 0, sp.nodes);
-    SearchLimit       mainSl(sp.time, searchTime, sp.nodes);
+    SearchLimit depthOneSl(sp.time, 0, sp.nodes);
+    SearchLimit mainSl(sp.time, searchTime, sp.nodes);
 
     array<Stack, MAX_PLY> stack;
     Stack*                ss = &stack[0];
@@ -248,11 +249,10 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
     i32    lastScore;
     PvList lastPV;
 
-    int mateDist;
-
     auto countNodes = [&]() {
-        assert(searcher != nullptr);
         u64 nodes = thisThread.nodes;
+        if (searcher == nullptr)
+            return nodes;
         for (ThreadInfo& w : searcher->workerData)
             nodes += w.nodes;
         return nodes;
@@ -262,10 +262,10 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
         SearchLimit& sl              = currDepth == 1 ? depthOneSl : mainSl;
         auto         searchCancelled = [&]() {
             if (thisThread.type == MAIN)
-                return sl.outOfNodes(countNodes()) || sl.outOfTime() || thisThread.breakFlag.load(std::memory_order_relaxed);
+                return sl.outOfNodes(countNodes()) || sl.outOfTime() || thisThread.breakFlag.load(std::memory_order_relaxed) || (sp.softNodes > 0 && countNodes() > sp.softNodes);
             else
-                return thisThread.breakFlag.load(std::memory_order_relaxed);
-            };
+                return thisThread.breakFlag.load(std::memory_order_relaxed) || (sp.softNodes > 0 && countNodes() > sp.softNodes);
+        };
 
         i32 score;
         if (currDepth < MIN_ASP_WINDOW_DEPTH)
@@ -287,17 +287,14 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
         }
 
         if (isMain) {
-            if (isDecisive(score))
-                mateDist = (MATE_SCORE - std::abs(score)) / 2 + 1;
-
             // Depth, time, score
             cout << "info depth " << currDepth << " time " << sl.time.elapsed() << " nodes " << countNodes();
             if (sl.time.elapsed() > 0)
                 cout << " nps " << countNodes() * 1000 / sl.time.elapsed();
-            cout << " score";   
+            cout << " score";
             if (isDecisive(score)) {
                 cout << " mate ";
-                cout << ((score < 0) ? "-" : "") << mateDist;
+                cout << ((score < 0) ? "-" : "") << (MATE_SCORE - std::abs(score)) / 2 + 1;
             }
             else
                 cout << " cp " << score;
@@ -307,6 +304,11 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
             for (Move m : ss->pv)
                 cout << " " << m;
             cout << endl;
+        }
+
+        if (currDepth == 1) {
+            lastScore = score;
+            lastPV    = ss->pv;
         }
 
         if (searchCancelled())
@@ -321,6 +323,17 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
 
     thisThread.breakFlag.store(true, std::memory_order_relaxed);
 
+    assert(lastPV.length > 0);
+    assert(!lastPV.moves[0].isNull());
+#ifndef NDEBUG
+    MoveList moves = Movegen::generateLegalMoves(board);
+    if (std::find(moves.begin(), moves.end(), lastPV.moves[0]) == moves.end()) {
+        cerr << "Illegal first move in PV line" << endl;
+        board.display();
+        cerr << lastPV.moves[0] << endl;
+        exit(-1);
+    }
+#endif
     return MoveEvaluation(lastPV.moves[0], lastScore);
 }
 
@@ -397,7 +410,7 @@ void bench() {
         Stopwatch<std::chrono::milliseconds> time;
 
         // Start the iterative deepening search
-        Search::iterativeDeepening(board, thisThread, Search::SearchParams(time, BENCH_DEPTH, 0, 0, 0, 0, 0, 0));
+        Search::iterativeDeepening(board, thisThread, Search::SearchParams(time, BENCH_DEPTH, 0, 0, 0, 0, 0, 0, 0));
 
         u64 durationMs = time.elapsed();
 

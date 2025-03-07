@@ -4,7 +4,7 @@
 
 void Searcher::start(Board& board, Search::SearchParams sp) {
     mainData.nodes = 0;
-    mainThread = std::thread(Search::iterativeDeepening, board, std::ref(mainData), sp, this);
+    mainThread     = std::thread(Search::iterativeDeepening, board, std::ref(mainData), sp, this);
 
     for (usize i = 0; i < workerData.size(); i++) {
         workerData[i].nodes = 0;
