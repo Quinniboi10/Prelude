@@ -2,6 +2,7 @@
 #include <bitset>
 #include <atomic>
 #include <thread>
+#include <string>
 
 #include "board.h"
 #include "move.h"
@@ -10,6 +11,7 @@
 #include "movegen.h"
 #include "search.h"
 #include "ttable.h"
+#include "datagen.h"
 #include "searcher.h"
 
 #ifndef EVALFILE
@@ -66,15 +68,20 @@ int main(int argc, char* argv[]) {
     // *********** ./Prelude <ARGS> ************
     if (argc > 1) {
         string arg1 = argv[1];
-        if (arg1 == "bench") {
+        if (arg1 == "bench")
             Search::bench();
+        else if (arg1 == "datagen") {
+            usize threads = 1;
+            if (argc >= 2)
+                threads = std::stoi(argv[2]);
+            Datagen::run(threads);
         }
         return 0;
     }
 
     auto exists            = [&](const string& sub) { return command.find(" " + sub + " ") != string::npos; };
     auto index             = [&](const string& sub, int offset = 0) { return findIndexOf(tokens, sub) + offset; };
-    auto getValueFollowing = [&](const string& value, int defaultValue) { return exists(value) ? stoi(tokens[index(value, 1)]) : defaultValue; };
+    auto getValueFollowing = [&](const string& value, int defaultValue) { return exists(value) ? std::stoi(tokens[index(value, 1)]) : defaultValue; };
 
     // ************ UCI ************
 
@@ -120,7 +127,8 @@ int main(int argc, char* argv[]) {
 
             usize depth = getValueFollowing("depth", MAX_PLY);
 
-            usize maxNodes = getValueFollowing("nodes", 0);
+            usize maxNodes  = getValueFollowing("nodes", 0);
+            usize softNodes = getValueFollowing("softnodes", 0);
 
             usize mtime = getValueFollowing("movetime", 0);
             usize wtime = getValueFollowing("wtime", 0);
@@ -128,8 +136,8 @@ int main(int argc, char* argv[]) {
 
             usize winc = getValueFollowing("winc", 0);
             usize binc = getValueFollowing("binc", 0);
-            
-            searcher.start(board, Search::SearchParams(commandTime, depth, maxNodes, mtime, wtime, btime, winc, binc));
+
+            searcher.start(board, Search::SearchParams(commandTime, depth, maxNodes, softNodes, mtime, wtime, btime, winc, binc));
         }
         else if (tokens[0] == "setoption") {
             if (tokens[2] == "EvalFile") {
@@ -140,9 +148,9 @@ int main(int argc, char* argv[]) {
                     nnue.loadNetwork(value);
             }
             else if (tokens[2] == "Move" && tokens[3] == "Overhead")
-                MOVE_OVERHEAD = stoi(tokens[findIndexOf(tokens, "value") + 1]);
+                MOVE_OVERHEAD = std::stoi(tokens[findIndexOf(tokens, "value") + 1]);
             else if (tokens[2] == "Threads")
-                searcher.makeThreads(stoi(tokens[findIndexOf(tokens, "value") + 1]));
+                searcher.makeThreads(std::stoi(tokens[findIndexOf(tokens, "value") + 1]));
         }
         else if (command == "stop")
             searcher.stop();
@@ -162,20 +170,22 @@ int main(int argc, char* argv[]) {
                 cout << "Usage: perft <depth>" << endl;
                 continue;
             }
-            Movegen::perft(board, stoi(tokens[1]), false);
+            Movegen::perft(board, std::stoi(tokens[1]), false);
         }
         else if (tokens[0] == "bulk") {
             if (tokens.size() < 2) {
                 cout << "Usage: bulk <depth>" << endl;
                 continue;
             }
-            Movegen::perft(board, stoi(tokens[1]), true);
+            Movegen::perft(board, std::stoi(tokens[1]), true);
         }
         else if (tokens[0] == "move") {
             board.move(Move(tokens[1], board));
         }
         else if (command == "bench")
             Search::bench();
+        else if (tokens[0] == "datagen")
+            Datagen::run(tokens.size() > 1 ? std::stoi(tokens[1]) : 1);
         else if (command == "debug.eval") {
             cout << "Raw eval: " << nnue.forwardPass(&board) << endl;
             nnue.showBuckets(&board);

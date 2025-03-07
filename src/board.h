@@ -87,6 +87,7 @@ struct Board {
     bool isUnderAttack(Color c, Square square) const;
 
     bool isDraw() const;
+    bool isGameOver();
 
     bool see(Move m, int threshold) const;
 };

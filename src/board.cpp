@@ -603,6 +603,13 @@ bool Board::isDraw() const {
     return false;
 }
 
+bool Board::isGameOver() {
+    if (isDraw())
+        return true;
+    MoveList moves = Movegen::generateLegalMoves(*this);
+    return moves.length == 0;
+}
+
 // Uses the swap-off algorithm, code from Stockfish
 bool Board::see(Move m, int threshold) const {
     if (m.typeOf() != STANDARD_MOVE)
