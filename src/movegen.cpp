@@ -405,3 +405,18 @@ void Movegen::perftSuite(const string filePath) {
     cout << "Time elapsed: " << formatTime(elapsed) << endl;
     cout << "Found a total of " << formatNum(totalNodes) << " nodes at " << formatNum(nps) << " nodes per second" << endl;
 }
+
+MoveList Movegen::generateLegalMoves(Board& board) {
+    MoveList moves = Movegen::generateMoves<ALL_MOVES>(board);
+    usize    i     = 0;
+
+    while (i < moves.length) {
+        if (!board.isLegal(moves.moves[i])) {
+            moves.moves[i] = moves.moves[--moves.length];
+        }
+        else {
+            ++i;
+        }
+    }
+    return moves;
+}

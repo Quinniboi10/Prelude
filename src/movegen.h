@@ -47,6 +47,7 @@ void initializeAllDatabases();
 
 template<MovegenMode mode>
 MoveList generateMoves(const Board& board);
+MoveList generateLegalMoves(Board& board);
 
 void perft(Board& board, usize depth, bool bulk);
 void perftSuite(const string filePath);
