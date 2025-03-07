@@ -68,18 +68,20 @@ struct ThreadInfo {
 struct SearchParams {
     Stopwatch<std::chrono::milliseconds> time;
 
-    usize              depth;
-    u64                nodes;
-    u64                mtime;
-    u64                wtime;
-    u64                btime;
-    u64                winc;
-    u64                binc;
+    usize depth;
+    u64   nodes;
+    u64   softNodes;
+    u64   mtime;
+    u64   wtime;
+    u64   btime;
+    u64   winc;
+    u64   binc;
 
-    SearchParams(Stopwatch<std::chrono::milliseconds> time, usize depth, u64 nodes, u64 mtime, u64 wtime, u64 btime, u64 winc, u64 binc) :
+    SearchParams(Stopwatch<std::chrono::milliseconds> time, usize depth, u64 nodes, u64 softNodes, u64 mtime, u64 wtime, u64 btime, u64 winc, u64 binc) :
         time(time),
         depth(depth),
         nodes(nodes),
+        softNodes(softNodes),
         mtime(mtime),
         wtime(wtime),
         btime(btime),
@@ -89,8 +91,8 @@ struct SearchParams {
 
 struct SearchLimit {
     Stopwatch<std::chrono::milliseconds>& time;
-    u64                                  maxNodes;
-    i64                                  searchTime;
+    u64                                   maxNodes;
+    i64                                   searchTime;
 
     SearchLimit(auto& time, auto searchTime, auto maxNodes) :
         time(time),
