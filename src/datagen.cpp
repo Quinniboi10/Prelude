@@ -171,9 +171,16 @@ mainLoop:
 
         while (!board.isGameOver()) {
             MoveEvaluation move = Search::iterativeDeepening(board, thisThread, sp);
+            gameBuffer.emplace_back(move.move, board.stm == WHITE ? move.eval : -move.eval);
             board.move(move.move);
-            gameBuffer.emplace_back(move.move, move.eval);
         }
+
+        if (board.isDraw() || !board.inCheck())
+            startingPos.wdl = 1;
+        else if (board.stm == WHITE)
+            startingPos.wdl = 0;
+        else
+            startingPos.wdl = 2;
 
         while (bufferLock.load(std::memory_order_relaxed))
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
