@@ -220,12 +220,8 @@ void Datagen::run(usize threadCount) {
         threads.emplace_back(runThread, std::ref(outputBuffer), std::ref(bufferLock));
 
     while (true) {
-#if defined(_WIN32) || defined(_WIN64)
-        system("cls");
-#else
-        system("clear");
-#endif
-
+        // Escape sequences will clear screen and reset cursor to home
+        cout << "\033[2J" << "\033[H";
         while (bufferLock.load(std::memory_order_relaxed))
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         bufferLock.store(true, std::memory_order_relaxed);
