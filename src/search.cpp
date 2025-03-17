@@ -15,11 +15,15 @@ struct Stack {
 array<array<array<int, 219>, MAX_PLY + 1>, 2> lmrTable;
 void fillLmrTable() {
     for (int isQuiet = 0; isQuiet <= 1; isQuiet++)
-        for (int depth = 0; depth <= MAX_PLY; depth++)
+        for (usize depth = 0; depth <= MAX_PLY; depth++)
             for (int movesSeen = 0; movesSeen <= 218; movesSeen++) {
                 // Calculate reduction factor for late move reduction
                 // Based on Weiss's formulas
                 int& depthReduction = lmrTable[isQuiet][depth][movesSeen];
+                if (depth == 0 || movesSeen == 0) {
+                    depthReduction = 0;
+                    continue;
+                }
                 if (isQuiet)
                     depthReduction = 1.35 + std::log(depth) * std::log(movesSeen) / 2.75;
                 else
