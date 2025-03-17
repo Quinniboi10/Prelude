@@ -161,9 +161,6 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
         if (skipQuiets && board.isQuiet(m))
             continue;
 
-        if (board.isQuiet(m))
-            seenQuiets.add(m);
-
         if (!board.isLegal(m))
             continue;
 
@@ -180,6 +177,9 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
                 continue;
             }
         }
+
+        if (board.isQuiet(m))
+            seenQuiets.add(m);
 
         Board testBoard = board;
         testBoard.move(m);
