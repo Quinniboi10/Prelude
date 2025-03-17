@@ -119,4 +119,6 @@ inline bool isDecisive(i32 score) { return isWin(score) || isLoss(score); }
 MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchParams sp, Searcher* searcher = nullptr);
 
 void bench();
+
+void fillLmrTable();
 }
