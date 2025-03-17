@@ -12,6 +12,21 @@ struct Stack {
     PvList pv;
 };
 
+array<array<array<int, 219>, MAX_PLY + 1>, 2> lmrTable;
+void fillLmrTable() {
+    for (int isQuiet = 0; isQuiet <= 1; isQuiet++)
+        for (int depth = 0; depth <= MAX_PLY; depth++)
+            for (int movesSeen = 0; movesSeen <= 218; movesSeen++) {
+                // Calculate reduction factor for late move reduction
+                // Based on Weiss's formulas
+                int& depthReduction = lmrTable[isQuiet][depth][movesSeen];
+                if (isQuiet)
+                    depthReduction = 1.35 + std::log(depth) * std::log(movesSeen) / 2.75;
+                else
+                    depthReduction = 0.20 + std::log(depth) * std::log(movesSeen) / 3.35;
+            }
+}
+
 // Quiesence search
 i16 qsearch(Board& board, int alpha, int beta, ThreadInfo& thisThread, SearchLimit& sl) {
     int staticEval = nnue.evaluate(board);
@@ -169,13 +184,7 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
 
         i16 score;
         if (depth >= 2 && movesSeen >= 5 + 2 * (ply == 0) && !testBoard.inCheck()) {
-            // Calculate reduction factor for late move reduction
-            // Based on Weiss's formulas
-            int depthReduction = 0;
-            if (board.isQuiet(m))
-                depthReduction = 1.35 + std::log(depth) * std::log(movesSeen) / 2.75;
-            else
-                depthReduction = 0.20 + std::log(depth) * std::log(movesSeen) / 3.35;
+            int depthReduction = lmrTable[board.isQuiet(m)][depth][movesSeen];
 
             score = -search<NodeType::NONPV>(testBoard, depth - 1 - depthReduction, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
             if (score > alpha)
