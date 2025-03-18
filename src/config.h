@@ -27,7 +27,7 @@ extern usize MOVE_OVERHEAD;
 constexpr i16    QA             = 255;
 constexpr i16    QB             = 64;
 constexpr i16    EVAL_SCALE     = 400;
-constexpr size_t HL_SIZE        = 512;
+constexpr size_t HL_SIZE        = 1024;
 constexpr size_t OUTPUT_BUCKETS = 8;
 
 constexpr int ReLU   = 0;
