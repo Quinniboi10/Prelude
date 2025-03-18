@@ -113,7 +113,7 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
             return alpha;
     }
 
-    i16 staticEval = nnue.evaluate(board);
+    i16 staticEval = board.inCheck() ? 0 : nnue.evaluate(board);
 
     if (!isPV && ply > 0 && !board.inCheck()) {
         // Reverse futility pruning
