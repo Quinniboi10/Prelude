@@ -53,6 +53,8 @@ struct Board {
    public:
     static void fillZobristTable();
 
+    u8 count(PieceType pt) const;
+
     u64 pieces() const;
     u64 pieces(Color c) const;
     u64 pieces(PieceType pt) const;
