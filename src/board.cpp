@@ -196,6 +196,8 @@ void Board::updateCheckPin() {
     }
 }
 
+u8 Board::count(PieceType pt) const { return popcount(pieces(pt)); }
+
 u64 Board::pieces() const { return byColor[WHITE] | byColor[BLACK]; }
 u64 Board::pieces(Color c) const { return byColor[c]; }
 u64 Board::pieces(PieceType pt) const { return byPieces[pt]; }

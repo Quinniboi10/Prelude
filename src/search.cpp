@@ -4,6 +4,7 @@
 #include "searcher.h"
 #include "config.h"
 #include "movepicker.h"
+#include "wdl.h"
 
 #include <cmath>
 
@@ -259,8 +260,8 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
 
     usize depth = std::min(sp.depth, MAX_PLY);
 
-    i32    lastScore;
-    PvList lastPV;
+    i32    lastScore{};
+    PvList lastPV{};
 
     auto countNodes = [&]() {
         u64 nodes = thisThread.nodes;
@@ -299,6 +300,14 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
             }
         }
 
+        if (currDepth == 1) {
+            lastScore = score;
+            lastPV    = ss->pv;
+        }
+
+        if (searchCancelled())
+            break;
+
         if (isMain) {
             // Depth, time, score
             cout << "info depth " << currDepth << " time " << sl.time.elapsed() << " nodes " << countNodes();
@@ -310,7 +319,7 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
                 cout << ((score < 0) ? "-" : "") << (MATE_SCORE - std::abs(score)) / 2 + 1;
             }
             else
-                cout << " cp " << score;
+                cout << " cp " << scaleEval(score, board);
 
             // PV line
             cout << " pv";
@@ -318,14 +327,6 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
                 cout << " " << m;
             cout << endl;
         }
-
-        if (currDepth == 1) {
-            lastScore = score;
-            lastPV    = ss->pv;
-        }
-
-        if (searchCancelled())
-            break;
 
         lastScore = score;
         lastPV    = ss->pv;
