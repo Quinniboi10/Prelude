@@ -6,7 +6,7 @@
 struct Searcher {
     TranspositionTable TT;
     std::atomic<bool>  stopFlag;
-    Search::ThreadInfo mainData = Search::ThreadInfo(Search::ThreadType::MAIN, TT, stopFlag);
+    Search::ThreadInfo mainData = Search::ThreadInfo(Search::ThreadType::MAIN, TT, stopFlag, false);
     std::thread        mainThread;
 
     std::vector<Search::ThreadInfo> workerData;
@@ -18,6 +18,8 @@ struct Searcher {
     void makeThreads(int threads);
 
     void resizeTT(usize size) { TT.resize(size); }
+
+    void useUCI(bool value) { mainData.isUCI = value; }
 
     void reset() {
         TT.clear();

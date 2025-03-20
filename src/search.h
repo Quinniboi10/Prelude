@@ -34,10 +34,13 @@ struct ThreadInfo {
 
     std::atomic<u64> nodes;
 
-    ThreadInfo(ThreadType type, TranspositionTable& TT, std::atomic<bool>& breakFlag) :
+    bool isUCI;
+
+    ThreadInfo(ThreadType type, TranspositionTable& TT, std::atomic<bool>& breakFlag, bool isUCI = true) :
         type(type),
         TT(TT),
-        breakFlag(breakFlag) {
+        breakFlag(breakFlag),
+        isUCI(isUCI) {
         std::memset(&history, DEFAULT_HISTORY_VALUE, sizeof(history));
         breakFlag.store(false, std::memory_order_relaxed);
     }

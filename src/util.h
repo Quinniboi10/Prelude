@@ -4,6 +4,7 @@
 #include <vector>
 #include <sstream>
 #include <cassert>
+#include <cmath>
 #include <cstring>
 
 #include "types.h"
@@ -152,6 +153,13 @@ inline string padStr(string str, usize target, u64 minPadding = 2) {
     return str;
 }
 
+inline string padStrRIght(string str, usize target, u64 minPadding = 2) {
+    u64 padding = std::max(target - str.length(), minPadding);
+    for (u64 i = 0; i < padding; i++)
+        str = " " + str;
+    return str;
+}
+
 inline int findIndexOf(const auto arr, string entry) {
     auto it = std::find(arr.begin(), arr.end(), entry);
     if (it != arr.end()) {
@@ -160,9 +168,15 @@ inline int findIndexOf(const auto arr, string entry) {
     return -1;  // Not found
 }
 
+template<typename _Ty>
+inline _Ty lerp(_Ty a, _Ty b, double coeff) {
+    assert(coeff >= 0);
+    assert(coeff <= 1);
+    return a * coeff + b * (1 - coeff);
+}
 
 // Throws a segfault, useful for tracing the call stack
 inline void segFault() {
-    int* foo = (int*) -1;
+    int* foo = (int*) 0;
     printf("%d\n", *foo);
 }

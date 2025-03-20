@@ -3,6 +3,7 @@
 #include "util.h"
 #include "types.h"
 #include "move.h"
+#include "colors.h"
 #include "accumulator.h"
 
 struct Board {

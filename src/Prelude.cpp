@@ -95,6 +95,7 @@ int main(int argc, char* argv[]) {
         tokens = split(command, ' ');
 
         if (command == "uci") {
+            searcher.useUCI(true);
             cout << "id name Prelude" << endl;
             cout << "id author Quinniboi10" << endl;
             cout << "option name Threads type spin default 1 min 1 max 512" << endl;

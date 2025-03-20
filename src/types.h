@@ -115,33 +115,6 @@ enum TTFlag : u8 {
 extern array<array<u64, 64>, 64> LINE;
 extern array<array<u64, 64>, 64> LINESEG;
 
-struct Colors {
-    // ANSI codes for colors https://raw.githubusercontent.com/fidian/ansi/master/images/color-codes.png
-    static constexpr std::string_view RESET = "\033[0m";
-
-    // Basic colors
-    static constexpr std::string_view BLACK = "\033[30m";
-    static constexpr std::string_view RED = "\033[31m";
-    static constexpr std::string_view GREEN = "\033[32m";
-    static constexpr std::string_view YELLOW = "\033[33m";
-    static constexpr std::string_view BLUE = "\033[34m";
-    static constexpr std::string_view MAGENTA = "\033[35m";
-    static constexpr std::string_view CYAN = "\033[36m";
-    static constexpr std::string_view WHITE = "\033[37m";
-
-    // Bright colors
-    static constexpr std::string_view BRIGHT_BLACK = "\033[90m";
-    static constexpr std::string_view BRIGHT_RED = "\033[91m";
-    static constexpr std::string_view BRIGHT_GREEN = "\033[92m";
-    static constexpr std::string_view BRIGHT_YELLOW = "\033[93m";
-    static constexpr std::string_view BRIGHT_BLUE = "\033[94m";
-    static constexpr std::string_view BRIGHT_MAGENTA = "\033[95m";
-    static constexpr std::string_view BRIGHT_GYAN = "\033[96m";
-    static constexpr std::string_view BRIGHT_WHITE = "\033[97m";
-
-    static constexpr std::string_view GREY = BRIGHT_BLACK;
-};
-
 template<usize size>
 class U4array {
     static_assert(size % 2 == 0);

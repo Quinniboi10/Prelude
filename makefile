@@ -11,7 +11,7 @@ endif
 
 # Compiler and flags
 CXX      := clang++
-CXXFLAGS := -O3 -march=native -ffast-math -funroll-loops -flto -fuse-ld=lld -std=c++20 -static -DNDEBUG
+CXXFLAGS := -O3 -march=native -fno-finite-math-only -funroll-loops -flto -fuse-ld=lld -std=c++20 -static -DNDEBUG
 
 # Default target executable name and evaluation file path
 EXE      ?= Prelude$(EXE_EXT)
@@ -26,7 +26,7 @@ all: $(EXE)
 
 # Link the executable
 $(EXE): $(SRCS)
-	$(CXX) $(CXXFLAGS) -DEVALFILE=\"$(EVALFILE)\" $(SRCS) -o $@
+	$(CXX) $(CXXFLAGS) -DEVALFILE=\"$(EVALFILE)\" $(SRCS) ./external/fmt/format.cc -o $@
 
 # Debug Build
 .PHONY: debug

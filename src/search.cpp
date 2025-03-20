@@ -1,10 +1,14 @@
 #include "search.h"
 #include "nnue.h"
+#include "colors.h"
 #include "movegen.h"
 #include "searcher.h"
 #include "config.h"
 #include "movepicker.h"
+#include "trackedpointer.h"
 #include "wdl.h"
+
+#include "../external/fmt/fmt/format.h"
 
 #include <cmath>
 
@@ -14,7 +18,7 @@ struct Stack {
 };
 
 array<array<array<int, 219>, MAX_PLY + 1>, 2> lmrTable;
-void fillLmrTable() {
+void                                          fillLmrTable() {
     for (int isQuiet = 0; isQuiet <= 1; isQuiet++)
         for (usize depth = 0; depth <= MAX_PLY; depth++)
             for (int movesSeen = 0; movesSeen <= 218; movesSeen++) {
@@ -308,24 +312,103 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
         if (searchCancelled())
             break;
 
+        // This prints all info to the user (pretty/UCI)
         if (isMain) {
-            // Depth, time, score
-            cout << "info depth " << currDepth << " time " << sl.time.elapsed() << " nodes " << countNodes();
-            if (sl.time.elapsed() > 0)
-                cout << " nps " << countNodes() * 1000 / sl.time.elapsed();
-            cout << " score";
-            if (isDecisive(score)) {
-                cout << " mate ";
-                cout << ((score < 0) ? "-" : "") << (MATE_SCORE - std::abs(score)) / 2 + 1;
-            }
-            else
-                cout << " cp " << scaleEval(score, board);
+            usize hashfull = 0;
+            for (usize idx = 0; idx < std::min(thisThread.TT.size, (usize) 1000); idx++)
+                hashfull += thisThread.TT.getEntry(idx)->zobrist != 0;
 
-            // PV line
-            cout << " pv";
-            for (Move m : ss->pv)
-                cout << " " << m;
-            cout << endl;
+            hashfull *= 1000 / std::min(thisThread.TT.size, (usize) 1000);
+
+            // UCI
+            if (thisThread.isUCI) {
+                // Depth, time, score
+                cout << "info depth " << currDepth << " time " << sl.time.elapsed() << " nodes " << countNodes();
+                if (sl.time.elapsed() > 0)
+                    cout << " nps " << countNodes() * 1000 / sl.time.elapsed();
+                cout << " score";
+                if (isDecisive(score)) {
+                    cout << " mate ";
+                    cout << ((score < 0) ? "-" : "") << (MATE_SCORE - std::abs(score)) / 2 + 1;
+                }
+                else
+                    cout << " cp " << scaleEval(score, board);
+
+                // PV line
+                cout << " pv";
+                for (Move m : ss->pv)
+                    cout << " " << m;
+                cout << endl;
+            }
+            // Pretty
+            else {
+                TrackedPointer pointer;
+                pointer.padLeft = false;
+                // Depth (seldepth in future)
+                cout << Colors::CYAN;
+                pointer.print(currDepth, 3);
+                // Time
+                cout << Colors::GREY;
+                pointer.print(formatTime(sl.time.elapsed()), 12);
+                // Nodes
+                cout << Colors::RESET;
+                pointer.print(formatNum(countNodes() / 1000), 24);
+                cout << Colors::GREY;
+                pointer.print(" knodes");
+                // NPS
+                cout << Colors::RESET;
+                pointer.print(formatNum(countNodes() / sl.time.elapsed()), 40);
+                cout << Colors::GREY;
+                pointer.print(" knps");
+                // WDL
+                cout << Colors::BRIGHT_GREEN;
+                pointer.print("  W:");
+                pointer.print(fmt::format("{:.1f}", winRateModel(score, board) / 10.0), 55);
+                pointer.print("% ");
+                cout << Colors::GREY;
+                pointer.print(" D:");
+                pointer.print(fmt::format("{:.1f}", (1000 - winRateModel(score, board)) / 10.0), 66);
+                pointer.print("% ");
+                cout << Colors::RED;
+                pointer.print(" L:");
+                pointer.print(fmt::format("{:.1f}", winRateModel(-score, board) / 10.0), 77);
+                pointer.print("% ");
+                // TT
+                cout << Colors::BRIGHT_CYAN;
+                pointer.print(" TT:");
+                cout << Colors::GREY;
+                pointer.print(fmt::format("{:.1f}", hashfull / 10.0), 89);
+                pointer.print("% ");
+                // Eval
+                if (score > 0)
+                    Colors::setColor(lerp(Colors::RGB::GREEN * 0.75, Colors::RGB::WHITE, std::min(score / 250.0, 1.0)));
+                else
+                    Colors::setColor(lerp(Colors::RGB::RED, Colors::RGB::WHITE, std::min(-score / 250.0, 1.0)));
+                if (isDecisive(score)) {
+                    pointer.print(((score > 0) ? "+M" : "-M") + std::to_string((MATE_SCORE - std::abs(score)) / 2 + 1), 97);
+                }
+                else {
+                    pointer.print(((score > 0) ? "+" : "") + fmt::format("{:.2f}", scaleEval(score, board) / 100.0), 97);
+                }
+                // PV line
+                // The color of the moves depend on the static eval at the given position
+                cout << Colors::RESET << " ";
+                Board tempBoard = board;
+                for (Move m : ss->pv) {
+                    tempBoard.move(m);
+                    i32 score = nnue.evaluate(tempBoard);
+                    if (tempBoard.stm != board.stm)
+                        score = -score;
+                    if (score > 0)
+                        Colors::setColor(lerp(Colors::RGB::GREEN * 0.75, Colors::RGB::WHITE, std::min(score / 250.0, 1.0)));
+                    else
+                        Colors::setColor(lerp(Colors::RGB::RED, Colors::RGB::WHITE, std::min(-score / 250.0, 1.0)));
+                    cout << " " << m;
+                }
+                // Clear stuff
+                cout << Colors::RESET;
+                pointer.nextLine();
+            }
         }
 
         lastScore = score;
