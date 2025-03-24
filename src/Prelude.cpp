@@ -95,7 +95,7 @@ int main(int argc, char* argv[]) {
         tokens = split(command, ' ');
 
         if (command == "uci") {
-            cout << "id name Prelude" << endl;
+            cout << "id name Prelude Fusion 2.0" << endl;
             cout << "id author Quinniboi10" << endl;
             cout << "option name Threads type spin default 1 min 1 max 512" << endl;
             cout << "option name Hash type spin default 1 min 1 max 524288" << endl;
