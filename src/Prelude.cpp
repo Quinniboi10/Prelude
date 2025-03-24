@@ -141,7 +141,11 @@ int main(int argc, char* argv[]) {
             searcher.start(board, Search::SearchParams(commandTime, depth, maxNodes, softNodes, mtime, wtime, btime, winc, binc));
         }
         else if (tokens[0] == "setoption") {
-            if (tokens[2] == "EvalFile") {
+            if (tokens[2] == "Hash") {
+                searcher.mainData.TT.resize(std::stoi(tokens[findIndexOf(tokens, "value") + 1]));
+                searcher.mainData.TT.clear();
+            }
+            else if (tokens[2] == "EvalFile") {
                 string value = tokens[findIndexOf(tokens, "value") + 1];
                 if (value == "internal")
                     loadDefaultNet();
