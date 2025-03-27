@@ -590,10 +590,10 @@ bool Board::isUnderAttack(Color c, Square square) const {
         return (Movegen::pawnAttackBB(BLACK, square) & pieces(WHITE, PAWN)) != 0;
 }
 
-bool Board::isDraw() const {
+bool Board::isDraw() {
     // 50 move rule
-    if (halfMoveClock > 100)
-        return !inCheck();
+    if (halfMoveClock >= 100)
+        return !inCheck() || Movegen::generateLegalMoves(*this).length != 0;
 
     // Trifold
     u8 seen = 0;
