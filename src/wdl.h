@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath>
+
 #include "board.h"
 
 struct WinRateParams {
@@ -35,6 +37,7 @@ inline int winRateModel(int v, const Board& board) {
 
 inline int scaleEval(int eval, const Board& board) {
     return eval;
+    // This line disables eval scaling, it will be turned back on when the engine has better performance/converts better
     auto [a, b] = winRateParams(board);
 
     return std::round(100 * eval / a);
