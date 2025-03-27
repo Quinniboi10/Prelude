@@ -88,6 +88,8 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
     if (depth + ply > 255)
         depth = 255 - ply;
     ss->pv.length = 0;
+    if (board.isDraw() && ply > 0)
+        return 0;
     if (depth <= 0)
         return qsearch(board, alpha, beta, thisThread, sl);
 
