@@ -33,6 +33,7 @@ struct ThreadInfo {
     std::atomic<bool>&  breakFlag;
 
     std::atomic<u64> nodes;
+    usize seldepth;
 
     ThreadInfo(ThreadType type, TranspositionTable& TT, std::atomic<bool>& breakFlag) :
         type(type),
@@ -40,6 +41,7 @@ struct ThreadInfo {
         breakFlag(breakFlag) {
         std::memset(&history, DEFAULT_HISTORY_VALUE, sizeof(history));
         breakFlag.store(false, std::memory_order_relaxed);
+        seldepth = 0;
     }
 
     // Copy constructor
@@ -49,6 +51,7 @@ struct ThreadInfo {
         TT(other.TT),
         breakFlag(other.breakFlag) {
         nodes.store(other.nodes.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        seldepth = other.seldepth;
     }
 
     void updateHist(Color stm, Move m, int bonus) {
@@ -62,6 +65,9 @@ struct ThreadInfo {
         for (auto& stm : history)
             for (auto& from : stm)
                 from.fill(DEFAULT_HISTORY_VALUE);
+
+        nodes.store(0, std::memory_order_relaxed);
+        seldepth = 0;
     }
 };
 

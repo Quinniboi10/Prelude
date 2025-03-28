@@ -93,6 +93,9 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
     if (depth <= 0)
         return qsearch(board, alpha, beta, thisThread, sl);
 
+    if (ply + 1 > thisThread.seldepth)
+        thisThread.seldepth = ply + 1;
+
     Transposition* ttEntry = thisThread.TT.getEntry(board.zobrist);
 
     if (!isPV && ttEntry->zobrist == board.zobrist && ttEntry->depth >= depth
@@ -312,7 +315,7 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
 
         if (isMain) {
             // Depth, time, score
-            cout << "info depth " << currDepth << " time " << sl.time.elapsed() << " nodes " << countNodes();
+            cout << "info depth " << currDepth << " seldepth " << thisThread.seldepth << " time " << sl.time.elapsed() << " nodes " << countNodes();
             if (sl.time.elapsed() > 0)
                 cout << " nps " << countNodes() * 1000 / sl.time.elapsed();
             cout << " score";
