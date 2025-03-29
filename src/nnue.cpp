@@ -5,8 +5,9 @@
 #include "accumulator.h"
 #include "search.h"
 
+#include "../external/fmt/fmt/format.h"
+
 #include <fstream>
-#include <format>
 #include <algorithm>
 #include <immintrin.h>
 

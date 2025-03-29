@@ -11,7 +11,7 @@ endif
 
 # Compiler and flags
 CXX      := clang++
-CXXFLAGS := -O3 -march=native -ffast-math -funroll-loops -flto -fuse-ld=lld -std=c++20 -static -DNDEBUG
+CXXFLAGS := -O3 -march=native -ffast-math -fno-finite-math-only -funroll-loops -flto -fuse-ld=lld -std=c++20 -static -DNDEBUG
 
 # Default target executable name and evaluation file path
 EXE      ?= Prelude$(EXE_EXT)
@@ -26,18 +26,18 @@ all: $(EXE)
 
 # Link the executable
 $(EXE): $(SRCS)
-	$(CXX) $(CXXFLAGS) -DEVALFILE=\"$(EVALFILE)\" $(SRCS) -o $@
+	$(CXX) $(CXXFLAGS) -DEVALFILE=\"$(EVALFILE)\" $(SRCS) ./external/fmt/format.cc -o $@
 
-# Debug Build
+# Debug build
 .PHONY: debug
 debug: clean
-debug: CXXFLAGS = -march=native -std=c++20 -O3 -DDEBUG -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -Wall -Wextra
+debug: CXXFLAGS = -march=native -std=c++20 -O3 -DDEBUG -fsanitize=address -fsanitize=undefined -fno-finite-math-only -fno-omit-frame-pointer -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -Wall -Wextra
 debug: all
 
-# Debug Build
+# Debug build
 .PHONY: profile
 profile: clean
-profile: CXXFLAGS = -O2 -g -march=native -ffast-math -funroll-loops -flto -fuse-ld=lld -std=c++20 -fno-omit-frame-pointer -static -DNDEBUG
+profile: CXXFLAGS = -O2 -g -march=native -ffast-math -fno-finite-math-only -funroll-loops -flto -fuse-ld=lld -std=c++20 -fno-omit-frame-pointer -static -DNDEBUG
 profile: all
 
 # Force rebuild
