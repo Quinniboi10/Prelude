@@ -11,6 +11,7 @@
 namespace Search {
 struct Stack {
     PvList pv;
+    Move   excluded;
 };
 
 array<array<array<int, 219>, MAX_PLY + 1>, 2> lmrTable;
@@ -96,9 +97,9 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
     if (ply + 1 > thisThread.seldepth)
         thisThread.seldepth = ply + 1;
 
-    Transposition* ttEntry = thisThread.TT.getEntry(board.zobrist);
+    Transposition* ttEntry = ss->excluded.isNull() ? thisThread.TT.getEntry(board.zobrist) : nullptr;
 
-    if (!isPV && ttEntry->zobrist == board.zobrist && ttEntry->depth >= depth
+    if (!isPV && ttEntry != nullptr && ttEntry->zobrist == board.zobrist && ttEntry->depth >= depth
         && (ttEntry->flag == EXACT                                       // Exact score
             || (ttEntry->flag == BETA_CUTOFF && ttEntry->score >= beta)  // Lower bound, fail high
             || (ttEntry->flag == FAIL_LOW && ttEntry->score <= alpha)    // Upper bound, fail low
@@ -107,7 +108,7 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
     }
 
     // Internal iterative reductions
-    if ((ttEntry->zobrist != board.zobrist || ttEntry->move.isNull()) && depth > 5)
+    if (ttEntry != nullptr && (ttEntry->zobrist != board.zobrist || ttEntry->move.isNull()) && depth > 5)
         depth--;
 
     // Mate distance pruning
@@ -121,7 +122,7 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
 
     i16 staticEval = nnue.evaluate(board);
 
-    if (!isPV && ply > 0 && !board.inCheck()) {
+    if (!isPV && ply > 0 && !board.inCheck() && ss->excluded.isNull()) {
         // Reverse futility pruning
         int rfpMargin = 100 * depth;
         if (staticEval - rfpMargin >= beta && depth < 7)
@@ -164,6 +165,9 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
 
         const Move m = picker.getNext();
 
+        if (m == ss->excluded)
+            continue;
+
         if (skipQuiets && board.isQuiet(m))
             continue;
 
@@ -192,18 +196,39 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
         thisThread.nodes++;
         movesSeen++;
 
+        usize extension = 0;
+        if (ply > 0
+            && depth >= SE_MIN_DEPTH
+            && ttEntry != nullptr
+            && ttEntry->zobrist == board.zobrist
+            && m == ttEntry->move
+            && ttEntry->depth >= depth - 3
+            && ttEntry->flag != FAIL_LOW) {
+            const int sBeta = std::max(-INF_INT + 1, ttEntry->score - depth * 2);
+            const int sDepth = (depth - 1) / 2;
+
+            ss->excluded = m;
+            const int score = search<NodeType::NONPV>(board, sDepth, ply, sBeta - 1, sBeta, ss, thisThread, sl);
+            ss->excluded    = Move();
+
+            if (score < sBeta)
+                extension = 1;
+        }
+
+        i32 newDepth = depth + extension - 1;
+
         i16 score;
         if (depth >= 2 && movesSeen >= 5 + 2 * (ply == 0) && !testBoard.inCheck()) {
             int depthReduction = lmrTable[board.isQuiet(m)][depth][movesSeen];
 
-            score = -search<NodeType::NONPV>(testBoard, depth - 1 - depthReduction, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
+            score = -search<NodeType::NONPV>(testBoard, newDepth - depthReduction, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
             if (score > alpha)
-                score = -search<NodeType::NONPV>(testBoard, depth - 1, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
+                score = -search<NodeType::NONPV>(testBoard, newDepth, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
         }
         else if (!isPV || movesSeen > 1)
-            score = -search<NodeType::NONPV>(testBoard, depth - 1, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
+            score = -search<NodeType::NONPV>(testBoard, newDepth, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
         if (isPV && (movesSeen == 1 || score > alpha))
-            score = -search<isPV>(testBoard, depth - 1, ply + 1, -beta, -alpha, ss + 1, thisThread, sl);
+            score = -search<isPV>(testBoard, newDepth, ply + 1, -beta, -alpha, ss + 1, thisThread, sl);
 
         if (score > bestScore) {
             bestScore = score;
@@ -237,7 +262,8 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
         return 0;
     }
 
-    *ttEntry = Transposition(board.zobrist, bestMove, ttFlag, bestScore, depth);
+    if (ttEntry != nullptr)
+        *ttEntry = Transposition(board.zobrist, bestMove, ttFlag, bestScore, depth);
 
     return bestScore;
 }
@@ -263,6 +289,11 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
 
     array<Stack, MAX_PLY> stack;
     Stack*                ss = &stack[0];
+
+    for (Stack ss : stack) {
+        ss.pv.length = 0;
+        ss.excluded  = Move();
+    }
 
     usize depth = std::min(sp.depth, MAX_PLY);
 
