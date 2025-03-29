@@ -245,7 +245,8 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
 // This can't take a board as a reference because isLegal can change the current board state for a few dozen clock cycles
 MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchParams sp, Searcher* searcher) {
     thisThread.breakFlag.store(false);
-    thisThread.nodes  = 0;
+    thisThread.nodes    = 0;
+    thisThread.seldepth = 0;
     const bool isMain = thisThread.type == MAIN;
 
     i64 searchTime;
