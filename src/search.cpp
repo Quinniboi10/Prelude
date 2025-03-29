@@ -219,7 +219,7 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
 
         i16 score;
         if (depth >= 2 && movesSeen >= 5 + 2 * (ply == 0) && !testBoard.inCheck()) {
-            int depthReduction = lmrTable[board.isQuiet(m)][depth][movesSeen];
+            int depthReduction = lmrTable[board.isQuiet(m)][depth][movesSeen] + !isPV;
 
             score = -search<NodeType::NONPV>(testBoard, newDepth - depthReduction, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
             if (score > alpha)
