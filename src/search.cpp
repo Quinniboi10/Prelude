@@ -227,6 +227,8 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
                 else
                     extension = 1;
             }
+            else if (ttEntry->score >= beta)
+                extension = -2;
         }
 
         i32 newDepth = depth + extension - 1;
