@@ -17,7 +17,8 @@ constexpr int NMP_REDUCTION = 3;
 constexpr int FUTILITY_PRUNING_MARGIN = 100;
 constexpr int FUTILITY_PRUNING_SCALAR = 80;
 
-constexpr int SE_MIN_DEPTH = 8;
+constexpr int SE_MIN_DEPTH     = 8;
+constexpr int SE_DOUBLE_MARGIN = 30;
 
 // Time management
 constexpr usize DEFAULT_MOVES_TO_GO = 20;
