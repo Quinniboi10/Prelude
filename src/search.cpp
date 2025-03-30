@@ -129,13 +129,23 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
             return staticEval;
 
         // Null move pruning
-        if (board.canNullMove() && staticEval >= beta) {
+        if (board.canNullMove() && staticEval >= beta && ply >= thisThread.minNmpPly) {
             Board testBoard = board;
             testBoard.nullMove();
-            i32 eval = -search<NodeType::NONPV>(testBoard, depth - NMP_REDUCTION, ply + 1, -beta, -beta + 1, ss + 1, thisThread, sl);
+            i32 score = -search<NodeType::NONPV>(testBoard, depth - NMP_REDUCTION, ply + 1, -beta, -beta + 1, ss + 1, thisThread, sl);
 
-            if (eval >= beta)
-                return eval;
+            if (score >= beta) {
+                // Verification search to guard zugzwang
+                if (depth <= 14 || thisThread.minNmpPly > 0)
+                    return isWin(score) ? beta : score;
+
+                thisThread.minNmpPly = ply + (depth - NMP_REDUCTION) * 3 / 4;
+                score                = search<NodeType::NONPV>(board, depth - NMP_REDUCTION, ply, beta - 1, beta, ss, thisThread, sl);
+                thisThread.minNmpPly = 0;
+
+                if (score >= beta)
+                    return score;
+            }
         }
     }
 
