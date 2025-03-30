@@ -221,8 +221,12 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
             const int score = search<NodeType::NONPV>(board, sDepth, ply, sBeta - 1, sBeta, ss, thisThread, sl);
             ss->excluded    = Move();
 
-            if (score < sBeta)
-                extension = 1;
+            if (score < sBeta) {
+                if (!isPV && score < sBeta - SE_DOUBLE_MARGIN)
+                    extension = 2;
+                else
+                    extension = 1;
+            }
         }
 
         i32 newDepth = depth + extension - 1;
