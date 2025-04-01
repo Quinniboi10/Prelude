@@ -23,7 +23,7 @@ struct ScoredMove {
 
 struct MarlinFormat {
     u64         occupancy;
-    U4array<32> pieces;
+    U4Array<32> pieces;
     u8          epSquare;  // Also stores side to move
     u8          halfmoveClock;
     u16         fullmoveClock;
