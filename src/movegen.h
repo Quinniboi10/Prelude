@@ -7,7 +7,8 @@
 
 enum MovegenMode {
     ALL_MOVES,
-    NOISY_ONLY
+    NOISY_ONLY,
+    QUIET_ONLY
 };
 
 namespace Movegen {
@@ -33,20 +34,8 @@ constexpr u64 KING_ATTACKS[64] = {0x0000000000000302, 0x0000000000000705, 0x0000
 
 u64 pawnAttackBB(Color c, int sq);
 
-template<MovegenMode mode>
-void pawnMoves(const Board& board, MoveList& moves);
-template<MovegenMode mode>
-void knightMoves(const Board& board, MoveList& moves);
-template<MovegenMode mode>
-void bishopMoves(const Board& board, MoveList& moves);
-template<MovegenMode mode>
-void rookMoves(const Board& board, MoveList& moves);
-template<MovegenMode mode>
-void kingMoves(const Board& board, MoveList& moves);
 void initializeAllDatabases();
 
-template<MovegenMode mode>
-MoveList generateMoves(const Board& board);
 MoveList generateLegalMoves(Board& board);
 
 void perft(Board& board, usize depth, bool bulk);
@@ -56,6 +45,202 @@ u64 getBishopAttacks(Square square, u64 occ);
 u64 getXrayBishopAttacks(Square square, u64 occ, u64 blockers);
 u64 getRookAttacks(Square square, u64 occ);
 u64 getXrayRookAttacks(Square square, u64 occ, u64 blockers);
+
+template<Color stm, MovegenMode mode>
+void generatePawnMoves(const Board& board, MoveList& moves) {
+    const u64 occ    = board.pieces();
+    const u64 opp    = board.pieces(~stm);
+    const u64 free   = ~occ;
+    const u64 pawnBB = board.pieces(stm, PAWN);
+
+    constexpr u64 backrank        = MASK_RANK[RANK1] | MASK_RANK[RANK8];
+    constexpr u64 doublePushMask  = stm == WHITE ? MASK_RANK[RANK3] : MASK_RANK[RANK6];
+    constexpr int shiftMultiplier = stm == WHITE ? 1 : -1;
+
+    u64 singlePush = shiftRelative<stm, NORTH>(pawnBB) & free;
+    u64 pushPromo  = singlePush & backrank;
+    singlePush ^= pushPromo;
+
+    u64 doublePush = shiftRelative<stm, NORTH>(singlePush & doublePushMask) & free;
+
+    int    backshift;
+    Square to;
+
+    if constexpr (mode == ALL_MOVES || mode == QUIET_ONLY) {
+        u64 quietPromo = pushPromo;
+
+        backshift = relativeDir(~stm, NORTH);
+        while (singlePush) {
+            to = popLSB(singlePush);
+            moves.add(to + backshift, to);
+        }
+        while (quietPromo) {
+            to = popLSB(quietPromo);
+            moves.add(to + backshift, to, ROOK);
+            moves.add(to + backshift, to, BISHOP);
+            moves.add(to + backshift, to, KNIGHT);
+        }
+        backshift = relativeDir(~stm, NORTH_NORTH);
+        while (doublePush) {
+            to = popLSB(doublePush);
+            moves.add(to + backshift, to);
+        }
+    }
+
+    if constexpr (mode == ALL_MOVES || mode == NOISY_ONLY) {
+        u64 captureEast = shiftRelative<stm, NORTH_EAST>(pawnBB & ~MASK_FILE[HFILE]) & opp;
+        u64 captureWest = shiftRelative<stm, NORTH_WEST>(pawnBB & ~MASK_FILE[AFILE]) & opp;
+        u64 promoEast   = captureEast & backrank;
+        u64 promoWest   = captureWest & backrank;
+        captureEast ^= promoEast;
+        captureWest ^= promoWest;
+
+        backshift = relativeDir(~stm, NORTH_WEST);
+        while (captureEast) {
+            to = popLSB(captureEast);
+            moves.add(to + backshift, to);
+        }
+        while (promoEast) {
+            to = popLSB(promoEast);
+            moves.add(to + backshift, to, QUEEN);
+            moves.add(to + backshift, to, ROOK);
+            moves.add(to + backshift, to, BISHOP);
+            moves.add(to + backshift, to, KNIGHT);
+        }
+
+        backshift = relativeDir(~stm, NORTH_EAST);
+        while (captureWest) {
+            to = popLSB(captureWest);
+            moves.add(to + backshift, to);
+        }
+        while (promoWest) {
+            to = popLSB(promoWest);
+            moves.add(to + backshift, to, QUEEN);
+            moves.add(to + backshift, to, ROOK);
+            moves.add(to + backshift, to, BISHOP);
+            moves.add(to + backshift, to, KNIGHT);
+        }
+
+        backshift = relativeDir(~stm, NORTH);
+        while (pushPromo) {
+            to = popLSB(pushPromo);
+            moves.add(to + backshift, to, QUEEN);
+        }
+
+        // EP from east
+        if (board.epSquare != NO_SQUARE && (shiftRelative<stm, SOUTH_EAST>((1ULL << board.epSquare) & ~MASK_FILE[HFILE]) & board.pieces(stm, PAWN))) {
+            moves.add(static_cast<int>(relativeDir(stm, SOUTH_EAST)) + board.epSquare, board.epSquare, EN_PASSANT);
+        }
+        // EP from west
+        if (board.epSquare != NO_SQUARE && (shiftRelative<stm, SOUTH_WEST>((1ULL << board.epSquare) & ~MASK_FILE[AFILE]) & board.pieces(stm, PAWN))) {
+            moves.add(static_cast<int>(relativeDir(stm, SOUTH_WEST)) + board.epSquare, board.epSquare, EN_PASSANT);
+        }
+    }
 }
 
-#include "movegen.tpp"
+template<MovegenMode mode>
+void generateKnightMoves(const Board& board, MoveList& moves) {
+    u64 friendly = board.pieces(board.stm);
+    u64 knightBB = board.pieces(KNIGHT) & friendly;
+
+    while (knightBB) {
+        Square from = popLSB(knightBB);
+
+        u64 attacksBB = KNIGHT_ATTACKS[from] & ~friendly;
+        if constexpr (mode == QUIET_ONLY)
+            attacksBB &= ~board.pieces();
+        else if (mode == NOISY_ONLY)
+            attacksBB &= board.pieces(~board.stm);
+
+        while (attacksBB) {
+            Square to = popLSB(attacksBB);
+            moves.add(from, to);
+        }
+    }
+}
+
+template<MovegenMode mode>
+void generateHorizontalSliders(const Board& board, MoveList& moves) {
+    const u64 occ      = board.pieces();
+    u64       friendly = board.pieces(board.stm);
+    u64       sliderBB = (board.pieces(ROOK) | board.pieces(QUEEN)) & friendly;
+
+    while (sliderBB) {
+        Square from = popLSB(sliderBB);
+
+        u64 attacksBB = getRookAttacks(from, occ) & ~friendly;
+        if constexpr (mode == QUIET_ONLY)
+            attacksBB &= ~occ;
+        else if (mode == NOISY_ONLY)
+            attacksBB &= board.pieces(~board.stm);
+
+        while (attacksBB) {
+            Square to = popLSB(attacksBB);
+            moves.add(from, to);
+        }
+    }
+}
+
+template<MovegenMode mode>
+void generateDiagonalSliders(const Board& board, MoveList& moves) {
+    const u64 occ      = board.pieces();
+    u64       friendly = board.pieces(board.stm);
+    u64       sliderBB = (board.pieces(BISHOP) | board.pieces(QUEEN)) & friendly;
+
+    while (sliderBB) {
+        Square from = popLSB(sliderBB);
+
+        u64 attacksBB = getBishopAttacks(from, occ) & ~friendly;
+        if constexpr (mode == QUIET_ONLY)
+            attacksBB &= ~occ;
+        else if (mode == NOISY_ONLY)
+            attacksBB &= board.pieces(~board.stm);
+
+        while (attacksBB) {
+            Square to = popLSB(attacksBB);
+            moves.add(from, to);
+        }
+    }
+}
+
+template<MovegenMode mode>
+void generateKingMoves(const Board& board, MoveList& moves) {
+    u64       friendly = board.pieces(board.stm);
+    const u64 kingBB   = board.pieces(KING) & friendly;
+
+    Square from = static_cast<Square>(ctzll(kingBB));
+
+    u64 attacksBB = KING_ATTACKS[from] & ~friendly;
+    if constexpr (mode == QUIET_ONLY)
+        attacksBB &= ~board.pieces();
+    else if (mode == NOISY_ONLY)
+        attacksBB &= board.pieces(~board.stm);
+
+    while (attacksBB) {
+        Square to = popLSB(attacksBB);
+        moves.add(from, to);
+    }
+
+    if (board.canCastle(board.stm, true))
+        moves.add(from, castleSq(board.stm, true), CASTLE);
+    if (board.canCastle(board.stm, false))
+        moves.add(from, castleSq(board.stm, false), CASTLE);
+}
+
+template<MovegenMode mode>
+MoveList generateMoves(const Board& board) {
+    MoveList moves;
+    generateKingMoves<mode>(board, moves);
+    if (board.doubleCheck)
+        return moves;
+    if (board.stm == WHITE)
+        generatePawnMoves<WHITE, mode>(board, moves);
+    else
+        generatePawnMoves<BLACK, mode>(board, moves);
+    generateHorizontalSliders<mode>(board, moves);
+    generateDiagonalSliders<mode>(board, moves);
+    generateKnightMoves<mode>(board, moves);
+
+    return moves;
+}
+}

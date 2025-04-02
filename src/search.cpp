@@ -15,7 +15,7 @@ struct Stack {
 };
 
 array<array<array<int, 219>, MAX_PLY + 1>, 2> lmrTable;
-void fillLmrTable() {
+void                                          fillLmrTable() {
     for (int isQuiet = 0; isQuiet <= 1; isQuiet++)
         for (usize depth = 0; depth <= MAX_PLY; depth++)
             for (int movesSeen = 0; movesSeen <= 218; movesSeen++) {
@@ -207,17 +207,11 @@ i32 search(Board& board, i32 depth, i32 ply, int alpha, int beta, Stack* ss, Thr
         movesSeen++;
 
         usize extension = 0;
-        if (ply > 0
-            && depth >= SE_MIN_DEPTH
-            && ttEntry != nullptr
-            && ttEntry->zobrist == board.zobrist
-            && m == ttEntry->move
-            && ttEntry->depth >= depth - 3
-            && ttEntry->flag != FAIL_LOW) {
-            const int sBeta = std::max(-INF_INT + 1, ttEntry->score - depth * 2);
+        if (ply > 0 && depth >= SE_MIN_DEPTH && ttEntry != nullptr && ttEntry->zobrist == board.zobrist && m == ttEntry->move && ttEntry->depth >= depth - 3 && ttEntry->flag != FAIL_LOW) {
+            const int sBeta  = std::max(-INF_INT + 1, ttEntry->score - depth * 2);
             const int sDepth = (depth - 1) / 2;
 
-            ss->excluded = m;
+            ss->excluded    = m;
             const int score = search<NodeType::NONPV>(board, sDepth, ply, sBeta - 1, sBeta, ss, thisThread, sl);
             ss->excluded    = Move();
 
@@ -289,7 +283,7 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
     thisThread.breakFlag.store(false);
     thisThread.nodes    = 0;
     thisThread.seldepth = 0;
-    const bool isMain = thisThread.type == MAIN;
+    const bool isMain   = thisThread.type == MAIN;
 
     i64 searchTime;
     if (sp.mtime)

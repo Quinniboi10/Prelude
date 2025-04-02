@@ -3,6 +3,9 @@
 
 #include <fstream>
 #include <cassert>
+#include <cmath>
+#include <vector>
+#include <string>
 
 array<array<u64, 64>, 64> LINE;
 array<array<u64, 64>, 64> LINESEG;
@@ -84,11 +87,11 @@ u64 reverse(u64 b) {
 
 //Calculates sliding attacks from a given square, on a given axis, taking into
 //account the blocking pieces. This uses the Hyperbola Quintessence Algorithm.
-u64 sliding_attacks(Square square, u64 occ, u64 mask) { return (((mask & occ) - SQUARE_BB[square] * 2) ^ reverse(reverse(mask & occ) - reverse(SQUARE_BB[square]) * 2)) & mask; }
+u64 slidingAttacks(Square square, u64 occ, u64 mask) { return (((mask & occ) - SQUARE_BB[square] * 2) ^ reverse(reverse(mask & occ) - reverse(SQUARE_BB[square]) * 2)) & mask; }
 
 //Returns rook attacks from a given square, using the Hyperbola Quintessence Algorithm. Only used to initialize
 //the magic lookup table
-u64 get_rook_attacks_for_init(Square square, u64 occ) { return sliding_attacks(square, occ, MASK_FILE[fileOf(square)]) | sliding_attacks(square, occ, MASK_RANK[rankOf(square)]); }
+u64 getRookAttacksForInit(Square square, u64 occ) { return slidingAttacks(square, occ, MASK_FILE[fileOf(square)]) | slidingAttacks(square, occ, MASK_RANK[rankOf(square)]); }
 
 u64 ROOK_ATTACK_MASKS[64];
 int ROOK_ATTACK_SHIFTS[64];
@@ -117,7 +120,7 @@ void initializeRookAttacks() {
             index                   = subset;
             index                   = index * ROOK_MAGICS[sq];
             index                   = index >> ROOK_ATTACK_SHIFTS[sq];
-            ROOK_ATTACKS[sq][index] = get_rook_attacks_for_init(sq, subset);
+            ROOK_ATTACKS[sq][index] = getRookAttacksForInit(sq, subset);
             subset                  = (subset - ROOK_ATTACK_MASKS[sq]) & ROOK_ATTACK_MASKS[sq];
         } while (subset);
     }
@@ -137,7 +140,7 @@ u64 Movegen::getXrayRookAttacks(Square square, u64 occ, u64 blockers) {
 //Returns bishop attacks from a given square, using the Hyperbola Quintessence Algorithm. Only used to initialize
 //the magic lookup table
 u64 getBishopAttacksForInit(Square square, u64 occ) {
-    return sliding_attacks(square, occ, MASK_DIAGONAL[diagonalOf(square)]) | sliding_attacks(square, occ, MASK_ANTI_DIAGONAL[antiDiagonalOf(square)]);
+    return slidingAttacks(square, occ, MASK_DIAGONAL[diagonalOf(square)]) | slidingAttacks(square, occ, MASK_ANTI_DIAGONAL[antiDiagonalOf(square)]);
 }
 
 u64 BISHOP_ATTACK_MASKS[64];
@@ -194,7 +197,7 @@ void initializeSquaresBetween() {
         for (Square sq2 = a1; sq2 <= h8; ++sq2) {
             sqs = SQUARE_BB[sq1] | SQUARE_BB[sq2];
             if (fileOf(sq1) == fileOf(sq2) || rankOf(sq1) == rankOf(sq2))
-                SQUARES_BETWEEN_BB[sq1][sq2] = get_rook_attacks_for_init(sq1, sqs) & get_rook_attacks_for_init(sq2, sqs);
+                SQUARES_BETWEEN_BB[sq1][sq2] = getRookAttacksForInit(sq1, sqs) & getRookAttacksForInit(sq2, sqs);
             else if (diagonalOf(sq1) == diagonalOf(sq2) || antiDiagonalOf(sq1) == antiDiagonalOf(sq2))
                 SQUARES_BETWEEN_BB[sq1][sq2] = getBishopAttacksForInit(sq1, sqs) & getBishopAttacksForInit(sq2, sqs);
         }
@@ -206,7 +209,7 @@ void initializeLine() {
     for (Square sq1 = a1; sq1 <= h8; ++sq1) {
         for (Square sq2 = a1; sq2 <= h8; ++sq2) {
             if (fileOf(sq1) == fileOf(sq2) || rankOf(sq1) == rankOf(sq2))
-                LINE[sq1][sq2] = (get_rook_attacks_for_init(sq1, 0) & get_rook_attacks_for_init(sq2, 0)) | SQUARE_BB[sq1] | SQUARE_BB[sq2];
+                LINE[sq1][sq2] = (getRookAttacksForInit(sq1, 0) & getRookAttacksForInit(sq2, 0)) | SQUARE_BB[sq1] | SQUARE_BB[sq2];
             else if (diagonalOf(sq1) == diagonalOf(sq2) || antiDiagonalOf(sq1) == antiDiagonalOf(sq2))
                 LINE[sq1][sq2] = (getBishopAttacksForInit(sq1, 0) & getBishopAttacksForInit(sq2, 0)) | SQUARE_BB[sq1] | SQUARE_BB[sq2];
         }
@@ -216,7 +219,7 @@ void initializeLine() {
         for (Square sq2 = a1; sq2 <= h8; ++sq2) {
             u64 blockers = (1ULL << sq1) | (1ULL << sq2);
             if (fileOf(sq1) == fileOf(sq2) || rankOf(sq1) == rankOf(sq2))
-                LINESEG[sq1][sq2] = (get_rook_attacks_for_init(sq1, blockers) & get_rook_attacks_for_init(sq2, blockers)) | SQUARE_BB[sq1] | SQUARE_BB[sq2];
+                LINESEG[sq1][sq2] = (getRookAttacksForInit(sq1, blockers) & getRookAttacksForInit(sq2, blockers)) | SQUARE_BB[sq1] | SQUARE_BB[sq2];
             else if (diagonalOf(sq1) == diagonalOf(sq2) || antiDiagonalOf(sq1) == antiDiagonalOf(sq2))
                 LINESEG[sq1][sq2] = (getBishopAttacksForInit(sq1, blockers) & getBishopAttacksForInit(sq2, blockers)) | SQUARE_BB[sq1] | SQUARE_BB[sq2];
         }
@@ -271,14 +274,14 @@ u64 bulk(Board& board, usize depth) {
 }
 
 u64 perft(Board& board, usize depth) {
+    if (depth == 0)
+        return 1;
+
     u64 nodes = 0;
 
     MoveList moves = Movegen::generateMoves<ALL_MOVES>(board);
 
     Board testBoard;
-
-    if (depth == 0)
-        return 1;
 
     for (Move m : moves) {
         if (!board.isLegal(m))
@@ -326,7 +329,7 @@ void Movegen::perft(Board& board, usize depth, bool bulk) {
 
     cout << "Total nodes: " << formatNum(nodes) << endl;
     cout << "Time spent (ms): " << elapsedTime << endl;
-    cout << "Nodes per second: " << formatNum(nodes * 1000 / elapsedTime) << endl;
+    cout << "Nodes per second: " << formatNum(nodes * 1000 / std::max(elapsedTime, 1ULL)) << endl;
 }
 
 void Movegen::perftSuite(const string filePath) {
@@ -385,7 +388,7 @@ void Movegen::perftSuite(const string filePath) {
         }
 
         u64 elapsed = sw.elapsed();
-        usize nps = nodes * 1000 / elapsed;
+        usize nps = nodes * 1000 / std::max(elapsed, 1ULL);
 
         cout << "Time elapsed: " << formatTime(elapsed) << endl;
         cout << "Found " << formatNum(nodes) << " nodes at " << formatNum(nps) << " nodes per second" << endl;
@@ -400,7 +403,7 @@ void Movegen::perftSuite(const string filePath) {
 
     cout << "Perft Suite Completed: " << passedTests << " / " << totalTests << " tests passed." << endl;
     u64 elapsed = sw.elapsed();
-    usize nps = totalNodes * 1000 / elapsed;
+    usize nps = totalNodes * 1000 / std::max(elapsed, 1ULL);
 
     cout << "Time elapsed: " << formatTime(elapsed) << endl;
     cout << "Found a total of " << formatNum(totalNodes) << " nodes at " << formatNum(nps) << " nodes per second" << endl;

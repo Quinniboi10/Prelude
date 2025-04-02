@@ -33,7 +33,7 @@ struct ThreadInfo {
     std::atomic<bool>&  breakFlag;
 
     std::atomic<u64> nodes;
-    usize seldepth;
+    usize            seldepth;
 
     usize minNmpPly;
 
@@ -43,7 +43,7 @@ struct ThreadInfo {
         breakFlag(breakFlag) {
         std::memset(&history, DEFAULT_HISTORY_VALUE, sizeof(history));
         breakFlag.store(false, std::memory_order_relaxed);
-        seldepth = 0;
+        seldepth  = 0;
         minNmpPly = 0;
     }
 
@@ -54,7 +54,7 @@ struct ThreadInfo {
         TT(other.TT),
         breakFlag(other.breakFlag) {
         nodes.store(other.nodes.load(std::memory_order_relaxed), std::memory_order_relaxed);
-        seldepth = other.seldepth;
+        seldepth  = other.seldepth;
         minNmpPly = other.minNmpPly;
     }
 

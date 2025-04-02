@@ -10,10 +10,10 @@
 
 #define ctzll(x) std::countr_zero(x)
 
-inline bool readBit(u64 bb, int sq) { return (1ULL << sq) & bb; }
+constexpr bool readBit(u64 bb, int sq) { return (1ULL << sq) & bb; }
 
 template<bool value>
-inline void setBit(auto& bitboard, usize index) {
+constexpr void setBit(auto& bitboard, usize index) {
     assert(index <= sizeof(bitboard) * 8);
     if constexpr (value)
         bitboard |= (1ULL << index);
@@ -23,23 +23,55 @@ inline void setBit(auto& bitboard, usize index) {
 
 inline void printBitboard(u64 bitboard);
 
-inline Square popLSB(auto& bb) {
-    if (bb == 0) {
-        int* foo = (int*) -1;
-        printf("%d\n", *foo);
-    }
+constexpr Square popLSB(auto& bb) {
     assert(bb > 0);
     Square sq = static_cast<Square>(ctzll(bb));
     bb &= bb - 1;
     return sq;
 }
 
+constexpr Direction relativeDir(Color c, Direction dir) {
+    if (c == BLACK)
+        switch (dir) {
+        case NORTH:
+            return SOUTH;
+        case NORTH_EAST:
+            return SOUTH_EAST;
+        case EAST:
+            return EAST;
+        case SOUTH_EAST:
+            return NORTH_EAST;
+        case SOUTH:
+            return NORTH;
+        case SOUTH_WEST:
+            return NORTH_WEST;
+        case WEST:
+            return WEST;
+        case NORTH_WEST:
+            return SOUTH_WEST;
+        case NORTH_NORTH:
+            return SOUTH_SOUTH;
+        case SOUTH_SOUTH:
+            return NORTH_NORTH;
+        default:
+            assert(false);
+            break;
+        }
+    return dir;
+}
+
 template<int dir>
-inline u64 shift(u64 bb) {
+constexpr u64 shift(u64 bb) {
     return dir > 0 ? bb << dir : bb >> -dir;
 }
 
-inline u64 shift(int dir, u64 bb) { return dir > 0 ? bb << dir : bb >> -dir; }
+constexpr u64 shift(int dir, u64 bb) { return dir > 0 ? bb << dir : bb >> -dir; }
+
+template<Color c, int dir>
+constexpr u64 shiftRelative(u64 bb) {
+    constexpr Direction relDir = relativeDir(c, static_cast<Direction>(dir));
+    return shift<relDir>(bb);
+}
 
 inline std::vector<string> split(const string& str, char delim) {
     std::vector<std::string> result;
