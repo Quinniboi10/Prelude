@@ -27,8 +27,9 @@ struct Board {
 
 
     Square epSquare;
-    // Only last 4 bits are meaningful, index KQkq
-    u8 castlingRights;
+
+    // Indexed KQkq where K = index 3
+    array<Square, 4> castling;
 
     Color stm;
 
@@ -46,6 +47,8 @@ struct Board {
     void resetMailbox();
     void resetZobrist();
     void updateCheckPin();
+    void setCastlingRights(Color c, Square sq, bool value);
+    void unsetCastlingRights(Color c);
 
     template<bool minimal>
     void move(Move m);
@@ -82,6 +85,7 @@ struct Board {
     void nullMove();
 
     bool canCastle(Color c, bool kingside) const;
+    Square castleSq(Color c, bool kingside) const;
 
     bool isLegal(Move m);
 

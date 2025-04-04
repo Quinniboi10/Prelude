@@ -1,5 +1,6 @@
 #include "move.h"
 #include "board.h"
+#include "globals.h"
 
 Move::Move(string strIn, Board& board) {
     Square from = parseSquare(strIn.substr(0, 2));
@@ -38,7 +39,7 @@ string Move::toString() const {
     MoveType mt = typeOf();
 
     string moveStr = squareToAlgebraic(from());
-    if (mt == CASTLE)
+    if (mt == CASTLE && !chess960)
         return moveStr + (squareToAlgebraic(to() + (from() < to() ? WEST : EAST * 2)));
 
     moveStr += squareToAlgebraic(to());

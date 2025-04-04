@@ -12,6 +12,7 @@
 #include "search.h"
 #include "ttable.h"
 #include "datagen.h"
+#include "globals.h"
 #include "searcher.h"
 
 #ifndef EVALFILE
@@ -36,6 +37,7 @@ INCBIN(EVAL, EVALFILE);
 #endif
 
 
+bool  chess960      = false;
 usize MOVE_OVERHEAD = 20;
 NNUE  nnue;
 
@@ -101,6 +103,7 @@ int main(int argc, char* argv[]) {
             cout << "option name Hash type spin default 1 min 1 max 524288" << endl;
             cout << "option name Move Overhead type spin default 20 min 0 max 1000" << endl;
             cout << "option name EvalFile type string default internal" << endl;
+            cout << "option name UCI_Chess960 type check default false" << endl;
             cout << "uciok" << endl;
         }
         else if (command == "ucinewgame")
@@ -156,6 +159,8 @@ int main(int argc, char* argv[]) {
                 MOVE_OVERHEAD = std::stoi(tokens[findIndexOf(tokens, "value") + 1]);
             else if (tokens[2] == "Threads")
                 searcher.makeThreads(std::stoi(tokens[findIndexOf(tokens, "value") + 1]));
+            else if (tokens[2] == "UCI_Chess960")
+                chess960 = tokens[findIndexOf(tokens, "value") + 1] == "true";
         }
         else if (command == "stop")
             searcher.stop();
@@ -208,10 +213,16 @@ int main(int argc, char* argv[]) {
         else if (command == "debug.gamestate") {
             Square whiteKing = Square(ctzll(board.pieces(WHITE, KING)));
             Square blackKing = Square(ctzll(board.pieces(BLACK, KING)));
+
             cout << "Is in check (white): " << board.isUnderAttack(WHITE, whiteKing) << endl;
             cout << "Is in check (black): " << board.isUnderAttack(BLACK, blackKing) << endl;
             cout << "En passant square: " << (board.epSquare != NO_SQUARE ? squareToAlgebraic(board.epSquare) : "-") << endl;
-            cout << "Castling rights: " << std::bitset<4>(board.castlingRights) << endl;
+            cout << "Castling rights: { ";
+            cout << squareToAlgebraic(board.castling[castleIndex(WHITE, true)]) << ", ";
+            cout << squareToAlgebraic(board.castling[castleIndex(WHITE, false)]) << ", ";
+            cout << squareToAlgebraic(board.castling[castleIndex(BLACK, true)]) << ", ";
+            cout << squareToAlgebraic(board.castling[castleIndex(BLACK, false)]);
+            cout << " }" << endl;
         }
         else if (command == "debug.incheck")
             cout << "Stm is " << (board.inCheck() ? "in check" : "NOT in check") << endl;

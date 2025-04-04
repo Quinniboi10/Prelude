@@ -222,9 +222,9 @@ void generateKingMoves(const Board& board, MoveList& moves) {
     }
 
     if (board.canCastle(board.stm, true))
-        moves.add(from, castleSq(board.stm, true), CASTLE);
+        moves.add(from, board.castleSq(board.stm, true), CASTLE);
     if (board.canCastle(board.stm, false))
-        moves.add(from, castleSq(board.stm, false), CASTLE);
+        moves.add(from, board.castleSq(board.stm, false), CASTLE);
 }
 
 template<MovegenMode mode>

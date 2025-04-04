@@ -1,5 +1,5 @@
 #include "accumulator.h"
-#include "nnue.h"
+#include "globals.h"
 #include "board.h"
 
 void AccumulatorPair::resetAccumulators(const Board& board) {

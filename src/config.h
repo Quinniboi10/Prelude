@@ -24,8 +24,6 @@ constexpr int SE_DOUBLE_MARGIN = 30;
 constexpr usize DEFAULT_MOVES_TO_GO = 20;
 constexpr usize INC_DIVISOR         = 2;
 
-extern usize MOVE_OVERHEAD;
-
 // ************ NNUE ************
 constexpr i16    QA             = 255;
 constexpr i16    QB             = 64;
