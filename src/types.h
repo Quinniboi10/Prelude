@@ -143,13 +143,13 @@ struct Colors {
 };
 
 template<usize size>
-class U4array {
+class U4Array {
     static_assert(size % 2 == 0);
 
     array<u8, size / 2> data;
 
 public:
-    U4array() {
+    U4Array() {
         data.fill(0);
     }
 
