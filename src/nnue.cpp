@@ -8,8 +8,8 @@
 #include "../external/fmt/fmt/format.h"
 
 #include <fstream>
+#include <cstring>
 #include <algorithm>
-#include <immintrin.h>
 
 i16 NNUE::ReLU(const i16 x) {
     if (x < 0)
@@ -24,6 +24,105 @@ i16 NNUE::CReLU(const i16 x) {
         return QA;
     return x;
 }
+
+i32 NNUE::SCReLU(const i16 x) {
+    if (x < 0)
+        return 0;
+    else if (x > QA)
+        return QA * QA;
+    return x * x;
+}
+
+#if defined(_WIN64) || defined(__x86_64__) || defined(__amd64__) || defined(_M_X64) || defined(_M_AMD64)
+    #include <immintrin.h>
+    #if defined(__AVX512F__)
+        using nativeVector = __m512i;
+        #define set1_epi16 _mm512_set1_epi16
+        #define load_epi16 _mm512_load_si512
+        #define min_epi16 _mm512_min_epi16
+        #define max_epi16 _mm512_max_epi16
+        #define madd_epi16 _mm512_madd_epi16
+        #define mullo_epi16 _mm512_mullo_epi16
+        #define add_epi32 _mm512_add_epi32
+        #define reduce_epi32 _mm512_reduce_add_epi32
+    #elif defined(__AVX2__)
+        using nativeVector = __m256i;
+        #define set1_epi16 _mm256_set1_epi16
+        #define load_epi16 _mm256_load_si256
+        #define min_epi16 _mm256_min_epi16
+        #define max_epi16 _mm256_max_epi16
+        #define madd_epi16 _mm256_madd_epi16
+        #define mullo_epi16 _mm256_mullo_epi16
+        #define add_epi32 _mm256_add_epi32
+        #define reduce_epi32 [](nativeVector vec) {                    \
+        __m128i xmm1       = _mm256_extracti128_si256(vec, 1);         \
+        __m128i xmm0 = _mm256_castsi256_si128(vec);                    \
+        xmm0 = _mm_add_epi32(xmm0, xmm1);                              \
+        xmm1 = _mm_shuffle_epi32(xmm0, 238);                           \
+        xmm0 = _mm_add_epi32(xmm0, xmm1);                              \
+        xmm1 = _mm_shuffle_epi32(xmm0, 85);                            \
+        xmm0 = _mm_add_epi32(xmm0, xmm1);                              \
+        return _mm_cvtsi128_si32(xmm0);                                \
+        }
+    #else
+        // Assumes SSE support here
+        using nativeVector = __m128i;
+        #define set1_epi16 _mm_set1_epi16
+        #define load_epi16 _mm_load_si128
+        #define min_epi16 _mm_min_epi16
+        #define max_epi16 _mm_max_epi16
+        #define madd_epi16 _mm_madd_epi16
+        #define mullo_epi16 _mm_mullo_epi16
+        #define add_epi32 _mm_add_epi32
+        #define reduce_epi32 \
+            [](nativeVector vec) { \
+                __m128i xmm1 = _mm_shuffle_epi32(vec, 238); \
+                vec          = _mm_add_epi32(vec, xmm1);    \
+                xmm1         = _mm_shuffle_epi32(vec, 85);  \
+                vec          = _mm_add_epi32(vec, xmm1);    \
+                return _mm_cvtsi128_si32(vec);              \
+            }
+    #endif
+        i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usize bucket) {
+            const usize VECTOR_SIZE = sizeof(nativeVector) / sizeof(i16);
+            static_assert(HL_SIZE % VECTOR_SIZE == 0, "HL size must be divisible by the native register size of your CPU for vectorization to work");
+            const nativeVector VEC_QA = set1_epi16(QA);
+            const nativeVector VEC_ZERO = set1_epi16(0);
+
+            nativeVector accumulator{};
+            for (usize i = 0; i < HL_SIZE; i += VECTOR_SIZE) {
+                // Load accumulators
+                const nativeVector stmAccumValues  = load_epi16(reinterpret_cast<const nativeVector*>(&stm[i]));
+                const nativeVector nstmAccumValues = load_epi16(reinterpret_cast<const nativeVector*>(&nstm[i]));
+
+                // Clamp values
+                const nativeVector  stmClamped  = min_epi16(VEC_QA, max_epi16(stmAccumValues, VEC_ZERO));
+                const nativeVector nstmClamped = min_epi16(VEC_QA, max_epi16(nstmAccumValues, VEC_ZERO));
+
+                // Load weights
+                const nativeVector stmWeights  = load_epi16(reinterpret_cast<const nativeVector*>(&weightsToOut[bucket][i]));
+                const nativeVector nstmWeights = load_epi16(reinterpret_cast<const nativeVector*>(&weightsToOut[bucket][i + HL_SIZE]));
+
+                // SCReLU it
+                const nativeVector  stmActivated  = madd_epi16(stmClamped, mullo_epi16(stmClamped, stmWeights));
+                const nativeVector nstmActivated = madd_epi16(nstmClamped, mullo_epi16(nstmClamped, nstmWeights));
+
+                accumulator = add_epi32(accumulator, stmActivated);
+                accumulator = add_epi32(accumulator, nstmActivated);
+            }
+
+            return reduce_epi32(accumulator);
+        }
+#else
+i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usize bucket) {
+    i32 res = 0;
+    for (usize i = 0; i < HL_SIZE; i++) {
+        res += (i32) SCReLU(stm[i]) * weightsToOut[bucket][i];
+        res += (i32) SCReLU(stm[i]) * weightsToOut[bucket][i + HL_SIZE];
+    }
+    return res;
+}
+#endif
 
 // Finds the input feature
 usize NNUE::feature(Color perspective, Color color, PieceType piece, Square square) {
@@ -92,33 +191,8 @@ int NNUE::forwardPass(const Board* board) {
                 eval += CReLU(accumulatorOPP[i]) * weightsToOut[outputBucket][HL_SIZE + i];
         }
     }
-    else {
-        const __m256i vec_zero = _mm256_setzero_si256();
-        const __m256i vec_qa   = _mm256_set1_epi16(QA);
-        __m256i       sum      = vec_zero;
-
-        for (usize i = 0; i < HL_SIZE / 16; i++) {
-            const __m256i us   = _mm256_load_si256(reinterpret_cast<const __m256i*>(&accumulatorSTM[16 * i]));  // Load from accumulator
-            const __m256i them = _mm256_load_si256(reinterpret_cast<const __m256i*>(&accumulatorOPP[16 * i]));
-
-            const __m256i us_weights   = _mm256_load_si256(reinterpret_cast<const __m256i*>(&weightsToOut[outputBucket][16 * i]));  // Load from net
-            const __m256i them_weights = _mm256_load_si256(reinterpret_cast<const __m256i*>(&weightsToOut[outputBucket][HL_SIZE + 16 * i]));
-
-            const __m256i us_clamped   = _mm256_min_epi16(_mm256_max_epi16(us, vec_zero), vec_qa);
-            const __m256i them_clamped = _mm256_min_epi16(_mm256_max_epi16(them, vec_zero), vec_qa);
-
-            const __m256i us_results   = _mm256_madd_epi16(_mm256_mullo_epi16(us_weights, us_clamped), us_clamped);
-            const __m256i them_results = _mm256_madd_epi16(_mm256_mullo_epi16(them_weights, them_clamped), them_clamped);
-
-            sum = _mm256_add_epi32(sum, us_results);
-            sum = _mm256_add_epi32(sum, them_results);
-        }
-
-        __m256i v1 = _mm256_hadd_epi32(sum, sum);
-        __m256i v2 = _mm256_hadd_epi32(v1, v1);
-
-        eval = _mm256_extract_epi32(v2, 0) + _mm256_extract_epi32(v2, 4);
-    }
+    else
+        eval = vectorizedSCReLU(accumulatorSTM, accumulatorOPP, outputBucket);
 
 
     // Dequantization
@@ -167,33 +241,8 @@ void NNUE::showBuckets(const Board* board) {
                     eval += CReLU(accumulatorOPP[i]) * weightsToOut[outputBucket][HL_SIZE + i];
             }
         }
-        else {
-            const __m256i vec_zero = _mm256_setzero_si256();
-            const __m256i vec_qa   = _mm256_set1_epi16(QA);
-            __m256i       sum      = vec_zero;
-
-            for (usize i = 0; i < HL_SIZE / 16; i++) {
-                const __m256i us   = _mm256_load_si256(reinterpret_cast<const __m256i*>(&accumulatorSTM[16 * i]));  // Load from accumulator
-                const __m256i them = _mm256_load_si256(reinterpret_cast<const __m256i*>(&accumulatorOPP[16 * i]));
-
-                const __m256i us_weights   = _mm256_load_si256(reinterpret_cast<const __m256i*>(&weightsToOut[outputBucket][16 * i]));  // Load from net
-                const __m256i them_weights = _mm256_load_si256(reinterpret_cast<const __m256i*>(&weightsToOut[outputBucket][HL_SIZE + 16 * i]));
-
-                const __m256i us_clamped   = _mm256_min_epi16(_mm256_max_epi16(us, vec_zero), vec_qa);
-                const __m256i them_clamped = _mm256_min_epi16(_mm256_max_epi16(them, vec_zero), vec_qa);
-
-                const __m256i us_results   = _mm256_madd_epi16(_mm256_mullo_epi16(us_weights, us_clamped), us_clamped);
-                const __m256i them_results = _mm256_madd_epi16(_mm256_mullo_epi16(them_weights, them_clamped), them_clamped);
-
-                sum = _mm256_add_epi32(sum, us_results);
-                sum = _mm256_add_epi32(sum, them_results);
-            }
-
-            __m256i v1 = _mm256_hadd_epi32(sum, sum);
-            __m256i v2 = _mm256_hadd_epi32(v1, v1);
-
-            eval = _mm256_extract_epi32(v2, 0) + _mm256_extract_epi32(v2, 4);
-        }
+        else
+            eval = vectorizedSCReLU(accumulatorSTM, accumulatorOPP, outputBucket);
 
 
         // Dequantization
