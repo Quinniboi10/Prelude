@@ -33,9 +33,10 @@ i32 NNUE::SCReLU(const i16 x) {
     return x * x;
 }
 
-#if defined(_WIN64) || defined(__x86_64__) || defined(__amd64__) || defined(_M_X64) || defined(_M_AMD64)
+#if defined(__x86_64__) || defined(__amd64__) || (defined(_WIN64) && (defined(_M_X64) || defined(_M_AMD64)))
     #include <immintrin.h>
     #if defined(__AVX512F__)
+        #pragma message("Using AVX512 NNUE inference")
         using nativeVector = __m512i;
         #define set1_epi16 _mm512_set1_epi16
         #define load_epi16 _mm512_load_si512
@@ -46,6 +47,7 @@ i32 NNUE::SCReLU(const i16 x) {
         #define add_epi32 _mm512_add_epi32
         #define reduce_epi32 _mm512_reduce_add_epi32
     #elif defined(__AVX2__)
+        #pragma message("Using AVX2 NNUE inference")
         using nativeVector = __m256i;
         #define set1_epi16 _mm256_set1_epi16
         #define load_epi16 _mm256_load_si256
@@ -65,6 +67,7 @@ i32 NNUE::SCReLU(const i16 x) {
         return _mm_cvtsi128_si32(xmm0);                                \
         }
     #else
+        #pragma message("Using SSE NNUE inference")
         // Assumes SSE support here
         using nativeVector = __m128i;
         #define set1_epi16 _mm_set1_epi16
@@ -114,6 +117,7 @@ i32 NNUE::SCReLU(const i16 x) {
             return reduce_epi32(accumulator);
         }
 #else
+#pragma message("Using compiler optimized NNUE inference")
 i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usize bucket) {
     i32 res = 0;
     for (usize i = 0; i < HL_SIZE; i++) {
