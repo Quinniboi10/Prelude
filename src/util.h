@@ -159,10 +159,3 @@ inline int findIndexOf(const auto arr, string entry) {
     }
     return -1;  // Not found
 }
-
-
-// Throws a segfault, useful for tracing the call stack
-inline void segFault() {
-    int* foo = (int*) -1;
-    printf("%d\n", *foo);
-}
