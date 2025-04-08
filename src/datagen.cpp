@@ -3,8 +3,6 @@
 #include "movegen.h"
 #include "search.h"
 
-#include "../external/fmt/fmt/format.h"
-
 #include <atomic>
 #include <vector>
 #include <random>
@@ -137,35 +135,18 @@ void writeToFile(std::ofstream& outFile, const std::vector<Game>& data) {
 }
 
 
-void runThread(int id) {
-    string filePath = "./data/" + makeFileName();
-
-    if (!std::filesystem::is_directory("./data/"))
-        std::filesystem::create_directory("./data/");
-
-    std::ofstream outFile(filePath, std::ios::app | std::ios::binary);
-
-    if (!outFile.is_open()) {
-        cerr << "Error: Could not open the file " << filePath << " for writing." << endl;
-        exit(-1);
-    }
-
-    i64 cachedPositions = 0;
-
+void runThread(std::vector<Game>& outputBuffer, std::atomic<bool>& bufferLock) {
     Board                   board;
     std::vector<ScoredMove> gameBuffer;
     MarlinFormat            startingPos;
 
-    std::vector<Game>                    outputBuffer;
     TranspositionTable                   TT;
     std::atomic<bool>                    exitFlag(false);
     Search::ThreadInfo                   thisThread(Search::ThreadType::SECONDARY, TT, exitFlag);
     Stopwatch<std::chrono::milliseconds> time;
-    Stopwatch<std::chrono::milliseconds> totalTime;
     Search::SearchParams                 sp(time, MAX_PLY, Datagen::HARD_NODES, Datagen::SOFT_NODES, 0, 0, 0, 0, 0);
 
     gameBuffer.reserve(256);
-    outputBuffer.reserve(Datagen::OUTPUT_BUFFER_GAMES);
 
     std::random_device                 rd;
     std::mt19937_64                    engine(rd());
@@ -192,7 +173,6 @@ mainLoop:
             MoveEvaluation move = Search::iterativeDeepening(board, thisThread, sp);
             gameBuffer.emplace_back(move.move, board.stm == WHITE ? move.eval : -move.eval);
             board.move(move.move);
-            cachedPositions++;
         }
 
         if (board.isDraw() || !board.inCheck())
@@ -202,26 +182,79 @@ mainLoop:
         else
             startingPos.wdl = 2;
 
+        while (bufferLock.load(std::memory_order_relaxed))
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        bufferLock.store(true, std::memory_order_relaxed);
+
         outputBuffer.emplace_back(startingPos, gameBuffer);
 
+        bufferLock.store(false, std::memory_order_relaxed);
         gameBuffer.clear();
-
-        if (outputBuffer.size() >= Datagen::OUTPUT_BUFFER_GAMES) {
-            writeToFile(outFile, outputBuffer);
-            outputBuffer.clear();
-            cout << "Thread " << id << " wrote " << formatNum(cachedPositions) << " positions at " << fmt::format("{:.1f}", cachedPositions * 1000 / (double) time.elapsed()) << " pos/s" << endl;
-            cout << "Elapsed time: " << formatTime(totalTime.elapsed()) << endl;
-            cachedPositions = 0;
-            time.reset();
-        }
     }
 }
 
 void Datagen::run(usize threadCount) {
+    Stopwatch<std::chrono::milliseconds> sw;
+
+    std::vector<Game> outputBuffer;
+    std::atomic<bool> bufferLock(false);
+    u64               savedPositions(0);
+
     std::vector<std::thread> threads;
 
-    for (usize i = 0; i < threadCount - 1; i++)
-        threads.emplace_back(runThread, i);
+    outputBuffer.reserve(Datagen::OUTPUT_BUFFER_GAMES + threadCount);
 
-    runThread(threadCount - 1);
+    string filePath = "./data/" + makeFileName();
+
+    if (!std::filesystem::is_directory("./data/"))
+        std::filesystem::create_directory("./data/");
+
+    std::ofstream outFile(filePath, std::ios::app | std::ios::binary);
+
+    if (!outFile.is_open()) {
+        cerr << "Error: Could not open the file " << filePath << " for writing." << endl;
+        exit(-1);
+    }
+
+    for (usize i = 0; i < threadCount; i++)
+        threads.emplace_back(runThread, std::ref(outputBuffer), std::ref(bufferLock));
+
+    while (true) {
+        // Escape sequences will clear screen and reset cursor to home
+        cout << "\033[2J" << "\033[H";
+        while (bufferLock.load(std::memory_order_relaxed))
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        bufferLock.store(true, std::memory_order_relaxed);
+
+        u64 cachedPositions = 0;
+        for (Game g : outputBuffer)
+            cachedPositions += g.moves.size();
+
+        bufferLock.store(false, std::memory_order_relaxed);
+
+        cout << "Positions/second: " << ((cachedPositions + savedPositions) * 100 * 1000) / sw.elapsed() / 100.0 << endl;
+        cout << "Positions (cached): " << formatNum(cachedPositions) << endl;
+        cout << "Positions (saved): " << formatNum(savedPositions) << endl;
+        cout << "Time: " << formatTime(sw.elapsed()) << endl;
+        cout << endl;
+
+        if (cachedPositions > OUTPUT_BUFFER_GAMES) {
+            cout << "Writing to file..." << endl;
+            while (bufferLock.load(std::memory_order_relaxed))
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            bufferLock.store(true, std::memory_order_relaxed);
+
+            writeToFile(outFile, outputBuffer);
+
+            savedPositions += cachedPositions;
+            cachedPositions = 0;
+
+            outputBuffer.clear();
+
+            bufferLock.store(false, std::memory_order_relaxed);
+            cout << "Game cache cleared" << endl;
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(750));
+    }
 }

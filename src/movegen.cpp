@@ -3,6 +3,7 @@
 
 #include <fstream>
 #include <cassert>
+#include <thread>
 
 array<array<u64, 64>, 64> LINE;
 array<array<u64, 64>, 64> LINESEG;
@@ -214,6 +215,10 @@ void initializeLine() {
 
     for (Square sq1 = a1; sq1 <= h8; ++sq1) {
         for (Square sq2 = a1; sq2 <= h8; ++sq2) {
+            if (sq1 == sq2) {
+                LINESEG[sq1][sq2] = (1ULL << sq1);
+                continue;
+            }
             u64 blockers = (1ULL << sq1) | (1ULL << sq2);
             if (fileOf(sq1) == fileOf(sq2) || rankOf(sq1) == rankOf(sq2))
                 LINESEG[sq1][sq2] = (get_rook_attacks_for_init(sq1, blockers) & get_rook_attacks_for_init(sq2, blockers)) | SQUARE_BB[sq1] | SQUARE_BB[sq2];
@@ -266,6 +271,45 @@ u64 bulk(Board& board, usize depth) {
         testBoard.minimalMove(m);
         nodes += bulk(testBoard, depth - 1);
     }
+
+    return nodes;
+}
+
+u64 multithreadBulk(Board& board, usize depth) {
+    std::atomic<u64> nodes = 0;
+
+    MoveList moves = Movegen::generateMoves<ALL_MOVES>(board);
+
+    Board testBoard;
+
+    if (depth == 0)
+        return 1;
+
+    std::vector<std::thread> threads;
+
+    auto runThread = [&](Board board, usize depth) {
+        nodes += bulk(board, depth);
+    };
+
+    for (Move m : moves) {
+        if (!board.isLegal(m))
+            continue;
+
+        if (depth == 1) {
+            nodes++;
+            continue;
+        }
+
+        testBoard = board;
+
+        testBoard.minimalMove(m);
+
+        threads.emplace_back(runThread, testBoard, depth - 1);
+    }
+
+    for (std::thread& t : threads)
+        if (t.joinable())
+            t.join();
 
     return nodes;
 }
@@ -345,8 +389,11 @@ void Movegen::perftSuite(const string filePath) {
     string ln;
 
     usize totalTests = 0;
+    usize testsDone = 0;
     usize passedTests = 0;
     u64 totalNodes = 0;
+
+
 
     while (std::getline(file, ln)) {
         if (ln.empty())
@@ -368,16 +415,16 @@ void Movegen::perftSuite(const string filePath) {
             std::vector<string> entry = split(tokens[i], ' ');
 
             usize depth = stoi(entry[0].substr(1));
-            u64 target = stoi(entry[1]);
+            u64 target = stoll(entry[1]);
 
-            nodes = bulk(board, depth);
+            nodes = multithreadBulk(board, depth);
 
             totalNodes += nodes;
 
             bool pass = nodes == target;
             cout << "Depth " << depth << ": Expected " << target << ", Got " << nodes << " -> " << (pass ? "PASS" : "FAIL") << endl;
 
-            totalTests++;
+            testsDone++;
             if (pass)
                 passedTests++;
             else
@@ -390,6 +437,7 @@ void Movegen::perftSuite(const string filePath) {
         cout << "Time elapsed: " << formatTime(elapsed) << endl;
         cout << "Found " << formatNum(nodes) << " nodes at " << formatNum(nps) << " nodes per second" << endl;
 
+        cout << "Finished position " << testsDone << endl;
         if (passed)
             cout << "All tests passed for this position." << endl;
         else
@@ -398,7 +446,7 @@ void Movegen::perftSuite(const string filePath) {
         cout << "----------------------------------------" << endl << endl;
     }
 
-    cout << "Perft Suite Completed: " << passedTests << " / " << totalTests << " tests passed." << endl;
+    cout << "Perft Suite Completed: " << passedTests << " / " << testsDone << " tests passed." << endl;
     u64 elapsed = sw.elapsed();
     usize nps = totalNodes * 1000 / elapsed;
 

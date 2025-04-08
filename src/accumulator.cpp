@@ -1,4 +1,5 @@
 #include "accumulator.h"
+#include "globals.h"
 #include "nnue.h"
 #include "board.h"
 
