@@ -26,16 +26,21 @@ Move::Move(string strIn, Board& board) {
         }
     }
 
-    if (board.getPiece(from) == KING && ((1ULL << to) & board.pieces(board.stm, ROOK))) {
+    if (!chess960
+        && ((from == e1 && to == g1 && board.canCastle(WHITE, true)) || (from == e1 && to == c1 && board.canCastle(WHITE, false)) || (from == e8 && to == g8 && board.canCastle(BLACK, true))
+            || (from == e8 && to == c8 && board.canCastle(BLACK, false)))) {
+        const bool kingside = to > from;
+
+        to = board.castleSq(board.stm, kingside);
+
+        flags = CASTLE;
+    }
+    else if (chess960 && board.getPiece(from) == KING && ((1ULL << to) & board.pieces(board.stm, ROOK))) {
         const bool kingside = to > from;
         if (board.canCastle(board.stm, kingside))
             flags = CASTLE;
     }
-    if ((from == e1 && to == g1 && board.canCastle(WHITE, true)) || (from == e1 && to == c1 && board.canCastle(WHITE, false)) || (from == e8 && to == g8 && board.canCastle(BLACK, true))
-        || (from == e8 && to == c8 && board.canCastle(BLACK, false)))
-        flags = CASTLE;
-
-    if (to == board.epSquare && ((1ULL << from) & board.pieces(board.stm, PAWN)))
+    else if (to == board.epSquare && ((1ULL << from) & board.pieces(board.stm, PAWN)))
         flags = EN_PASSANT;
 
     *this = Move(from, to, flags);
