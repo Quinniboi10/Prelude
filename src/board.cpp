@@ -382,7 +382,7 @@ PieceType Board::getPiece(int sq) const { return mailbox[sq]; }
 // Move is a knight promotion
 bool Board::isQuiet(Move m) const { return !isCapture(m) && (m.typeOf() != PROMOTION || m.promo() == QUEEN); }
 
-bool Board::isCapture(Move m) const { return ((1ULL << m.to() & pieces(~stm)) || m.typeOf() == EN_PASSANT) && m.typeOf() != CASTLE; }
+bool Board::isCapture(Move m) const { return ((1ULL << m.to() & pieces(~stm)) || m.typeOf() == EN_PASSANT); }
 
 // Make a move
 void Board::move(Move m) { move<false>(m); }
@@ -442,27 +442,31 @@ void Board::move(Move m) {
     case CASTLE:
         removePiece(stm, ROOK, to);
         if (stm == WHITE) {
-            if constexpr (!minimal)
-                accumulators.addAddSubSub(stm, g1, KING, f1, ROOK, from, KING, to, ROOK);
             if (from < to) {
                 placePiece(stm, KING, g1);
                 placePiece(stm, ROOK, f1);
+                if constexpr (!minimal)
+                    accumulators.addAddSubSub(stm, g1, KING, f1, ROOK, from, KING, to, ROOK);
             }
             else {
                 placePiece(stm, KING, c1);
                 placePiece(stm, ROOK, d1);
+                if constexpr (!minimal)
+                    accumulators.addAddSubSub(stm, c1, KING, d1, ROOK, from, KING, to, ROOK);
             }
         }
         else {
-            if constexpr (!minimal)
-                accumulators.addAddSubSub(stm, g8, KING, f8, ROOK, from, KING, to, ROOK);
             if (from < to) {
                 placePiece(stm, KING, g8);
                 placePiece(stm, ROOK, f8);
+                if constexpr (!minimal)
+                    accumulators.addAddSubSub(stm, g8, KING, f8, ROOK, from, KING, to, ROOK);
             }
             else {
                 placePiece(stm, KING, c8);
                 placePiece(stm, ROOK, d8);
+                if constexpr (!minimal)
+                    accumulators.addAddSubSub(stm, c8, KING, d8, ROOK, from, KING, to, ROOK);
             }
         }
         break;
