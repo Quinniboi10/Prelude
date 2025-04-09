@@ -27,8 +27,8 @@ struct Board {
 
 
     Square epSquare;
-    // Only last 4 bits are meaningful, index KQkq
-    u8 castlingRights;
+    // Index KQkq
+    array<Square, 4> castling;
 
     Color stm;
 
@@ -47,11 +47,18 @@ struct Board {
     void resetZobrist();
     void updateCheckPin();
 
+    void setCastlingRights(Color c, Square sq, bool value);
+    void unsetCastlingRights(Color c);
+
+    u64 hashCastling() const;
+
     template<bool minimal>
     void move(Move m);
 
    public:
     static void fillZobristTable();
+
+    constexpr Square castleSq(Color c, bool kingside) const { return castling[castleIndex(c, kingside)]; }
 
     u8 count(PieceType pt) const;
 

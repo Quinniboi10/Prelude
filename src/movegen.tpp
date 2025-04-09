@@ -190,9 +190,9 @@ void Movegen::kingMoves(const Board& board, MoveList& moves) {
     }
 
     if (board.canCastle(board.stm, true))
-        moves.add(kingSq, castleSq(board.stm, true), CASTLE);
+        moves.add(kingSq, board.castleSq(board.stm, true), CASTLE);
     if (board.canCastle(board.stm, false))
-        moves.add(kingSq, castleSq(board.stm, false), CASTLE);
+        moves.add(kingSq, board.castleSq(board.stm, false), CASTLE);
 }
 
 template<MovegenMode mode>

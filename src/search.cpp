@@ -1,5 +1,5 @@
 #include "search.h"
-#include "nnue.h"
+#include "globals.h"
 #include "movegen.h"
 #include "searcher.h"
 #include "config.h"
