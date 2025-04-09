@@ -90,8 +90,6 @@ constexpr Square parseSquare(const string square) { return static_cast<Square>((
 // Takes a square (64) and converts into algebraic notation (h8)
 constexpr string squareToAlgebraic(int sq) { return string(1, 'a' + (sq % 8)) + string(1, '1' + (sq / 8)); };
 
-// Returns the end position for castling (uses FRC)
-constexpr Square castleSq(Color c, bool kingside) { return c == WHITE ? (kingside ? h1 : a1) : (kingside ? h8 : a8); }
 constexpr u8     castleIndex(Color c, bool kingside) { return c == WHITE ? (kingside ? 3 : 2) : (kingside ? 1 : 0); }
 
 // Print a bitboard (for debugging individual bitboards)
@@ -158,4 +156,11 @@ inline int findIndexOf(const auto arr, string entry) {
         return std::distance(arr.begin(), it);  // Calculate the index
     }
     return -1;  // Not found
+}
+
+
+// Throws a segfault, useful for tracing the call stack
+inline void segFault() {
+    int* foo = (int*) -1;
+    printf("%d\n", *foo);
 }

@@ -31,5 +31,3 @@ struct NNUE {
 
     i16 evaluate(const Board& board);
 };
-
-extern NNUE nnue;
