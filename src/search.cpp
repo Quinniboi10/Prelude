@@ -327,6 +327,9 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
 
     for (usize currDepth = 1; currDepth <= depth; currDepth++) {
         SearchLimit& sl              = currDepth == 1 ? depthOneSl : mainSl;
+
+        i32 score = 0;
+
         auto         searchCancelled = [&]() {
             if (thisThread.type == MAIN)
                 return sl.outOfNodes(countNodes()) || sl.outOfTime() || thisThread.breakFlag.load(std::memory_order_relaxed) || (sp.softNodes > 0 && countNodes() > sp.softNodes);
@@ -334,7 +337,6 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
                 return thisThread.breakFlag.load(std::memory_order_relaxed) || (sp.softNodes > 0 && countNodes() > sp.softNodes);
         };
 
-        i32 score;
         if (currDepth < MIN_ASP_WINDOW_DEPTH)
             score = search<PV>(board, currDepth, 0, -INF_I16, INF_I16, ss, thisThread, sl);
         else {
@@ -383,6 +385,10 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
 
         lastScore = score;
         lastPV    = ss->pv;
+
+        // Go mate
+        if (isMain && sp.mate > 0 && (MATE_SCORE - std::abs(score)) / 2 + 1 <= sp.mate)
+            break;
     }
 
     if (isMain)
@@ -477,7 +483,7 @@ void bench() {
         Stopwatch<std::chrono::milliseconds> time;
 
         // Start the iterative deepening search
-        Search::iterativeDeepening(board, thisThread, Search::SearchParams(time, BENCH_DEPTH, 0, 0, 0, 0, 0, 0, 0));
+        Search::iterativeDeepening(board, thisThread, Search::SearchParams(time, BENCH_DEPTH, 0, 0, 0, 0, 0, 0, 0, 0));
 
         u64 durationMs = time.elapsed();
 

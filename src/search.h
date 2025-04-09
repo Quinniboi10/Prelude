@@ -86,8 +86,9 @@ struct SearchParams {
     u64   btime;
     u64   winc;
     u64   binc;
+    usize mate;
 
-    SearchParams(Stopwatch<std::chrono::milliseconds> time, usize depth, u64 nodes, u64 softNodes, u64 mtime, u64 wtime, u64 btime, u64 winc, u64 binc) :
+    SearchParams(Stopwatch<std::chrono::milliseconds> time, usize depth, u64 nodes, u64 softNodes, u64 mtime, u64 wtime, u64 btime, u64 winc, u64 binc, usize mate) :
         time(time),
         depth(depth),
         nodes(nodes),
@@ -96,7 +97,8 @@ struct SearchParams {
         wtime(wtime),
         btime(btime),
         winc(winc),
-        binc(binc) {}
+        binc(binc),
+        mate(mate) {}
 };
 
 struct SearchLimit {
