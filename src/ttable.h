@@ -4,6 +4,8 @@
 #include "move.h"
 
 #include <vector>
+#include <thread>
+#include <cstring>
 
 struct Transposition {
     u64  zobrist;
@@ -28,23 +30,57 @@ struct Transposition {
     }
 };
 
-struct TranspositionTable {
-   private:
-    std::vector<Transposition> table;
+class TranspositionTable {
+    Transposition* table;
 
    public:
     u64 size;
 
-    TranspositionTable(usize sizeInMB = 16) { resize(sizeInMB); }
+    TranspositionTable(usize sizeInMB = 16) {
+        table = nullptr;
+        reserve(sizeInMB);
+    }
 
-    void clear() { std::fill(table.begin(), table.end(), Transposition{}); }
+    ~TranspositionTable() {
+        if (table != nullptr)
+            free(table);
+    }
 
-    void resize(usize newSizeMiB) {
+
+    void clear(usize threadCount = 1) {
+        assert(threadCount > 0);
+
+        std::vector<std::thread> threads;
+
+        auto clearTT = [&](usize threadId) {
+            // The segment length is the number of entries each thread must clear
+            // To find where your thread should start (in entries), you can do threadId * segmentLength
+            // Converting segment length into the number of entries to clear can be done via length * bytes per entry
+            
+            usize start = (size * threadId) / threadCount;
+            usize end   = (size * (threadId + 1)) / threadCount;
+
+            std::memset(table + start, 0, (end - start) * sizeof(Transposition));
+        };
+
+        for (usize thread = 1; thread < threadCount; thread++)
+            threads.emplace_back(clearTT, thread);
+
+        clearTT(0);
+
+        for (std::thread& t : threads)
+            if (t.joinable())
+                t.join();
+    }
+
+    void reserve(usize newSizeMiB) {
         // Find number of bytes allowed
         size = newSizeMiB * 1024 * 1024 / sizeof(Transposition);
         if (size == 0)
             size += 1;
-        table.resize(size);
+        if (table != nullptr)
+            free(table);
+        table = static_cast<Transposition*>(malloc(size * sizeof(Transposition)));
     }
 
     u64 index(u64 key) { return key % size; }

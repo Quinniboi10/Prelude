@@ -177,6 +177,7 @@ mainLoop:
         thisThread.reset();
         board.reset();
         gameBuffer.clear();
+        TT.clear();
 
         usize randomMoves = Datagen::RAND_MOVES + randBool();
 

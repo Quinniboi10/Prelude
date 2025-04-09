@@ -364,8 +364,14 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
             break;
 
         if (isMain) {
-            // Depth, time, score
-            cout << "info depth " << currDepth << " seldepth " << thisThread.seldepth << " time " << sl.time.elapsed() << " nodes " << countNodes();
+            // Get info for hashfull
+            usize samples = std::min((u64) 1000, thisThread.TT.size);
+            usize hits    = 0;
+            for (usize sample = 0; sample < samples; sample++)
+                hits += thisThread.TT.getEntry(sample)->zobrist != 0;
+            // Depth, time, hash, score
+            cout << "info depth " << currDepth << " seldepth " << thisThread.seldepth << " time " << sl.time.elapsed() << " hashfull " << (int) (hits / (double) samples * 1000) << " nodes "
+                 << countNodes();
             if (sl.time.elapsed() > 0)
                 cout << " nps " << countNodes() * 1000 / sl.time.elapsed();
             cout << " score";
@@ -481,6 +487,8 @@ void bench() {
         TranspositionTable                   TT;
         Search::ThreadInfo                   thisThread(Search::ThreadType::SECONDARY, TT, benchBreakFlag);
         Stopwatch<std::chrono::milliseconds> time;
+
+        TT.clear();
 
         // Start the iterative deepening search
         Search::iterativeDeepening(board, thisThread, Search::SearchParams(time, BENCH_DEPTH, 0, 0, 0, 0, 0, 0, 0, 0));

@@ -17,7 +17,10 @@ struct Searcher {
 
     void makeThreads(int threads);
 
-    void resizeTT(usize size) { TT.resize(size); }
+    void resizeTT(usize size) {
+        TT.reserve(size);
+        TT.clear(workerData.size() + 1);
+    }
 
     void reset() {
         TT.clear();

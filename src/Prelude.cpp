@@ -144,8 +144,7 @@ int main(int argc, char* argv[]) {
         }
         else if (tokens[0] == "setoption") {
             if (tokens[2] == "Hash") {
-                searcher.mainData.TT.resize(std::stoi(tokens[findIndexOf(tokens, "value") + 1]));
-                searcher.mainData.TT.clear();
+                searcher.resizeTT(std::stoi(tokens[findIndexOf(tokens, "value") + 1]));
             }
             else if (tokens[2] == "EvalFile") {
                 string value = tokens[findIndexOf(tokens, "value") + 1];
