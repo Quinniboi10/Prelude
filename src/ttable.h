@@ -56,7 +56,7 @@ class TranspositionTable {
             // The segment length is the number of entries each thread must clear
             // To find where your thread should start (in entries), you can do threadId * segmentLength
             // Converting segment length into the number of entries to clear can be done via length * bytes per entry
-            
+
             usize start = (size * threadId) / threadCount;
             usize end   = (size * (threadId + 1)) / threadCount;
 
