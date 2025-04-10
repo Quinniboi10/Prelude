@@ -13,6 +13,7 @@ constexpr int MIN_ASP_WINDOW_DEPTH = 5;
 constexpr int INITIAL_ASP_WINDOW   = 30;
 
 constexpr int NMP_REDUCTION = 3;
+constexpr int NMP_DEPTH_DIVISOR = 3;
 
 constexpr int FUTILITY_PRUNING_MARGIN = 100;
 constexpr int FUTILITY_PRUNING_SCALAR = 80;
