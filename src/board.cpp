@@ -249,8 +249,8 @@ void Board::reset() {
     byColor[BLACK] = 0xFF000000000000ULL | 0x4200000000000000ULL | 0x2400000000000000ULL | 0x8100000000000000ULL | 0x800000000000000ULL | 0x1000000000000000ULL;
 
 
-    stm            = WHITE;
-    castling = {h1, a1, h8, a8};
+    stm      = WHITE;
+    castling = {a8, h8, a1, h1};
 
     epSquare = NO_SQUARE;
 
@@ -418,7 +418,7 @@ void Board::move(Move m) {
         }
     }
     else {
-        if (!minimal && mt != CASTLE)
+        if (!minimal && mt != CASTLE && mt != EN_PASSANT)
             accumulators.addSub(stm, to, endPT, from, pt);
         else if (pt == PAWN)
             halfMoveClock = 0;
@@ -440,6 +440,7 @@ void Board::move(Move m) {
         placePiece(stm, pt, to);
         break;
     case CASTLE:
+        assert(getPiece(to) == ROOK);
         removePiece(stm, ROOK, to);
         if (stm == WHITE) {
             if (from < to) {

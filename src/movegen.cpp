@@ -388,7 +388,6 @@ void Movegen::perftSuite(const string filePath) {
 
     string ln;
 
-    usize totalTests = 0;
     usize testsDone = 0;
     usize passedTests = 0;
     u64 totalNodes = 0;
