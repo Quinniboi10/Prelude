@@ -132,7 +132,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
         if (board.canNullMove() && staticEval >= beta && ply >= thisThread.minNmpPly) {
             Board testBoard = board;
             testBoard.nullMove();
-            i32 score = -search<NodeType::NONPV>(testBoard, depth - NMP_REDUCTION, ply + 1, -beta, -beta + 1, ss + 1, thisThread, sl);
+            i32 score = -search<NodeType::NONPV>(testBoard, depth - NMP_REDUCTION - depth / NMP_DEPTH_DIVISOR, ply + 1, -beta, -beta + 1, ss + 1, thisThread, sl);
 
             if (score >= beta) {
                 // Verification search to guard zugzwang
