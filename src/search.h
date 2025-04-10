@@ -88,6 +88,18 @@ struct SearchParams {
     u64   binc;
     usize mate;
 
+    SearchParams() {
+        depth     = MAX_PLY;
+        nodes     = 0;
+        softNodes = 0;
+        mtime     = 0;
+        wtime     = 0;
+        btime     = 0;
+        winc      = 0;
+        binc      = 0;
+        mate      = 0;
+    }
+
     SearchParams(Stopwatch<std::chrono::milliseconds> time, usize depth, u64 nodes, u64 softNodes, u64 mtime, u64 wtime, u64 btime, u64 winc, u64 binc, usize mate) :
         time(time),
         depth(depth),

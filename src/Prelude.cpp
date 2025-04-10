@@ -65,7 +65,7 @@ int main(int argc, char* argv[]) {
 
     board.reset();
 
-    Searcher searcher;
+    Searcher searcher(board);
 
     // *********** ./Prelude <ARGS> ************
     if (argc > 1) {
@@ -142,7 +142,7 @@ int main(int argc, char* argv[]) {
 
             usize mate = getValueFollowing("mate", 0);
 
-            searcher.start(board, Search::SearchParams(commandTime, depth, maxNodes, softNodes, mtime, wtime, btime, winc, binc, mate));
+            searcher.start(Search::SearchParams(commandTime, depth, maxNodes, softNodes, mtime, wtime, btime, winc, binc, mate));
         }
         else if (tokens[0] == "setoption") {
             if (tokens[2] == "Hash") {
