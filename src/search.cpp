@@ -12,6 +12,7 @@ namespace Search {
 struct Stack {
     PvList pv;
     Move   excluded;
+    i16    staticEval;
 };
 
 array<array<array<int, 219>, MAX_PLY + 1>, 2> lmrTable;
@@ -120,11 +121,13 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
             return alpha;
     }
 
-    i16 staticEval = nnue.evaluate(board);
+    i16& staticEval = ss->staticEval = nnue.evaluate(board);
+
+    bool improving = ply >= 2 && (ss - 2)->staticEval < staticEval;
 
     if (!isPV && ply > 0 && !board.inCheck() && ss->excluded.isNull()) {
         // Reverse futility pruning
-        int rfpMargin = RFP_DEPTH_SCALAR * depth;
+        int rfpMargin = RFP_DEPTH_SCALAR * (depth - improving);
         if (staticEval - rfpMargin >= beta && depth < 7)
             return staticEval;
 
