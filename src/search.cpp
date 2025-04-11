@@ -294,6 +294,8 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
     if (searchTime != 0)
         searchTime -= MOVE_OVERHEAD;
 
+    i64 softTime = searchTime * 0.6;
+
     SearchLimit depthOneSl(sp.time, 0, sp.nodes);
     SearchLimit mainSl(sp.time, searchTime, sp.nodes);
 
@@ -386,9 +388,15 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
         lastScore = score;
         lastPV    = ss->pv;
 
-        // Go mate
-        if (isMain && sp.mate > 0 && static_cast<usize>((MATE_SCORE - std::abs(score)) / 2 + 1) <= sp.mate)
-            break;
+        if (isMain) {
+            // Go mate
+            if (sp.mate > 0 && static_cast<usize>((MATE_SCORE - std::abs(score)) / 2 + 1) <= sp.mate)
+                break;
+
+            // Soft TM
+            if (sp.time.elapsed() >= softTime)
+                break;
+        }
     }
 
     if (isMain)
