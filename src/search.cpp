@@ -124,7 +124,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
 
     if (!isPV && ply > 0 && !board.inCheck() && ss->excluded.isNull()) {
         // Reverse futility pruning
-        int rfpMargin = 100 * depth;
+        int rfpMargin = RFP_DEPTH_SCALAR * depth;
         if (staticEval - rfpMargin >= beta && depth < 7)
             return staticEval;
 
