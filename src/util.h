@@ -5,8 +5,10 @@
 #include <sstream>
 #include <cassert>
 #include <cstring>
+#include <string_view>
 
 #include "types.h"
+#include "../external/fmt/fmt/format.h"
 
 #define ctzll(x) std::countr_zero(x)
 
@@ -81,10 +83,10 @@ constexpr Rank flipRank(Square s) { return Rank(s ^ 0b111000); }
 constexpr Square toSquare(Rank rank, File file) { return static_cast<Square>((rank << 3) | file); }
 
 // Takes square (h8) and converts it into a bitboard index (64)
-constexpr Square parseSquare(const string square) { return static_cast<Square>((square.at(1) - '1') * 8 + (square.at(0) - 'a')); }
+constexpr Square parseSquare(const std::string_view square) { return static_cast<Square>((square.at(1) - '1') * 8 + (square.at(0) - 'a')); }
 
 // Takes a square (64) and converts into algebraic notation (h8)
-constexpr string squareToAlgebraic(int sq) { return string(1, 'a' + (sq % 8)) + string(1, '1' + (sq / 8)); };
+constexpr string squareToAlgebraic(int sq) { return fmt::format("{}{}", static_cast<char>('a' + (sq % 8)), static_cast<char>('1' + (sq / 8))); }
 
 constexpr u8 castleIndex(Color c, bool kingside) { return c == WHITE ? (kingside ? 3 : 2) : (kingside ? 1 : 0); }
 
