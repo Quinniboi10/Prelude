@@ -99,7 +99,7 @@ int main(int argc, char* argv[]) {
             cout << "id name Prelude" << endl;
             cout << "id author Quinniboi10" << endl;
             cout << "option name Threads type spin default 1 min 1 max 512" << endl;
-            cout << "option name Hash type spin default 1 min 1 max 524288" << endl;
+            cout << "option name Hash type spin default 16 min 1 max 524288" << endl;
             cout << "option name Move Overhead type spin default 20 min 0 max 1000" << endl;
             cout << "option name EvalFile type string default internal" << endl;
             cout << "option name UCI_Chess960 type check default false" << endl;
