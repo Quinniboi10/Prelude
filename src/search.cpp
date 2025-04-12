@@ -397,7 +397,7 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
                 break;
 
             // Soft TM
-            if (sp.time.elapsed() >= softTime)
+            if (softTime > 0 && sp.time.elapsed() >= softTime)
                 break;
         }
     }
