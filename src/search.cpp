@@ -192,7 +192,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
 
         if (!isLoss(bestScore)) {
             // Late move pruning
-            if (!skipQuiets && board.isQuiet(m) && movesSeen >= 6 + depth * depth) {
+            if (!skipQuiets && board.isQuiet(m) && movesSeen >= (6 + depth * depth) / (2 - improving)) {
                 skipQuiets = true;
                 continue;
             }
