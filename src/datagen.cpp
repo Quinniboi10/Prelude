@@ -191,6 +191,7 @@ mainLoop:
 
         while (!board.isGameOver()) {
             MoveEvaluation move = Search::iterativeDeepening(board, thisThread, sp);
+            assert(!move.move.isNull());
             gameBuffer.emplace_back(move.move, board.stm == WHITE ? move.eval : -move.eval);
             board.move(move.move);
             cachedPositions++;
