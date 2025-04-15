@@ -6,11 +6,16 @@
 struct Searcher {
     TranspositionTable TT;
     std::atomic<bool>  stopFlag;
-    Search::ThreadInfo mainData = Search::ThreadInfo(Search::ThreadType::MAIN, TT, stopFlag);
     std::thread        mainThread;
 
     std::vector<Search::ThreadInfo> workerData;
     std::vector<std::thread>        workers;
+
+    Searcher() {
+        stopFlag.store(true, std::memory_order_relaxed);
+        workerData.emplace_back(Search::ThreadType::MAIN, TT, stopFlag);
+        reset();
+    }
 
     void start(Board& board, Search::SearchParams sp);
     void stop();
@@ -24,7 +29,6 @@ struct Searcher {
 
     void reset() {
         TT.clear();
-        mainData.reset();
         for (Search::ThreadInfo& w : workerData)
             w.reset();
     }

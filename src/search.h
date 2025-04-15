@@ -23,7 +23,16 @@ enum NodeType {
     PV
 };
 
+struct Stack {
+    PvList pv;
+    array<array<int, 64>, 6>* conthistSegment;
+    Move   excluded;
+    i16    staticEval;
+};
+
 struct ThreadInfo {
+    // Conthist is indexed [ply - 1 PT][ply - 1 toSq][PT][toSq]
+    array<array<array<array<int, 64>, 6>, 64>, 6> conthist;
     // History is indexed [stm][from][to]
     array<array<array<int, 64>, 64>, 2> history;
 
@@ -42,6 +51,7 @@ struct ThreadInfo {
         TT(TT),
         breakFlag(breakFlag) {
         std::memset(&history, DEFAULT_HISTORY_VALUE, sizeof(history));
+        std::memset(&conthist, 0, sizeof(conthist));
         breakFlag.store(false, std::memory_order_relaxed);
         seldepth  = 0;
         minNmpPly = 0;
@@ -49,6 +59,7 @@ struct ThreadInfo {
 
     // Copy constructor
     ThreadInfo(const ThreadInfo& other) :
+        conthist(other.conthist),
         history(other.history),
         type(other.type),
         TT(other.TT),
@@ -64,6 +75,11 @@ struct ThreadInfo {
     }
 
     int getHist(Color stm, Move m) { return history[stm][m.from()][m.to()]; }
+
+    void updateConthist(array<array<int, 64>, 6>* conthistSegment, Board& board, Move m, int bonus) {
+        int clampedBonus = std::clamp(bonus, -MAX_HISTORY, MAX_HISTORY);
+        (*conthistSegment)[board.getPiece(m.from())][m.to()] += clampedBonus - (*conthistSegment)[board.getPiece(m.from())][m.to()] * abs(clampedBonus) / MAX_HISTORY;
+    }
 
     void reset() {
         for (auto& stm : history)

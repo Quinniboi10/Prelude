@@ -9,12 +9,6 @@
 #include <cmath>
 
 namespace Search {
-struct Stack {
-    PvList pv;
-    Move   excluded;
-    i16    staticEval;
-};
-
 array<array<array<int, 219>, MAX_PLY + 1>, 2> lmrTable;
 void                                          fillLmrTable() {
     for (int isQuiet = 0; isQuiet <= 1; isQuiet++)
@@ -35,8 +29,10 @@ void                                          fillLmrTable() {
 }
 
 // Quiesence search
-i16 qsearch(Board& board, int alpha, int beta, ThreadInfo& thisThread, SearchLimit& sl) {
+i16 qsearch(Board& board, usize ply, int alpha, int beta, Stack* ss, ThreadInfo& thisThread, SearchLimit& sl) {
     int staticEval = nnue.evaluate(board);
+    if (ply > MAX_PLY)
+        return staticEval;
 
     int bestScore = staticEval;
 
@@ -45,7 +41,7 @@ i16 qsearch(Board& board, int alpha, int beta, ThreadInfo& thisThread, SearchLim
     if (alpha < bestScore)
         alpha = bestScore;
 
-    Movepicker<NOISY_ONLY> picker(board, thisThread);
+    Movepicker<NOISY_ONLY> picker(board, thisThread, ss);
     while (picker.hasNext()) {
         if (thisThread.breakFlag.load(std::memory_order_relaxed))
             return bestScore;
@@ -70,7 +66,7 @@ i16 qsearch(Board& board, int alpha, int beta, ThreadInfo& thisThread, SearchLim
         testBoard.move(m);
         thisThread.nodes++;
 
-        i16 score = -qsearch(testBoard, -beta, -alpha, thisThread, sl);
+        i16 score = -qsearch(testBoard, ply + 1, -beta, -alpha, ss + 1, thisThread, sl);
 
         if (score > bestScore) {
             bestScore = score;
@@ -93,7 +89,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
     if (board.isDraw() && ply > 0)
         return 0;
     if (depth <= 0)
-        return qsearch(board, alpha, beta, thisThread, sl);
+        return qsearch(board, ply, alpha, beta, ss, thisThread, sl);
 
     if (ply + 1 > thisThread.seldepth)
         thisThread.seldepth = ply + 1;
@@ -163,7 +159,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
 
     bool skipQuiets = false;
 
-    Movepicker<ALL_MOVES> picker(board, thisThread);
+    Movepicker<ALL_MOVES> picker(board, thisThread, ss);
     while (picker.hasNext()) {
         if (thisThread.breakFlag.load(std::memory_order_relaxed))
             return bestScore;
@@ -208,6 +204,9 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
         testBoard.move(m);
         thisThread.nodes++;
         movesSeen++;
+
+        // Set the segment of conthist
+        ss->conthistSegment = &(thisThread.conthist[board.getPiece(m.from())][m.to()]);
 
         usize extension = 0;
         if (ply > 0 && depth >= SE_MIN_DEPTH && ttEntry != nullptr && ttEntry->zobrist == board.zobrist && m == ttEntry->move && ttEntry->depth >= depth - 3 && ttEntry->flag != FAIL_LOW) {
@@ -257,6 +256,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
             ttFlag = BETA_CUTOFF;
             if (board.isQuiet(m)) {
                 thisThread.updateHist(board.stm, m, 20 * depth * depth);
+                thisThread.updateConthist(ss->conthistSegment, board, m, 20 * depth * depth);
                 // History malus
                 for (const Move quietMove : seenQuiets) {
                     if (quietMove == m)
@@ -302,8 +302,8 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
     SearchLimit depthOneSl(sp.time, 0, sp.nodes);
     SearchLimit mainSl(sp.time, searchTime, sp.nodes);
 
-    array<Stack, MAX_PLY> stack;
-    Stack*                ss = &stack[0];
+    array<Stack, MAX_PLY + 2> stack;
+    Stack*                ss = &stack[1];
 
     for (Stack& ss : stack) {
         ss.pv.length = 0;
@@ -490,21 +490,21 @@ void bench() {
         // Set up for iterative deepening
         std::atomic<bool>                    benchBreakFlag(false);
         TranspositionTable                   TT;
-        Search::ThreadInfo                   thisThread(Search::ThreadType::SECONDARY, TT, benchBreakFlag);
+        std::unique_ptr<Search::ThreadInfo> thisThread = std::make_unique<Search::ThreadInfo>(Search::ThreadType::SECONDARY, TT, benchBreakFlag);
         Stopwatch<std::chrono::milliseconds> time;
 
         TT.clear();
 
         // Start the iterative deepening search
-        Search::iterativeDeepening(board, thisThread, Search::SearchParams(time, BENCH_DEPTH, 0, 0, 0, 0, 0, 0, 0, 0));
+        Search::iterativeDeepening(board, *thisThread, Search::SearchParams(time, BENCH_DEPTH, 0, 0, 0, 0, 0, 0, 0, 0));
 
         u64 durationMs = time.elapsed();
 
-        totalNodes += thisThread.nodes;
+        totalNodes += thisThread->nodes;
         totalTimeMs += durationMs;
 
         cout << "FEN: " << fen << endl;
-        cout << "Nodes: " << formatNum(thisThread.nodes) << ", Time: " << formatTime(durationMs) << endl;
+        cout << "Nodes: " << formatNum(thisThread->nodes) << ", Time: " << formatTime(durationMs) << endl;
         cout << "----------------------------------------" << endl;
     }
 

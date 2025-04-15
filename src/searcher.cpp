@@ -3,10 +3,9 @@
 #include "search.h"
 
 void Searcher::start(Board& board, Search::SearchParams sp) {
-    mainData.nodes = 0;
-    mainThread     = std::thread(Search::iterativeDeepening, board, std::ref(mainData), sp, this);
+    mainThread = std::thread(Search::iterativeDeepening, board, std::ref(workerData[0]), sp, this);
 
-    for (usize i = 0; i < workerData.size(); i++) {
+    for (usize i = 1; i < workerData.size(); i++) {
         workerData[i].nodes = 0;
         workers.emplace_back(Search::iterativeDeepening, board, std::ref(workerData[i]), sp, nullptr);
     }
