@@ -123,7 +123,7 @@ string makeFileName() {
 
     string randomStr = std::to_string(dist(engine));
 
-    return "data-" + std::format("{:04}-{:02}-{:02}", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday) + "-" + randomStr + ".preludedata";
+    return "data-" + fmt::format("{:04}-{:02}-{:02}", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday) + "-" + randomStr + ".preludedata";
 }
 
 void writeToFile(std::ofstream& outFile, const std::vector<Game>& data) {
