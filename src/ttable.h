@@ -43,7 +43,7 @@ class TranspositionTable {
 
     ~TranspositionTable() {
         if (table != nullptr)
-            free(table);
+            std::free(table);
     }
 
 
@@ -58,7 +58,7 @@ class TranspositionTable {
             // Converting segment length into the number of entries to clear can be done via length * bytes per entry
 
             usize start = (size * threadId) / threadCount;
-            usize end   = (size * (threadId + 1)) / threadCount;
+            usize end   = std::min((size * (threadId + 1)) / threadCount, size);
 
             std::memset(table + start, 0, (end - start) * sizeof(Transposition));
         };
@@ -74,16 +74,21 @@ class TranspositionTable {
     }
 
     void reserve(usize newSizeMiB) {
+        assert(newSizeMiB > 0);
         // Find number of bytes allowed
         size = newSizeMiB * 1024 * 1024 / sizeof(Transposition);
-        if (size == 0)
-            size += 1;
         if (table != nullptr)
-            free(table);
-        table = static_cast<Transposition*>(malloc(size * sizeof(Transposition)));
+            std::free(table);
+        table = static_cast<Transposition*>(std::malloc(size * sizeof(Transposition)));
     }
 
-    u64 index(u64 key) { return key % size; }
+    u64 index(u64 key) {
+    #ifdef _MSC_VER
+        return key % size;
+    #else
+        return static_cast<u64>((static_cast<__int128>(key) * static_cast<__int128>(size)) >> 64);
+    #endif
+    }
 
     void setEntry(u64 key, Transposition& entry) { table[index(key)] = entry; }
 
