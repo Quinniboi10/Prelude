@@ -27,10 +27,6 @@ using std::cerr;
 using std::cout;
 using std::endl;
 
-constexpr u64 INF_U64 = std::numeric_limits<u64>::max();
-constexpr int INF_INT = std::numeric_limits<int>::max();
-constexpr int INF_I16 = std::numeric_limits<i16>::max();
-
 enum Color : int {
     WHITE = 1,
     BLACK = 0

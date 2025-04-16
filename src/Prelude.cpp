@@ -216,6 +216,7 @@ int main(int argc, char* argv[]) {
             cout << "Is in check (white): " << board.isUnderAttack(WHITE, whiteKing) << endl;
             cout << "Is in check (black): " << board.isUnderAttack(BLACK, blackKing) << endl;
             cout << "En passant square: " << (board.epSquare != NO_SQUARE ? squareToAlgebraic(board.epSquare) : "-") << endl;
+            cout << "Half move clock: " << board.halfMoveClock << endl;
             cout << "Castling rights: { ";
             cout << squareToAlgebraic(board.castling[castleIndex(WHITE, true)]) << ", ";
             cout << squareToAlgebraic(board.castling[castleIndex(WHITE, false)]) << ", ";
