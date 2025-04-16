@@ -4,6 +4,7 @@
 #include "movegen.h"
 #include "globals.h"
 #include "search.h"
+#include "constants.h"
 
 #include <cassert>
 #include <random>
@@ -394,6 +395,9 @@ void Board::minimalMove(Move m) { move<true>(m); }
 // Backend for all moves
 template<bool minimal>
 void Board::move(Move m) {
+    zobrist ^= hashCastling();
+    zobrist ^= EP_ZTABLE[epSquare];
+
     epSquare        = NO_SQUARE;
     fromNull        = false;
     Square    from  = m.from();
@@ -402,9 +406,6 @@ void Board::move(Move m) {
     PieceType pt    = getPiece(from);
     PieceType toPT  = NO_PIECE_TYPE;
     PieceType endPT = m.typeOf() == PROMOTION ? m.promo() : pt;
-
-    zobrist ^= hashCastling();
-    zobrist ^= EP_ZTABLE[epSquare];
 
     removePiece(stm, pt, from);
     if (isCapture(m)) {
@@ -418,9 +419,10 @@ void Board::move(Move m) {
         }
     }
     else {
-        if (!minimal && mt != CASTLE && mt != EN_PASSANT)
+        if (!minimal && mt != CASTLE)
             accumulators.addSub(stm, to, endPT, from, pt);
-        else if (pt == PAWN)
+
+        if (pt == PAWN)
             halfMoveClock = 0;
         else
             halfMoveClock++;
@@ -631,7 +633,17 @@ bool Board::isDraw() {
     if (halfMoveClock >= 100)
         return !inCheck() || Movegen::generateLegalMoves(*this).length != 0;
 
-    // Trifold
+    // Insufficient material
+    if (pieces(PAWN) == 0                           // No pawns
+        && pieces(QUEEN) == 0                       // No queens
+        && pieces(ROOK) == 0                        // No rooks
+        && ((pieces(BISHOP) & LIGHT_SQ_BB) == 0     // No light sq bishops
+            || (pieces(BISHOP) & DARK_SQ_BB) == 0)  // OR no dark sq bishops
+        && ((pieces(BISHOP) | pieces(KNIGHT)) == 0) // Not bishop + knight
+        && popcount(pieces(KNIGHT)) < 2)            // Under 2 knights
+        return true;
+
+    // Threefold
     u8 seen = 0;
     for (u64 hash : posHistory) {
         seen += hash == zobrist;

@@ -2,6 +2,7 @@
 #include "board.h"
 #include "movegen.h"
 #include "search.h"
+#include "constants.h"
 
 #include "../external/fmt/fmt/format.h"
 

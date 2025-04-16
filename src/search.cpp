@@ -3,6 +3,7 @@
 #include "movegen.h"
 #include "searcher.h"
 #include "config.h"
+#include "constants.h"
 #include "movepicker.h"
 #include "wdl.h"
 
@@ -397,7 +398,7 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
                 break;
 
             // Soft TM
-            if (softTime > 0 && sp.time.elapsed() >= softTime)
+            if (softTime > 0 && static_cast<i64>(sp.time.elapsed()) >= softTime)
                 break;
         }
     }
