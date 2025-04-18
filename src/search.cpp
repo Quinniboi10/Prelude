@@ -38,6 +38,16 @@ void                                          fillLmrTable() {
 // Quiesence search
 template<NodeType isPV>
 i16 qsearch(Board& board, usize ply, int alpha, int beta, Stack* ss, ThreadInfo& thisThread, SearchLimit& sl) {
+    Transposition* ttEntry = thisThread.TT.getEntry(board.zobrist);
+
+    if (!isPV && ttEntry->zobrist == board.zobrist
+        && (ttEntry->flag == EXACT                                       // Exact score
+            || (ttEntry->flag == BETA_CUTOFF && ttEntry->score >= beta)  // Lower bound, fail high
+            || (ttEntry->flag == FAIL_LOW && ttEntry->score <= alpha)    // Upper bound, fail low
+            )) {
+        return ttEntry->score;
+    }
+
     int staticEval = nnue.evaluate(board);
     if (ply > MAX_PLY)
         return staticEval;
