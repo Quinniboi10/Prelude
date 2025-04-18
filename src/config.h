@@ -9,6 +9,9 @@ constexpr i16   BENCH_DEPTH = 12;
 constexpr int DEFAULT_HISTORY_VALUE = 0;
 constexpr int MAX_HISTORY           = 16384;
 
+constexpr int HISTORY_PRUNING_MARGIN       = -400;
+constexpr int HISTORY_PRUNING_DEPTH_SCALAR = -1500;
+
 constexpr int MIN_ASP_WINDOW_DEPTH = 5;
 constexpr int INITIAL_ASP_WINDOW   = 30;
 

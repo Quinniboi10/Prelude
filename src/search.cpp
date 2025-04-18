@@ -215,6 +215,12 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
                 skipQuiets = true;
                 continue;
             }
+
+            // History pruning
+            if (depth < 5 && thisThread.getHist(board.stm, m) <= HISTORY_PRUNING_MARGIN + depth * HISTORY_PRUNING_DEPTH_SCALAR) {
+                skipQuiets = true;
+                continue;
+            }
         }
 
         Board testBoard = board;
