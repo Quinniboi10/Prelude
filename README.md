@@ -96,6 +96,7 @@ In Prelude.cpp:
 - **Shawn\_xu**: Explaining NNUEs and many other things
 - **A\_randomnoob**: Fixing obvious mistakes
 - **Matt**: Providing help and allowing me to use his git instance, as well as sharing OpenBench
+- **Kan**: Making the Prelude TCEC logo
 - **jw**: Helping me with NNUE training
 - **Cosmo**: Creator of Viri binpacks, and the person who added it in bullet
 - **All other members of the Stockfish discord**: So many other people have helped with this project, thanks to everyone!
