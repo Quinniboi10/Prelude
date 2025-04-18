@@ -121,20 +121,6 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
     if (ply > thisThread.seldepth)
         thisThread.seldepth = ply + 1;
 
-    Transposition* ttEntry = ss->excluded.isNull() ? thisThread.TT.getEntry(board.zobrist) : nullptr;
-
-    if (!isPV && ttEntry != nullptr && ttEntry->zobrist == board.zobrist && ttEntry->depth >= depth
-        && (ttEntry->flag == EXACT                                       // Exact score
-            || (ttEntry->flag == BETA_CUTOFF && ttEntry->score >= beta)  // Lower bound, fail high
-            || (ttEntry->flag == FAIL_LOW && ttEntry->score <= alpha)    // Upper bound, fail low
-            )) {
-        return ttEntry->score;
-    }
-
-    // Internal iterative reductions
-    if (ttEntry != nullptr && (ttEntry->zobrist != board.zobrist || ttEntry->move.isNull()) && depth > 5)
-        depth--;
-
     // Mate distance pruning
     if (ply > 0) {
         alpha = std::max(alpha, static_cast<int>(-MATE_SCORE + ply));
@@ -143,6 +129,22 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
         if (alpha >= beta)
             return alpha;
     }
+
+    Transposition* ttEntry = thisThread.TT.getEntry(board.zobrist);
+    bool           ttHit   = ss->excluded.isNull() && ttEntry->zobrist == board.zobrist;
+
+    // TT cutoffs
+    if (!isPV && ttHit && ttEntry->depth >= depth
+        && (ttEntry->flag == EXACT                                       // Exact score
+            || (ttEntry->flag == BETA_CUTOFF && ttEntry->score >= beta)  // Lower bound, fail high
+            || (ttEntry->flag == FAIL_LOW && ttEntry->score <= alpha)    // Upper bound, fail low
+            )) {
+        return ttEntry->score;
+    }
+
+    // Internal iterative reductions
+    if (ss->excluded.isNull() && (ttEntry->zobrist != board.zobrist || ttEntry->move.isNull()) && depth > 5)
+        depth--;
 
     i16& staticEval = ss->staticEval = nnue.evaluate(board);
 
@@ -213,7 +215,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
         if (!board.isLegal(m))
             continue;
 
-        if (!isLoss(bestScore)) {
+        if (ply > 0 && !isLoss(bestScore)) {
             // Late move pruning
             if (!skipQuiets && board.isQuiet(m) && movesSeen >= (6 + depth * depth) / (2 - improving)) {
                 skipQuiets = true;
@@ -221,7 +223,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
             }
 
             // Futility pruning
-            if (!board.inCheck() && ply > 0 && depth < 6 && board.isQuiet(m) && staticEval + FUTILITY_PRUNING_MARGIN + FUTILITY_PRUNING_SCALAR * depth < alpha) {
+            if (!board.inCheck() && depth < 6 && board.isQuiet(m) && staticEval + FUTILITY_PRUNING_MARGIN + FUTILITY_PRUNING_SCALAR * depth < alpha) {
                 skipQuiets = true;
                 continue;
             }
@@ -233,7 +235,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
         movesSeen++;
 
         usize extension = 0;
-        if (ply > 0 && depth >= SE_MIN_DEPTH && ttEntry != nullptr && ttEntry->zobrist == board.zobrist && m == ttEntry->move && ttEntry->depth >= depth - 3 && ttEntry->flag != FAIL_LOW) {
+        if (ply > 0 && depth >= SE_MIN_DEPTH && ttHit && m == ttEntry->move && ttEntry->depth >= depth - 3 && ttEntry->flag != FAIL_LOW) {
             const int sBeta  = std::max(-INF_INT + 1, ttEntry->score - depth * 2);
             const int sDepth = (depth - 1) / 2;
 
@@ -298,7 +300,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
         return 0;
     }
 
-    if (ttEntry != nullptr)
+    if (ss->excluded.isNull())
         *ttEntry = Transposition(board.zobrist, bestMove, ttFlag, bestScore, depth);
 
     return bestScore;
