@@ -189,6 +189,8 @@ int main(int argc, char* argv[]) {
             }
             Movegen::perft(board, std::stoi(tokens[1]), true);
         }
+        else if (tokens[0] == "perftsuite")
+            Movegen::perftSuite(tokens[1]);
         else if (tokens[0] == "move") {
             board.move(Move(tokens[1], board));
         }
@@ -228,8 +230,6 @@ int main(int argc, char* argv[]) {
             cout << "Stm is " << (board.inCheck() ? "in check" : "NOT in check") << endl;
         else if (tokens[0] == "debug.islegal")
             cout << tokens[1] << " is " << (board.isLegal(Move(tokens[1], board)) ? "" : "not ") << "legal" << endl;
-        else if (tokens[0] == "perftsuite")
-            Movegen::perftSuite(tokens[1]);
         else if (command == "debug.popcnt") {
             cout << "White pawns: " << popcount(board.pieces(WHITE, PAWN)) << endl;
             cout << "White knigts: " << popcount(board.pieces(WHITE, KNIGHT)) << endl;
