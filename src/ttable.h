@@ -83,11 +83,7 @@ class TranspositionTable {
     }
 
     u64 index(u64 key) {
-    #ifdef _MSC_VER
-        return key % size;
-    #else
-        return static_cast<u64>((static_cast<__int128>(key) * static_cast<__int128>(size)) >> 64);
-    #endif
+        return static_cast<u64>((static_cast<u128>(key) * static_cast<u128>(size)) >> 64);
     }
 
     void setEntry(u64 key, Transposition& entry) { table[index(key)] = entry; }
