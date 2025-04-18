@@ -18,6 +18,13 @@ using i64 = int64_t;
 using i32 = int32_t;
 using i16 = int16_t;
 
+#ifdef _MSC_VER
+    #include <__msvc_int128.hpp>
+using u128 = std::_Unsigned128;
+#else
+using u128 = unsigned __int128;
+#endif
+
 using usize = size_t;
 
 using std::popcount;
