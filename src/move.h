@@ -71,6 +71,8 @@ struct PvList {
     array<Move, MAX_PLY> moves;
     u32                  length;
 
+    PvList() { length = 0; }
+
     void update(Move move, const PvList& child) {
         moves[0] = move;
         std::copy(child.moves.begin(), child.moves.begin() + child.length, moves.begin() + 1);

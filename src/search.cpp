@@ -36,8 +36,16 @@ void                                          fillLmrTable() {
 }
 
 // Quiesence search
-i16 qsearch(Board& board, int alpha, int beta, ThreadInfo& thisThread, SearchLimit& sl) {
+template<NodeType isPV>
+i16 qsearch(Board& board, usize ply, int alpha, int beta, Stack* ss, ThreadInfo& thisThread, SearchLimit& sl) {
     int staticEval = nnue.evaluate(board);
+    if (ply > MAX_PLY)
+        return staticEval;
+    if constexpr (isPV)
+        ss->pv.length = 0;
+
+    if (ply > thisThread.seldepth)
+        thisThread.seldepth = ply + 1;
 
     int bestScore = staticEval;
 
@@ -71,12 +79,15 @@ i16 qsearch(Board& board, int alpha, int beta, ThreadInfo& thisThread, SearchLim
         testBoard.move(m);
         thisThread.nodes++;
 
-        i16 score = -qsearch(testBoard, -beta, -alpha, thisThread, sl);
+        i16 score = -qsearch<isPV>(testBoard, ply + 1, -beta, -alpha, ss + 1, thisThread, sl);
 
         if (score > bestScore) {
             bestScore = score;
-            if (score > alpha)
+            if (score > alpha) {
                 alpha = score;
+                if constexpr (isPV)
+                    ss->pv.update(m, (ss + 1)->pv);
+            }
         }
         if (score >= beta)
             break;
@@ -88,15 +99,16 @@ i16 qsearch(Board& board, int alpha, int beta, ThreadInfo& thisThread, SearchLim
 // Main search
 template<NodeType isPV>
 i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, ThreadInfo& thisThread, SearchLimit& sl) {
-    if (depth + ply > 255)
-        depth = 255 - ply;
-    ss->pv.length = 0;
+    if (depth + ply > MAX_PLY)
+        depth = MAX_PLY - ply;
+    if constexpr (isPV)
+        ss->pv.length = 0;
     if (board.isDraw() && ply > 0)
         return 0;
     if (depth <= 0)
-        return qsearch(board, alpha, beta, thisThread, sl);
+        return qsearch<isPV>(board, ply, alpha, beta, ss, thisThread, sl);
 
-    if (ply + 1 > thisThread.seldepth)
+    if (ply > thisThread.seldepth)
         thisThread.seldepth = ply + 1;
 
     Transposition* ttEntry = ss->excluded.isNull() ? thisThread.TT.getEntry(board.zobrist) : nullptr;
@@ -199,7 +211,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
             }
 
             // Futility pruning
-            if (!board.inCheck() && ply > 0 && depth < 6 && !isLoss(bestScore) && board.isQuiet(m) && staticEval + FUTILITY_PRUNING_MARGIN + FUTILITY_PRUNING_SCALAR * depth < alpha) {
+            if (!board.inCheck() && ply > 0 && depth < 6 && board.isQuiet(m) && staticEval + FUTILITY_PRUNING_MARGIN + FUTILITY_PRUNING_SCALAR * depth < alpha) {
                 skipQuiets = true;
                 continue;
             }
@@ -303,13 +315,8 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
     SearchLimit depthOneSl(sp.time, 0, sp.nodes);
     SearchLimit mainSl(sp.time, searchTime, sp.nodes);
 
-    array<Stack, MAX_PLY> stack;
-    Stack*                ss = &stack[0];
-
-    for (Stack& ss : stack) {
-        ss.pv.length = 0;
-        ss.excluded  = Move();
-    }
+    auto stack = std::make_unique<array<Stack, MAX_PLY + 2>>();
+    Stack* ss = reinterpret_cast<Stack*>(stack->data() + 1);
 
     usize depth = std::min(sp.depth, MAX_PLY);
 
