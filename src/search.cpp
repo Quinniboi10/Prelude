@@ -271,8 +271,8 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
 
         if (score > bestScore) {
             bestScore = score;
-            bestMove  = m;
             if (score > alpha) {
+                bestMove = m;
                 ttFlag = EXACT;
                 alpha  = score;
                 if constexpr (isPV)
