@@ -16,6 +16,7 @@ constexpr int RFP_DEPTH_SCALAR = 70;
 
 constexpr int NMP_REDUCTION = 3;
 constexpr int NMP_DEPTH_DIVISOR = 3;
+constexpr int NMP_EVAL_DIVISOR  = 160;
 
 constexpr int FUTILITY_PRUNING_MARGIN = 100;
 constexpr int FUTILITY_PRUNING_SCALAR = 80;
