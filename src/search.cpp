@@ -158,9 +158,10 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
 
         // Null move pruning
         if (board.canNullMove() && staticEval >= beta && ply >= thisThread.minNmpPly) {
+            const int reduction = NMP_REDUCTION + std::min(2, (staticEval - beta) / NMP_EVAL_DIVISOR) + depth / NMP_DEPTH_DIVISOR;
             Board testBoard = board;
             testBoard.nullMove();
-            i32 score = -search<NodeType::NONPV>(testBoard, depth - NMP_REDUCTION - depth / NMP_DEPTH_DIVISOR, ply + 1, -beta, -beta + 1, ss + 1, thisThread, sl);
+            i32 score = -search<NodeType::NONPV>(testBoard, depth - reduction, ply + 1, -beta, -beta + 1, ss + 1, thisThread, sl);
 
             if (score >= beta) {
                 // Verification search to guard zugzwang
