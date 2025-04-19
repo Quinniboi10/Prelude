@@ -64,6 +64,9 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, Stack* ss, ThreadInfo&
     if (alpha < bestScore)
         alpha = bestScore;
 
+    Move   bestMove;
+    TTFlag ttFlag = FAIL_LOW;
+
     Movepicker<NOISY_ONLY> picker(board, thisThread);
     while (picker.hasNext()) {
         if (thisThread.breakFlag.load(std::memory_order_relaxed))
@@ -93,15 +96,21 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, Stack* ss, ThreadInfo&
 
         if (score > bestScore) {
             bestScore = score;
+            bestMove  = m;
             if (score > alpha) {
+                ttFlag = EXACT;
                 alpha = score;
                 if constexpr (isPV)
                     ss->pv.update(m, (ss + 1)->pv);
             }
         }
-        if (score >= beta)
+        if (score >= beta) {
+            ttFlag = BETA_CUTOFF;
             break;
+        }
     }
+
+    *ttEntry = Transposition(board.zobrist, bestMove, ttFlag, bestScore, 0);
 
     return bestScore;
 }
