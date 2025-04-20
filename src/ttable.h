@@ -89,4 +89,14 @@ class TranspositionTable {
     void setEntry(u64 key, Transposition& entry) { table[index(key)] = entry; }
 
     Transposition* getEntry(u64 key) { return &table[index(key)]; }
+
+    usize hashfull() {
+        usize samples = std::min((u64) 1000, size);
+        usize hits    = 0;
+        for (usize sample = 0; sample < samples; sample++)
+            hits += table[sample].zobrist != 0;
+        usize hash = (int) (hits / (double) samples * 1000);
+        assert(hash < 1000);
+        return hash;
+    }
 };
