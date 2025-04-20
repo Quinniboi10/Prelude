@@ -34,6 +34,8 @@ class Move {
 
     Move(string strIn, Board& board);
 
+    constexpr static Move null() { return Move(a1, a1, STANDARD_MOVE); }
+
 
     string toString() const;
 
@@ -47,7 +49,7 @@ class Move {
         return PieceType(((move >> 12) & 0b11) + 1);
     }
 
-    bool isNull() const { return move == 0; }
+    bool isNull() const { return *this == null(); }
 
     bool operator==(const Move other) const { return move == other.move; }
 
