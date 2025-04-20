@@ -179,7 +179,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
     }
 
     int  bestScore = -INF_INT;
-    Move bestMove;
+    Move bestMove = Move::null();
 
     TTFlag ttFlag = FAIL_LOW;
 
@@ -242,7 +242,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
 
             ss->excluded    = m;
             const int score = search<NodeType::NONPV>(board, sDepth, ply, sBeta - 1, sBeta, ss, thisThread, sl);
-            ss->excluded    = Move();
+            ss->excluded    = Move::null();
 
             if (score < sBeta) {
                 if (!isPV && score < sBeta - SE_DOUBLE_MARGIN)
@@ -330,6 +330,9 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
 
     auto stack = std::make_unique<array<Stack, MAX_PLY + 2>>();
     Stack* ss = reinterpret_cast<Stack*>(stack->data() + 1);
+
+    for (int i = -1; i < MAX_PLY + 1; i++)
+        std::memset(ss + i, 0, sizeof(Stack));
 
     usize depth = std::min(sp.depth, MAX_PLY);
 
