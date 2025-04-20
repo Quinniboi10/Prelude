@@ -302,7 +302,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
     }
 
     if (ss->excluded.isNull())
-        *ttEntry = Transposition(board.zobrist, bestMove, ttFlag, bestScore, depth);
+        *ttEntry = Transposition(board.zobrist, ttFlag == FAIL_LOW ? ttEntry->move : bestMove, ttFlag, bestScore, depth);
 
     return bestScore;
 }
