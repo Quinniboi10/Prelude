@@ -6,6 +6,7 @@
 struct Searcher {
     TranspositionTable TT;
     std::atomic<bool>  stopFlag;
+    Stopwatch<std::chrono::milliseconds> time;
     Search::ThreadInfo mainData = Search::ThreadInfo(Search::ThreadType::MAIN, TT, stopFlag);
     std::thread        mainThread;
 
@@ -28,4 +29,6 @@ struct Searcher {
         for (Search::ThreadInfo& w : workerData)
             w.reset();
     }
+
+    string searchReport(Board& board, usize depth, i32 score, PvList& pv);
 };
