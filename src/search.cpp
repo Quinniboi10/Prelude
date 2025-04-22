@@ -314,6 +314,8 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
     thisThread.seldepth = 0;
     const bool isMain   = thisThread.type == MAIN;
 
+    assert(!isMain || searcher != nullptr);
+
     i64 searchTime;
     if (sp.mtime)
         searchTime = sp.mtime;
@@ -331,8 +333,7 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
     auto stack = std::make_unique<array<Stack, MAX_PLY + 2>>();
     Stack* ss = reinterpret_cast<Stack*>(stack->data() + 1);
 
-    for (int i = -1; i < MAX_PLY + 1; i++)
-        std::memset(ss + i, 0, sizeof(Stack));
+    std::memset(stack.get(), 0, sizeof(Stack) * (MAX_PLY + 2));
 
     usize depth = std::min(sp.depth, MAX_PLY);
 
@@ -386,26 +387,8 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
         if (searchCancelled())
             break;
 
-        if (isMain) {
-            // Depth, time, hash, score
-            cout << "info depth " << currDepth << " seldepth " << thisThread.seldepth << " time " << sl.time.elapsed() << " hashfull " << thisThread.TT.hashfull() << " nodes "
-                 << countNodes();
-            if (sl.time.elapsed() > 0)
-                cout << " nps " << countNodes() * 1000 / sl.time.elapsed();
-            cout << " score";
-            if (isDecisive(score)) {
-                cout << " mate ";
-                cout << ((score < 0) ? "-" : "") << (MATE_SCORE - std::abs(score)) / 2 + 1;
-            }
-            else
-                cout << " cp " << scaleEval(score, board);
-
-            // PV line
-            cout << " pv";
-            for (Move m : ss->pv)
-                cout << " " << m;
-            cout << endl;
-        }
+        if (isMain)
+            cout << (*searcher).searchReport(board, currDepth, score, ss->pv) << endl;
 
         lastScore = score;
         lastPV    = ss->pv;
