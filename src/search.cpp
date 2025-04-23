@@ -228,6 +228,11 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
                 skipQuiets = true;
                 continue;
             }
+
+            // SEE pruning
+            if (!board.see(m, SEE_PRUNING_DETPH_SCALAR * depth))
+                continue;
+
         }
 
         Board testBoard = board;
