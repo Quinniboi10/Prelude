@@ -44,11 +44,8 @@ void AccumulatorPair::addSub(Color stm, Square add, PieceType addPT, Square sub,
     int subB = NNUE::feature(BLACK, stm, subPT, sub);
 
     for (usize i = 0; i < HL_SIZE; i++) {
-        white[i] += nnue.weightsToHL[addW * HL_SIZE + i];
-        black[i] += nnue.weightsToHL[addB * HL_SIZE + i];
-
-        white[i] -= nnue.weightsToHL[subW * HL_SIZE + i];
-        black[i] -= nnue.weightsToHL[subB * HL_SIZE + i];
+        white[i] += nnue.weightsToHL[addW * HL_SIZE + i] - nnue.weightsToHL[subW * HL_SIZE + i];
+        black[i] += nnue.weightsToHL[addB * HL_SIZE + i] - nnue.weightsToHL[subB * HL_SIZE + i];
     }
 }
 
@@ -64,14 +61,8 @@ void AccumulatorPair::addSubSub(Color stm, Square add, PieceType addPT, Square s
     int subB2 = NNUE::feature(BLACK, ~stm, subPT2, sub2);
 
     for (usize i = 0; i < HL_SIZE; i++) {
-        white[i] += nnue.weightsToHL[addW * HL_SIZE + i];
-        black[i] += nnue.weightsToHL[addB * HL_SIZE + i];
-
-        white[i] -= nnue.weightsToHL[subW1 * HL_SIZE + i];
-        black[i] -= nnue.weightsToHL[subB1 * HL_SIZE + i];
-
-        white[i] -= nnue.weightsToHL[subW2 * HL_SIZE + i];
-        black[i] -= nnue.weightsToHL[subB2 * HL_SIZE + i];
+        white[i] += nnue.weightsToHL[addW * HL_SIZE + i] - nnue.weightsToHL[subW1 * HL_SIZE + i] - nnue.weightsToHL[subW2 * HL_SIZE + i];
+        black[i] += nnue.weightsToHL[addB * HL_SIZE + i] - nnue.weightsToHL[subB1 * HL_SIZE + i] - nnue.weightsToHL[subB2 * HL_SIZE + i];
     }
 }
 
@@ -90,16 +81,7 @@ void AccumulatorPair::addAddSubSub(Color stm, Square add1, PieceType addPT1, Squ
     int subB2 = NNUE::feature(BLACK, stm, subPT2, sub2);
 
     for (usize i = 0; i < HL_SIZE; i++) {
-        white[i] += nnue.weightsToHL[addW1 * HL_SIZE + i];
-        black[i] += nnue.weightsToHL[addB1 * HL_SIZE + i];
-
-        white[i] += nnue.weightsToHL[addW2 * HL_SIZE + i];
-        black[i] += nnue.weightsToHL[addB2 * HL_SIZE + i];
-
-        white[i] -= nnue.weightsToHL[subW1 * HL_SIZE + i];
-        black[i] -= nnue.weightsToHL[subB1 * HL_SIZE + i];
-
-        white[i] -= nnue.weightsToHL[subW2 * HL_SIZE + i];
-        black[i] -= nnue.weightsToHL[subB2 * HL_SIZE + i];
+        white[i] += nnue.weightsToHL[addW1 * HL_SIZE + i] + nnue.weightsToHL[addW2 * HL_SIZE + i] - nnue.weightsToHL[subW1 * HL_SIZE + i] - nnue.weightsToHL[subW2 * HL_SIZE + i];
+        black[i] += nnue.weightsToHL[addB1 * HL_SIZE + i] + nnue.weightsToHL[addB2 * HL_SIZE + i] - nnue.weightsToHL[subB1 * HL_SIZE + i] - nnue.weightsToHL[subB2 * HL_SIZE + i];
     }
 }
