@@ -64,6 +64,8 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, Stack* ss, ThreadInfo&
     if (alpha < bestScore)
         alpha = bestScore;
 
+    i32 futilityScore = bestScore + QS_FUTILITY_MARGIN;
+
     Movepicker<NOISY_ONLY> picker(board, thisThread);
     while (picker.hasNext()) {
         if (thisThread.breakFlag.load(std::memory_order_relaxed))
@@ -84,6 +86,11 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, Stack* ss, ThreadInfo&
 
         if (!board.see(m, 0))
             continue;
+
+        if (!board.inCheck() && board.isCapture(m) && futilityScore <= alpha && !board.see(m, 1)) {
+            bestScore = std::max(bestScore, futilityScore);
+            continue;
+        }
 
         Board testBoard = board;
         testBoard.move(m);
