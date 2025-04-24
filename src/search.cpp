@@ -253,7 +253,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
             const int sDepth = (depth - 1) / 2;
 
             ss->excluded    = m;
-            const int score = search<NodeType::NONPV>(board, sDepth, ply, sBeta - 1, sBeta, ss, thisThread, sl);
+            const i32 score = search<NodeType::NONPV>(board, sDepth, ply, sBeta - 1, sBeta, ss, thisThread, sl);
             ss->excluded    = Move::null();
 
             if (score < sBeta) {
@@ -262,6 +262,10 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
                 else
                     extension = 1;
             }
+            // Multicut
+            else if (sBeta >= beta)
+                return sBeta;
+            // Negative extentions
             else if (ttEntry->score >= beta)
                 extension = -2;
         }
