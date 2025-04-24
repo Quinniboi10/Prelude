@@ -24,6 +24,8 @@ constexpr int FUTILITY_PRUNING_SCALAR = 80;
 constexpr int SE_MIN_DEPTH     = 8;
 constexpr int SE_DOUBLE_MARGIN = 30;
 
+constexpr int SEE_PRUNING_DETPH_SCALAR = -90;
+
 // Time management
 constexpr usize DEFAULT_MOVES_TO_GO = 20;
 constexpr usize INC_DIVISOR         = 2;
