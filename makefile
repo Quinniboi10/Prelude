@@ -9,6 +9,14 @@ else
     EXE_EXT :=
 endif
 
+# Short commit id of HEAD (thanks to Weiss for this!)
+GIT_HEAD_COMMIT_ID_RAW := $(shell git rev-parse --short HEAD)
+ifneq ($(GIT_HEAD_COMMIT_ID_RAW),)
+GIT_HEAD_COMMIT_ID_DEF := -DGIT_HEAD_COMMIT_ID=\""$(GIT_HEAD_COMMIT_ID_RAW)"\"
+else
+GIT_HEAD_COMMIT_ID_DEF :=
+endif
+
 # Compiler and flags
 CXX      := clang++
 CXXFLAGS := -O3 -march=native -ffast-math -fno-finite-math-only -funroll-loops -flto -fuse-ld=lld -std=c++20 -static -DNDEBUG
@@ -26,7 +34,7 @@ all: $(EXE)
 
 # Link the executable
 $(EXE): $(SRCS)
-	$(CXX) $(CXXFLAGS) -DEVALFILE=\"$(EVALFILE)\" $(SRCS) ./external/fmt/format.cc -o $@
+	$(CXX) $(CXXFLAGS) -DEVALFILE=\"$(EVALFILE)\" $(GIT_HEAD_COMMIT_ID_DEF) $(SRCS) ./external/fmt/format.cc -o $@
 
 # Debug build
 .PHONY: debug

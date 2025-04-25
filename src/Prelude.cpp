@@ -96,7 +96,11 @@ int main(int argc, char* argv[]) {
         tokens = split(command, ' ');
 
         if (command == "uci") {
-            cout << "id name Prelude" << endl;
+            cout << "id name Prelude"
+                #ifdef GIT_HEAD_COMMIT_ID
+                 << " (" << GIT_HEAD_COMMIT_ID << ")"
+                #endif
+                << endl;
             cout << "id author Quinniboi10" << endl;
             cout << "option name Threads type spin default 1 min 1 max 512" << endl;
             cout << "option name Hash type spin default 16 min 1 max 524288" << endl;
