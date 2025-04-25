@@ -102,6 +102,7 @@ constexpr i16    EVAL_SCALE     = 400;
 ## Special Thanks
 
 - **Vast**: Help hunting for bugs and explaining concepts
+- **Fury**: Integral is a big source of inspiration, and the fantastic comments are a great source
 - **Ciekce**: Lots of guidance and test NNUEs
 - **Shawn\_xu**: Explaining NNUEs and many other things
 - **A\_randomnoob**: Fixing obvious mistakes
