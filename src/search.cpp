@@ -13,6 +13,7 @@ namespace Search {
 struct Stack {
     PvList pv;
     Move   excluded;
+    Move   move;
     i16    staticEval;
 };
 
@@ -210,6 +211,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
         }
 
         const Move m = picker.getNext();
+        ss->move     = m;
 
         if (m == ss->excluded)
             continue;
@@ -294,7 +296,9 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
         if (score >= beta) {
             ttFlag = BETA_CUTOFF;
             if (board.isQuiet(m)) {
-                int bonus = 15 * depth * depth * (2 - !isPV);
+                int bonus = 15 * depth * depth                                                     // Base
+                          * (2 - !isPV)                                                            // Weight PV nodes more
+                          + (ply >= 1 ? thisThread.getHist(~board.stm, (ss - 1)->move) : 0) / 600; // Child nodes will inherit some of the score from the parent node
                 thisThread.updateHist(board.stm, m, bonus);
                 // History malus
                 for (const Move quietMove : seenQuiets) {
