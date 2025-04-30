@@ -250,7 +250,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
         usize extension = 0;
         if (ply > 0 && depth >= SE_MIN_DEPTH && ttHit && m == ttEntry->move && ttEntry->depth >= depth - 3 && ttEntry->flag != FAIL_LOW) {
             const int sBeta  = std::max(-INF_INT + 1, ttEntry->score - depth * 2);
-            const int sDepth = (depth - 1) / 2;
+            const int sDepth = (std::max(depth - 16, 0) + (depth - 1) * 2) / 4;
 
             ss->excluded    = m;
             const int score = search<NodeType::NONPV>(board, sDepth, ply, sBeta - 1, sBeta, ss, thisThread, sl);
