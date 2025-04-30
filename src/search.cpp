@@ -155,7 +155,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
 
     i16& staticEval = ss->staticEval = nnue.evaluate(board);
 
-    bool improving = ply >= 2 && (ss - 2)->staticEval < staticEval;
+    bool improving = !board.inCheck() && ply >= 2 && (ss - 2)->staticEval < staticEval;
 
     if (!isPV && ply > 0 && !board.inCheck() && ss->excluded.isNull()) {
         // Reverse futility pruning
