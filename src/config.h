@@ -36,11 +36,12 @@ constexpr usize INC_DIVISOR         = 2;
 extern usize MOVE_OVERHEAD;
 
 // ************ NNUE ************
-constexpr i16    QA             = 255;
-constexpr i16    QB             = 64;
-constexpr i16    EVAL_SCALE     = 400;
-constexpr size_t HL_SIZE        = 1024;
-constexpr size_t OUTPUT_BUCKETS = 8;
+constexpr i16    QA                   = 255;
+constexpr i16    QB                   = 64;
+constexpr i16    EVAL_SCALE           = 400;
+constexpr size_t HL_SIZE              = 1024;
+constexpr size_t OUTPUT_BUCKETS       = 8;
+constexpr bool   HORIZONTAL_MIRRORING = true;
 
 constexpr int ReLU   = 0;
 constexpr int CReLU  = 1;

@@ -16,11 +16,15 @@ struct AccumulatorPair {
     alignas(NNUE_ALIGNMENT) Accumulator white;
     alignas(NNUE_ALIGNMENT) Accumulator black;
 
+    array<bool, 2> mirrored;
+
     void resetAccumulators(const Board& board);
+
+    void resetAccumulator(const Color c, const Board& board, const bool mirror);
 
     void update(const Board& board, const Move m);
 
-    void addSub(Color stm, Square add, PieceType addPT, Square sub, PieceType subPT);
-    void addSubSub(Color stm, Square add, PieceType addPT, Square sub1, PieceType subPT1, Square sub2, PieceType subPT2);
-    void addAddSubSub(Color stm, Square add1, PieceType addPT1, Square add2, PieceType addPT2, Square sub1, PieceType subPT1, Square sub2, PieceType subPT2);
+    void addSub(Color stm, Square add, PieceType addPT, Square sub, PieceType subPT, bool mirror);
+    void addSubSub(Color stm, Square add, PieceType addPT, Square sub1, PieceType subPT1, Square sub2, PieceType subPT2, bool mirror);
+    void addAddSubSub(Color stm, Square add1, PieceType addPT1, Square add2, PieceType addPT2, Square sub1, PieceType subPT1, Square sub2, PieceType subPT2, bool mirror);
 };

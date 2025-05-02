@@ -130,9 +130,11 @@ i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usiz
 #endif
 
 // Finds the input feature
-usize NNUE::feature(Color perspective, Color color, PieceType piece, Square square) {
-    int colorIndex  = (perspective == color) ? 0 : 1;
-    int squareIndex = (perspective == BLACK) ? flipRank(square) : static_cast<int>(square);
+usize NNUE::feature(Color perspective, Color color, PieceType piece, Square square, bool mirror) {
+    if (mirror)
+        square = toSquare(rankOf(square), flipFile(square));
+    const int colorIndex  = (perspective == color) ? 0 : 1;
+    const int squareIndex = (perspective == BLACK) ? flipRank(square) : static_cast<int>(square);
 
     return colorIndex * 64 * 6 + piece * 64 + squareIndex;
 }

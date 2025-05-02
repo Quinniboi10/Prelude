@@ -22,7 +22,7 @@ struct NNUE {
 
     i32 vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usize bucket);
 
-    static usize feature(Color perspective, Color color, PieceType piece, Square square);
+    static usize feature(Color perspective, Color color, PieceType piece, Square square, bool mirror);
 
     void loadNetwork(const string& filepath);
 
