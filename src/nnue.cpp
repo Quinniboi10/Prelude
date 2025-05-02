@@ -35,7 +35,7 @@ i32 NNUE::SCReLU(const i16 x) {
 
 #if defined(__x86_64__) || defined(__amd64__) || (defined(_WIN64) && (defined(_M_X64) || defined(_M_AMD64)))
     #include <immintrin.h>
-    #if defined(__AVX512F__)
+    #if defined(__AVX512F__) && defined(__AVX512BW__)
         #pragma message("Using AVX512 NNUE inference")
 using nativeVector = __m512i;
         #define set1_epi16 _mm512_set1_epi16

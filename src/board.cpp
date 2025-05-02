@@ -407,21 +407,20 @@ void Board::move(Move m) {
     PieceType toPT  = NO_PIECE_TYPE;
     PieceType endPT = m.typeOf() == PROMOTION ? m.promo() : pt;
 
+
+    // Update accumulators
+    if (!minimal)
+        accumulators.update(*this, m);
+
     removePiece(stm, pt, from);
     if (isCapture(m)) {
         toPT          = getPiece(to);
         halfMoveClock = 0;
         posHistory.clear();
-        if (mt != EN_PASSANT) {
-            if constexpr (!minimal)
-                accumulators.addSubSub(stm, to, endPT, from, pt, to, toPT);
+        if (mt != EN_PASSANT)
             removePiece(~stm, toPT, to);
-        }
     }
     else {
-        if (!minimal && mt != CASTLE)
-            accumulators.addSub(stm, to, endPT, from, pt);
-
         if (pt == PAWN)
             halfMoveClock = 0;
         else
@@ -436,8 +435,6 @@ void Board::move(Move m) {
             epSquare = Square(stm == WHITE ? from + NORTH : from + SOUTH);
         break;
     case EN_PASSANT:
-        if constexpr (!minimal)
-            accumulators.addSubSub(stm, to, PAWN, from, PAWN, to + (stm == WHITE ? SOUTH : NORTH), PAWN);
         removePiece(~stm, PAWN, to + (stm == WHITE ? SOUTH : NORTH));
         placePiece(stm, pt, to);
         break;
@@ -448,28 +445,20 @@ void Board::move(Move m) {
             if (from < to) {
                 placePiece(stm, KING, g1);
                 placePiece(stm, ROOK, f1);
-                if constexpr (!minimal)
-                    accumulators.addAddSubSub(stm, g1, KING, f1, ROOK, from, KING, to, ROOK);
             }
             else {
                 placePiece(stm, KING, c1);
                 placePiece(stm, ROOK, d1);
-                if constexpr (!minimal)
-                    accumulators.addAddSubSub(stm, c1, KING, d1, ROOK, from, KING, to, ROOK);
             }
         }
         else {
             if (from < to) {
                 placePiece(stm, KING, g8);
                 placePiece(stm, ROOK, f8);
-                if constexpr (!minimal)
-                    accumulators.addAddSubSub(stm, g8, KING, f8, ROOK, from, KING, to, ROOK);
             }
             else {
                 placePiece(stm, KING, c8);
                 placePiece(stm, ROOK, d8);
-                if constexpr (!minimal)
-                    accumulators.addAddSubSub(stm, c8, KING, d8, ROOK, from, KING, to, ROOK);
             }
         }
         break;
