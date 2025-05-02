@@ -59,17 +59,17 @@ void AccumulatorPair::update(const Board& board, const Move m) {
 
     if (isMirrored == shouldMirror) {
         if (mt == EN_PASSANT)
-            addSubSub(stm, to, PAWN, from, PAWN, to + (stm == WHITE ? SOUTH : NORTH), PAWN, shouldMirror);
+            addSubSub(stm, to, PAWN, from, PAWN, to + (stm == WHITE ? SOUTH : NORTH), PAWN);
         else if (mt == CASTLE) {
             const bool   isKingside = to > from;
             const Square kingEndSq  = KING_CASTLE_END_SQ[castleIndex(stm, isKingside)];
             const Square rookEndSq  = ROOK_CASTLE_END_SQ[castleIndex(stm, isKingside)];
-            addAddSubSub(stm, kingEndSq, KING, rookEndSq, ROOK, from, KING, to, ROOK, shouldMirror);
+            addAddSubSub(stm, kingEndSq, KING, rookEndSq, ROOK, from, KING, to, ROOK);
         }
         else if (board.isCapture(m))
-            addSubSub(stm, to, endPT, from, pt, to, toPT, shouldMirror);
+            addSubSub(stm, to, endPT, from, pt, to, toPT);
         else
-            addSub(stm, to, endPT, from, pt, shouldMirror);
+            addSub(stm, to, endPT, from, pt);
     }
     else
         resetAccumulator(stm, board, shouldMirror);
@@ -78,12 +78,12 @@ void AccumulatorPair::update(const Board& board, const Move m) {
 }
 
 // All friendly, for quiets
-void AccumulatorPair::addSub(Color stm, Square add, PieceType addPT, Square sub, PieceType subPT, bool mirror) {
-    int addW = NNUE::feature(WHITE, stm, addPT, add, mirror);
-    int addB = NNUE::feature(BLACK, stm, addPT, add, mirror);
+void AccumulatorPair::addSub(Color stm, Square add, PieceType addPT, Square sub, PieceType subPT) {
+    int addW = NNUE::feature(WHITE, stm, addPT, add, mirrored[WHITE]);
+    int addB = NNUE::feature(BLACK, stm, addPT, add, mirrored[BLACK]);
 
-    int subW = NNUE::feature(WHITE, stm, subPT, sub, mirror);
-    int subB = NNUE::feature(BLACK, stm, subPT, sub, mirror);
+    int subW = NNUE::feature(WHITE, stm, subPT, sub, mirrored[WHITE]);
+    int subB = NNUE::feature(BLACK, stm, subPT, sub, mirrored[BLACK]);
 
     for (usize i = 0; i < HL_SIZE; i++) {
         white[i] += nnue.weightsToHL[addW * HL_SIZE + i] - nnue.weightsToHL[subW * HL_SIZE + i];
@@ -92,15 +92,15 @@ void AccumulatorPair::addSub(Color stm, Square add, PieceType addPT, Square sub,
 }
 
 // Captures
-void AccumulatorPair::addSubSub(Color stm, Square add, PieceType addPT, Square sub1, PieceType subPT1, Square sub2, PieceType subPT2, bool mirror) {
-    int addW = NNUE::feature(WHITE, stm, addPT, add, mirror);
-    int addB = NNUE::feature(BLACK, stm, addPT, add, mirror);
+void AccumulatorPair::addSubSub(Color stm, Square add, PieceType addPT, Square sub1, PieceType subPT1, Square sub2, PieceType subPT2) {
+    int addW = NNUE::feature(WHITE, stm, addPT, add, mirrored[WHITE]);
+    int addB = NNUE::feature(BLACK, stm, addPT, add, mirrored[BLACK]);
 
-    int subW1 = NNUE::feature(WHITE, stm, subPT1, sub1, mirror);
-    int subB1 = NNUE::feature(BLACK, stm, subPT1, sub1, mirror);
+    int subW1 = NNUE::feature(WHITE, stm, subPT1, sub1, mirrored[WHITE]);
+    int subB1 = NNUE::feature(BLACK, stm, subPT1, sub1, mirrored[BLACK]);
 
-    int subW2 = NNUE::feature(WHITE, ~stm, subPT2, sub2, mirror);
-    int subB2 = NNUE::feature(BLACK, ~stm, subPT2, sub2, mirror);
+    int subW2 = NNUE::feature(WHITE, ~stm, subPT2, sub2, mirrored[WHITE]);
+    int subB2 = NNUE::feature(BLACK, ~stm, subPT2, sub2, mirrored[BLACK]);
 
     for (usize i = 0; i < HL_SIZE; i++) {
         white[i] += nnue.weightsToHL[addW * HL_SIZE + i] - nnue.weightsToHL[subW1 * HL_SIZE + i] - nnue.weightsToHL[subW2 * HL_SIZE + i];
@@ -109,18 +109,18 @@ void AccumulatorPair::addSubSub(Color stm, Square add, PieceType addPT, Square s
 }
 
 // Castling
-void AccumulatorPair::addAddSubSub(Color stm, Square add1, PieceType addPT1, Square add2, PieceType addPT2, Square sub1, PieceType subPT1, Square sub2, PieceType subPT2, bool mirror) {
-    int addW1 = NNUE::feature(WHITE, stm, addPT1, add1, mirror);
-    int addB1 = NNUE::feature(BLACK, stm, addPT1, add1, mirror);
+void AccumulatorPair::addAddSubSub(Color stm, Square add1, PieceType addPT1, Square add2, PieceType addPT2, Square sub1, PieceType subPT1, Square sub2, PieceType subPT2) {
+    int addW1 = NNUE::feature(WHITE, stm, addPT1, add1, mirrored[WHITE]);
+    int addB1 = NNUE::feature(BLACK, stm, addPT1, add1, mirrored[BLACK]);
 
-    int addW2 = NNUE::feature(WHITE, stm, addPT2, add2, mirror);
-    int addB2 = NNUE::feature(BLACK, stm, addPT2, add2, mirror);
+    int addW2 = NNUE::feature(WHITE, stm, addPT2, add2, mirrored[WHITE]);
+    int addB2 = NNUE::feature(BLACK, stm, addPT2, add2, mirrored[BLACK]);
 
-    int subW1 = NNUE::feature(WHITE, stm, subPT1, sub1, mirror);
-    int subB1 = NNUE::feature(BLACK, stm, subPT1, sub1, mirror);
+    int subW1 = NNUE::feature(WHITE, stm, subPT1, sub1, mirrored[WHITE]);
+    int subB1 = NNUE::feature(BLACK, stm, subPT1, sub1, mirrored[BLACK]);
 
-    int subW2 = NNUE::feature(WHITE, stm, subPT2, sub2, mirror);
-    int subB2 = NNUE::feature(BLACK, stm, subPT2, sub2, mirror);
+    int subW2 = NNUE::feature(WHITE, stm, subPT2, sub2, mirrored[WHITE]);
+    int subB2 = NNUE::feature(BLACK, stm, subPT2, sub2, mirrored[BLACK]);
 
     for (usize i = 0; i < HL_SIZE; i++) {
         white[i] += nnue.weightsToHL[addW1 * HL_SIZE + i] + nnue.weightsToHL[addW2 * HL_SIZE + i] - nnue.weightsToHL[subW1 * HL_SIZE + i] - nnue.weightsToHL[subW2 * HL_SIZE + i];
