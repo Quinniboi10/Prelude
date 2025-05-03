@@ -116,8 +116,8 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, Stack* ss, ThreadInfo&
 // Main search
 template<NodeType isPV>
 i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, ThreadInfo& thisThread, SearchLimit& sl) {
-    if (depth + ply > MAX_PLY)
-        depth = MAX_PLY - ply;
+    if (depth + static_cast<i32>(ply) > static_cast<i32>(MAX_PLY))
+        depth = static_cast<i32>(MAX_PLY) - static_cast<i32>(ply);
     if constexpr (isPV)
         ss->pv.length = 0;
     if (board.isDraw() && ply > 0)
@@ -270,7 +270,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
 
         i16 score;
         if (depth >= 2 && movesSeen >= 5 + 2 * (ply == 0) && !testBoard.inCheck()) {
-            int depthReduction = lmrTable[board.isQuiet(m)][depth][movesSeen] + !isPV;
+            int depthReduction = lmrTable[board.isQuiet(m)][depth][movesSeen] + !isPV + !improving;
 
             score = -search<NodeType::NONPV>(testBoard, newDepth - depthReduction, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
             if (score > alpha)
