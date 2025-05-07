@@ -21,6 +21,8 @@ constexpr int NMP_EVAL_DIVISOR  = 160;
 constexpr int FUTILITY_PRUNING_MARGIN = 100;
 constexpr int FUTILITY_PRUNING_SCALAR = 80;
 
+constexpr int LMR_QUIET_HIST_DIVISOR = 10000;
+
 constexpr int SE_MIN_DEPTH     = 8;
 constexpr int SE_DOUBLE_MARGIN = 30;
 

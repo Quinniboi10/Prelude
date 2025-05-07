@@ -12,8 +12,10 @@
 namespace Search {
 struct Stack {
     PvList pv;
+    int    history;
     Move   excluded;
     i16    staticEval;
+    bool   isQuiet;
 };
 
 array<array<array<int, 219>, MAX_PLY + 1>, 2> lmrTable;
@@ -239,8 +241,9 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
             // SEE pruning
             if (!board.see(m, SEE_PRUNING_DETPH_SCALAR * depth))
                 continue;
-
         }
+
+        ss->history = ss->isQuiet ? thisThread.getHist(board.stm, m) : 0;
 
         Board testBoard = board;
         testBoard.move(m);
@@ -270,7 +273,13 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
 
         i16 score;
         if (depth >= 2 && movesSeen >= 5 + 2 * (ply == 0) && !testBoard.inCheck()) {
+            // Late move reductions
             int depthReduction = lmrTable[board.isQuiet(m)][depth][movesSeen] + !isPV;
+
+            if (depthReduction != 0 && board.isQuiet(m))
+                depthReduction -= ss->history / LMR_QUIET_HIST_DIVISOR;
+
+            depthReduction = std::max(depthReduction, 0);
 
             score = -search<NodeType::NONPV>(testBoard, newDepth - depthReduction, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
             if (score > alpha)
