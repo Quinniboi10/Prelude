@@ -5,8 +5,8 @@
 
 void Searcher::start(Board& board, Search::SearchParams sp) {
     time           = sp.time;
-    mainData.nodes = 0;
-    mainThread     = std::thread(Search::iterativeDeepening, board, std::ref(mainData), sp, this);
+    mainData->nodes = 0;
+    mainThread     = std::thread(Search::iterativeDeepening, board, std::ref(*mainData), sp, this);
 
     for (usize i = 0; i < workerData.size(); i++) {
         workerData[i].nodes = 0;
@@ -41,11 +41,11 @@ void Searcher::makeThreads(int threads) {
 string Searcher::searchReport(Board& board, usize depth, i32 score, PvList& pv) {
     std::ostringstream ans;
 
-    u64 nodes = mainData.nodes;
+    u64 nodes = mainData->nodes;
     for (Search::ThreadInfo& t : workerData)
         nodes += t.nodes;
 
-    ans << "info depth " << depth << " seldepth " << mainData.seldepth << " time " << time.elapsed() << " hashfull " << TT.hashfull() << " nodes " << nodes;
+    ans << "info depth " << depth << " seldepth " << mainData->seldepth << " time " << time.elapsed() << " hashfull " << TT.hashfull() << " nodes " << nodes;
     if (time.elapsed() > 0)
         ans << " nps " << nodes * 1000 / time.elapsed();
     ans << " score ";

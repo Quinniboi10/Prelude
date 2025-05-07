@@ -6,19 +6,22 @@
 #include "movegen.h"
 #include "search.h"
 #include "ttable.h"
+#include "search.h"
 
-int evaluate(Board& board, Search::ThreadInfo& thisThread, Move m) {
+int evaluate(Board& board, Search::ThreadInfo& thisThread, Search::Stack* ss, Move m) {
     auto evaluateMVVLVA = [&]() {
         int victim   = PIECE_VALUES[board.getPiece(m.to())];
         int attacker = PIECE_VALUES[board.getPiece(m.from())];
 
         return (victim * 100) - attacker;
     };
-    if (board.isCapture(m)) {
+    if (board.isCapture(m))
         return evaluateMVVLVA() + 600'000 - 800'000 * !board.see(m, -50);
-    }
-    else
-        return thisThread.getHist(board.stm, m);
+
+    int res = thisThread.getHist(board.stm, m);
+    if (ss != nullptr && (ss - 1)->conthist != nullptr)
+        res += thisThread.getConthist((ss - 1)->conthist, board, m);
+    return res;
 }
 
 template<MovegenMode mode>
@@ -28,15 +31,17 @@ struct Movepicker {
     u16             seen;
     Move            TTMove;
 
-    Movepicker(Board& board, Search::ThreadInfo& thisThread) {
+    Movepicker(Board& board, Search::ThreadInfo& thisThread, Search::Stack* ss = nullptr) {
         moves = Movegen::generateMoves<mode>(board);
         seen  = 0;
 
         TTMove = thisThread.TT.getEntry(board.zobrist)->move;
 
         for (usize i = 0; i < moves.length; i++) {
-            moveScores[i] = evaluate(board, thisThread, moves.moves[i]);
-            moveScores[i] += 700'000 * (moves.moves[i] == TTMove);
+            const Move m = moves.moves[i];
+
+            moveScores[i] = evaluate(board, thisThread, ss, m);
+            moveScores[i] += 700'000 * (m == TTMove);
         }
     }
 
