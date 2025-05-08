@@ -634,13 +634,13 @@ bool Board::isDraw() {
         return !inCheck() || Movegen::generateLegalMoves(*this).length != 0;
 
     // Insufficient material
-    if (pieces(PAWN) == 0                           // No pawns
-        && pieces(QUEEN) == 0                       // No queens
-        && pieces(ROOK) == 0                        // No rooks
-        && ((pieces(BISHOP) & LIGHT_SQ_BB) == 0     // No light sq bishops
-            || (pieces(BISHOP) & DARK_SQ_BB) == 0)  // OR no dark sq bishops
-        && ((pieces(BISHOP) | pieces(KNIGHT)) == 0) // Not bishop + knight
-        && popcount(pieces(KNIGHT)) < 2)            // Under 2 knights
+    if (pieces(PAWN) == 0                                 // No pawns
+        && pieces(QUEEN) == 0                             // No queens
+        && pieces(ROOK) == 0                              // No rooks
+        && ((pieces(BISHOP) & LIGHT_SQ_BB) == 0           // No light sq bishops
+            || (pieces(BISHOP) & DARK_SQ_BB) == 0)        // OR no dark sq bishops
+        && ((pieces(BISHOP) == 0 || pieces(KNIGHT)) == 0) // Not bishop + knight
+        && popcount(pieces(KNIGHT)) < 2)                  // Under 2 knights
         return true;
 
     // Threefold
