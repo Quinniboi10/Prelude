@@ -290,16 +290,17 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
         if (score >= beta) {
             ttFlag = BETA_CUTOFF;
             if (board.isQuiet(m)) {
-                thisThread.updateHist(board.stm, m, 20 * depth * depth);
+                int bonus = 20 * depth * depth;
+                thisThread.updateHist(board.stm, m, bonus);
                 if ((ss - 1)->conthist != nullptr)
-                    thisThread.updateConthist((ss - 1)->conthist, board, m, 20 * depth * depth);
+                    thisThread.updateConthist((ss - 1)->conthist, board, m, bonus);
                 // History malus
                 for (const Move quietMove : seenQuiets) {
                     if (quietMove == m)
                         continue;
-                    thisThread.updateHist(board.stm, quietMove, -20 * depth * depth);
+                    thisThread.updateHist(board.stm, quietMove, -bonus);
                     if ((ss - 1)->conthist != nullptr)
-                        thisThread.updateConthist((ss - 1)->conthist, board, m, 20 * depth * depth);
+                        thisThread.updateConthist((ss - 1)->conthist, board, m, -bonus);
                 }
             }
             break;
