@@ -298,6 +298,8 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
                     if (quietMove == m)
                         continue;
                     thisThread.updateHist(board.stm, quietMove, -20 * depth * depth);
+                    if ((ss - 1)->conthist != nullptr)
+                        thisThread.updateConthist((ss - 1)->conthist, board, m, 20 * depth * depth);
                 }
             }
             break;

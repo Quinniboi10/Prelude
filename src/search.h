@@ -52,8 +52,8 @@ struct ThreadInfo {
         type(type),
         TT(TT),
         breakFlag(breakFlag) {
-        std::memset(&history, DEFAULT_HISTORY_VALUE, sizeof(history));
-        std::memset(&conthist, DEFAULT_HISTORY_VALUE, sizeof(conthist));
+        deepFill(history, DEFAULT_HISTORY_VALUE);
+        deepFill(conthist, DEFAULT_HISTORY_VALUE);
         breakFlag.store(false, std::memory_order_relaxed);
         seldepth  = 0;
         minNmpPly = 0;
@@ -82,8 +82,9 @@ struct ThreadInfo {
 
     void updateConthist(ConthistSegment* c, Board& b, Move m, int bonus) {
         assert(c != nullptr);
-        int clampedBonus = std::clamp(bonus, -MAX_HISTORY, MAX_HISTORY);
-        (*c)[b.stm][b.getPiece(m.from())][m.to()] += clampedBonus - (*c)[b.stm][b.getPiece(m.from())][m.to()] * abs(clampedBonus) / MAX_HISTORY;
+        int  clampedBonus = std::clamp(bonus, -MAX_HISTORY, MAX_HISTORY);
+        int& entry        = (*c)[b.stm][b.getPiece(m.from())][m.to()];
+        entry += clampedBonus - entry * abs(clampedBonus) / MAX_HISTORY;
     }
 
     int getConthist(ConthistSegment* c, Board& b, Move m) {
@@ -92,8 +93,8 @@ struct ThreadInfo {
     }
 
     void reset() {
-        std::memset(&history, DEFAULT_HISTORY_VALUE, sizeof(history));
-        std::memset(&conthist, DEFAULT_HISTORY_VALUE, sizeof(conthist));
+        deepFill(history, DEFAULT_HISTORY_VALUE);
+        deepFill(conthist, DEFAULT_HISTORY_VALUE);
 
         nodes.store(0, std::memory_order_relaxed);
         seldepth = 0;

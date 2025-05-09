@@ -25,7 +25,7 @@ struct Searcher {
 
     void reset() {
         TT.clear();
-        mainData.reset();
+        mainData->reset();
         for (Search::ThreadInfo& w : workerData)
             w.reset();
     }
