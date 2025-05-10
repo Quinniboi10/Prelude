@@ -292,15 +292,13 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
             if (board.isQuiet(m)) {
                 int bonus = 20 * depth * depth;
                 thisThread.updateHist(board.stm, m, bonus);
-                if ((ss - 1)->conthist != nullptr)
-                    thisThread.updateConthist((ss - 1)->conthist, board, m, bonus);
+                thisThread.updateConthist(ss, board, m, bonus);
                 // History malus
                 for (const Move quietMove : seenQuiets) {
                     if (quietMove == m)
                         continue;
                     thisThread.updateHist(board.stm, quietMove, -bonus);
-                    if ((ss - 1)->conthist != nullptr)
-                        thisThread.updateConthist((ss - 1)->conthist, board, quietMove, -bonus);
+                    thisThread.updateConthist(ss, board, quietMove, -bonus);
                 }
             }
             break;
@@ -343,10 +341,10 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
     SearchLimit depthOneSl(sp.time, 0, sp.nodes);
     SearchLimit mainSl(sp.time, searchTime, sp.nodes);
 
-    auto stack = std::make_unique<array<Stack, MAX_PLY + 2>>();
-    Stack* ss = reinterpret_cast<Stack*>(stack->data() + 1);
+    auto stack = std::make_unique<array<Stack, MAX_PLY + 3>>();
+    Stack* ss = reinterpret_cast<Stack*>(stack->data() + 2);
 
-    std::memset(stack.get(), 0, sizeof(Stack) * (MAX_PLY + 2));
+    std::memset(stack.get(), 0, sizeof(Stack) * (MAX_PLY + 3));
 
     usize depth = std::min(sp.depth, MAX_PLY);
 
