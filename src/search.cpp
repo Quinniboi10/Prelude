@@ -32,6 +32,9 @@ void                                          fillLmrTable() {
 // Quiesence search
 template<NodeType isPV>
 i16 qsearch(Board& board, usize ply, int alpha, int beta, Stack* ss, ThreadInfo& thisThread, SearchLimit& sl) {
+    if (ply > thisThread.seldepth)
+        thisThread.seldepth = ply;
+
     Transposition* ttEntry = thisThread.TT.getEntry(board.zobrist);
 
     if (!isPV && ttEntry->zobrist == board.zobrist
@@ -43,13 +46,10 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, Stack* ss, ThreadInfo&
     }
 
     int staticEval = nnue.evaluate(board);
-    if (ply > MAX_PLY)
+    if (ply >= MAX_PLY)
         return staticEval;
     if constexpr (isPV)
         ss->pv.length = 0;
-
-    if (ply > thisThread.seldepth)
-        thisThread.seldepth = ply + 1;
 
     int bestScore = staticEval;
 
@@ -114,13 +114,12 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
         depth = MAX_PLY - ply;
     if constexpr (isPV)
         ss->pv.length = 0;
+    if (ply > thisThread.seldepth)
+        thisThread.seldepth = ply;
     if (board.isDraw() && ply > 0)
         return 0;
     if (depth <= 0)
         return qsearch<isPV>(board, ply, alpha, beta, ss, thisThread, sl);
-
-    if (ply > thisThread.seldepth)
-        thisThread.seldepth = ply + 1;
 
     // Mate distance pruning
     if (ply > 0) {
