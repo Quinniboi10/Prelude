@@ -93,6 +93,9 @@ struct ThreadInfo {
 
         if ((ss - 2)->conthist != nullptr)
             updateEntry((*(ss - 2)->conthist)[b.stm][b.getPiece(m.from())][m.to()]);
+
+        if ((ss - 3)->conthist != nullptr)
+            updateEntry((*(ss - 3)->conthist)[b.stm][b.getPiece(m.from())][m.to()]);
     }
 
     int getConthist(ConthistSegment* c, Board& b, Move m) {
