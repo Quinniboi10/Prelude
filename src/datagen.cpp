@@ -160,7 +160,7 @@ void runThread(int id) {
     std::vector<Game>                    outputBuffer;
     TranspositionTable                   TT;
     std::atomic<bool>                    exitFlag(false);
-    Search::ThreadInfo                   thisThread(Search::ThreadType::SECONDARY, TT, exitFlag);
+    std::unique_ptr<Search::ThreadInfo>  thisThread = std::make_unique<Search::ThreadInfo>(Search::ThreadType::SECONDARY, TT, exitFlag);
     Stopwatch<std::chrono::milliseconds> time;
     Stopwatch<std::chrono::milliseconds> totalTime;
     Search::SearchParams                 sp(time, MAX_PLY, Datagen::HARD_NODES, Datagen::SOFT_NODES, 0, 0, 0, 0, 0, 0);
@@ -175,7 +175,7 @@ void runThread(int id) {
 
 mainLoop:
     while (true) {
-        thisThread.reset();
+        thisThread->reset();
         board.reset();
         gameBuffer.clear();
         TT.clear();
@@ -191,7 +191,7 @@ mainLoop:
         startingPos = MarlinFormat(board);
 
         while (!board.isGameOver()) {
-            MoveEvaluation move = Search::iterativeDeepening(board, thisThread, sp);
+            MoveEvaluation move = Search::iterativeDeepening(board, *thisThread, sp);
             assert(!move.move.isNull());
             gameBuffer.emplace_back(move.move, board.stm == WHITE ? move.eval : -move.eval);
             board.move(move.move);
