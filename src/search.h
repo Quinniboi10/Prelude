@@ -80,11 +80,19 @@ struct ThreadInfo {
 
     ConthistSegment* getConthistSegment(Board& b, Move m) { return &conthist[b.stm][b.getPiece(m.from())][m.to()]; }
 
-    void updateConthist(ConthistSegment* c, Board& b, Move m, int bonus) {
-        assert(c != nullptr);
-        int  clampedBonus = std::clamp(bonus, -MAX_HISTORY, MAX_HISTORY);
-        int& entry        = (*c)[b.stm][b.getPiece(m.from())][m.to()];
-        entry += clampedBonus - entry * abs(clampedBonus) / MAX_HISTORY;
+    void updateConthist(Stack* ss, Board& b, Move m, int bonus) {
+        assert(ss != nullptr);
+
+        auto updateEntry = [&](int& entry) {
+            int clampedBonus = std::clamp(bonus, -MAX_HISTORY, MAX_HISTORY);
+            entry += clampedBonus - entry * abs(clampedBonus) / MAX_HISTORY;
+        };
+
+        if ((ss - 1)->conthist != nullptr)
+            updateEntry((*(ss - 1)->conthist)[b.stm][b.getPiece(m.from())][m.to()]);
+
+        if ((ss - 2)->conthist != nullptr)
+            updateEntry((*(ss - 2)->conthist)[b.stm][b.getPiece(m.from())][m.to()]);
     }
 
     int getConthist(ConthistSegment* c, Board& b, Move m) {
