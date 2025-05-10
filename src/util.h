@@ -75,6 +75,19 @@ inline IntType readLittleEndian(std::istream& stream) {
     return result;
 }
 
+template<typename T, typename U>
+inline void deepFill(T& dest, const U& val) {
+    dest = val;
+}
+
+template<typename T, usize N, typename U>
+inline void deepFill(std::array<T, N>& arr, const U& value) {
+    for (auto& element : arr) {
+        deepFill(element, value);
+    }
+}
+
+
 constexpr Rank rankOf(Square s) { return Rank(s >> 3); }
 constexpr File fileOf(Square s) { return File(s & 0b111); }
 

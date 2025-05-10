@@ -14,6 +14,14 @@
 struct Searcher;
 
 namespace Search {
+using ConthistSegment = array<array<array<int, 64>, 6>, 2>;
+
+struct Stack {
+    PvList           pv;
+    ConthistSegment* conthist;
+    Move             excluded;
+    i16              staticEval;
+};
 enum ThreadType {
     MAIN      = 1,
     SECONDARY = 0
@@ -26,6 +34,9 @@ enum NodeType {
 struct ThreadInfo {
     // History is indexed [stm][from][to]
     array<array<array<int, 64>, 64>, 2> history;
+
+    // Conthist is indexed [last stm][last pt][last to][stm][pt][to]
+    array<array<array<ConthistSegment, 64>, 6>, 2> conthist;
 
     ThreadType type;
 
@@ -41,7 +52,8 @@ struct ThreadInfo {
         type(type),
         TT(TT),
         breakFlag(breakFlag) {
-        std::memset(&history, DEFAULT_HISTORY_VALUE, sizeof(history));
+        deepFill(history, DEFAULT_HISTORY_VALUE);
+        deepFill(conthist, DEFAULT_HISTORY_VALUE);
         breakFlag.store(false, std::memory_order_relaxed);
         seldepth  = 0;
         minNmpPly = 0;
@@ -50,6 +62,7 @@ struct ThreadInfo {
     // Copy constructor
     ThreadInfo(const ThreadInfo& other) :
         history(other.history),
+        conthist(other.conthist),
         type(other.type),
         TT(other.TT),
         breakFlag(other.breakFlag) {
@@ -65,10 +78,23 @@ struct ThreadInfo {
 
     int getHist(Color stm, Move m) { return history[stm][m.from()][m.to()]; }
 
+    ConthistSegment* getConthistSegment(Board& b, Move m) { return &conthist[b.stm][b.getPiece(m.from())][m.to()]; }
+
+    void updateConthist(ConthistSegment* c, Board& b, Move m, int bonus) {
+        assert(c != nullptr);
+        int  clampedBonus = std::clamp(bonus, -MAX_HISTORY, MAX_HISTORY);
+        int& entry        = (*c)[b.stm][b.getPiece(m.from())][m.to()];
+        entry += clampedBonus - entry * abs(clampedBonus) / MAX_HISTORY;
+    }
+
+    int getConthist(ConthistSegment* c, Board& b, Move m) {
+        assert(c != nullptr);
+        return (*c)[b.stm][b.getPiece(m.from())][m.to()];
+    }
+
     void reset() {
-        for (auto& stm : history)
-            for (auto& from : stm)
-                from.fill(DEFAULT_HISTORY_VALUE);
+        deepFill(history, DEFAULT_HISTORY_VALUE);
+        deepFill(conthist, DEFAULT_HISTORY_VALUE);
 
         nodes.store(0, std::memory_order_relaxed);
         seldepth = 0;
