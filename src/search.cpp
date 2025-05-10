@@ -10,12 +10,6 @@
 #include <cmath>
 
 namespace Search {
-struct Stack {
-    PvList pv;
-    Move   excluded;
-    i16    staticEval;
-};
-
 array<array<array<int, 219>, MAX_PLY + 1>, 2> lmrTable;
 void                                          fillLmrTable() {
     for (int isQuiet = 0; isQuiet <= 1; isQuiet++)
@@ -153,6 +147,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
     if (ss->excluded.isNull() && (ttEntry->zobrist != board.zobrist || ttEntry->move.isNull()) && depth > 5)
         depth--;
 
+    ss->conthist    = nullptr;
     i16& staticEval = ss->staticEval = nnue.evaluate(board);
 
     bool improving = ply >= 2 && (ss - 2)->staticEval < staticEval;
@@ -196,7 +191,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
 
     bool skipQuiets = false;
 
-    Movepicker<ALL_MOVES> picker(board, thisThread);
+    Movepicker<ALL_MOVES> picker(board, thisThread, ss);
     while (picker.hasNext()) {
         if (thisThread.breakFlag.load(std::memory_order_relaxed))
             return bestScore;
@@ -239,8 +234,9 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
             // SEE pruning
             if (!board.see(m, SEE_PRUNING_DETPH_SCALAR * depth))
                 continue;
-
         }
+
+        ss->conthist = thisThread.getConthistSegment(board, m);
 
         Board testBoard = board;
         testBoard.move(m);
@@ -294,12 +290,17 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
         if (score >= beta) {
             ttFlag = BETA_CUTOFF;
             if (board.isQuiet(m)) {
-                thisThread.updateHist(board.stm, m, 20 * depth * depth);
+                int bonus = 20 * depth * depth;
+                thisThread.updateHist(board.stm, m, bonus);
+                if ((ss - 1)->conthist != nullptr)
+                    thisThread.updateConthist((ss - 1)->conthist, board, m, bonus);
                 // History malus
                 for (const Move quietMove : seenQuiets) {
                     if (quietMove == m)
                         continue;
-                    thisThread.updateHist(board.stm, quietMove, -20 * depth * depth);
+                    thisThread.updateHist(board.stm, quietMove, -bonus);
+                    if ((ss - 1)->conthist != nullptr)
+                        thisThread.updateConthist((ss - 1)->conthist, board, quietMove, -bonus);
                 }
             }
             break;
@@ -504,21 +505,21 @@ void bench() {
         // Set up for iterative deepening
         std::atomic<bool>                    benchBreakFlag(false);
         TranspositionTable                   TT;
-        Search::ThreadInfo                   thisThread(Search::ThreadType::SECONDARY, TT, benchBreakFlag);
+        std::unique_ptr<Search::ThreadInfo>  thisThread = std::make_unique<Search::ThreadInfo>(Search::ThreadType::SECONDARY, TT, benchBreakFlag);
         Stopwatch<std::chrono::milliseconds> time;
 
         TT.clear();
 
         // Start the iterative deepening search
-        Search::iterativeDeepening(board, thisThread, Search::SearchParams(time, BENCH_DEPTH, 0, 0, 0, 0, 0, 0, 0, 0));
+        Search::iterativeDeepening(board, *thisThread, Search::SearchParams(time, BENCH_DEPTH, 0, 0, 0, 0, 0, 0, 0, 0));
 
         u64 durationMs = time.elapsed();
 
-        totalNodes += thisThread.nodes;
+        totalNodes += thisThread->nodes;
         totalTimeMs += durationMs;
 
         cout << "FEN: " << fen << endl;
-        cout << "Nodes: " << formatNum(thisThread.nodes) << ", Time: " << formatTime(durationMs) << endl;
+        cout << "Nodes: " << formatNum(thisThread->nodes) << ", Time: " << formatTime(durationMs) << endl;
         cout << "----------------------------------------" << endl;
     }
 

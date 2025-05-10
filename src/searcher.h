@@ -7,7 +7,7 @@ struct Searcher {
     TranspositionTable TT;
     std::atomic<bool>  stopFlag;
     Stopwatch<std::chrono::milliseconds> time;
-    Search::ThreadInfo mainData = Search::ThreadInfo(Search::ThreadType::MAIN, TT, stopFlag);
+    std::unique_ptr<Search::ThreadInfo> mainData = std::make_unique<Search::ThreadInfo>(Search::ThreadType::MAIN, TT, stopFlag);
     std::thread        mainThread;
 
     std::vector<Search::ThreadInfo> workerData;
@@ -25,7 +25,7 @@ struct Searcher {
 
     void reset() {
         TT.clear();
-        mainData.reset();
+        mainData->reset();
         for (Search::ThreadInfo& w : workerData)
             w.reset();
     }
