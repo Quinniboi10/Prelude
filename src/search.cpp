@@ -282,8 +282,13 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
                 bestMove = m;
                 ttFlag = EXACT;
                 alpha  = score;
-                if constexpr (isPV)
+                if constexpr (isPV) {
                     ss->pv.update(m, (ss + 1)->pv);
+
+                    // Alpha raise reductions
+                    if (depth > 3 && depth < 12)
+                        depth--;
+                }
             }
         }
         if (score >= beta) {
