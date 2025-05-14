@@ -185,7 +185,7 @@ class Stack {
           ptr = 0;
       }
 
-      void push(Type& t) {
+      void push(const Type& t) {
           assert(ptr < size);
           underlying[ptr++] = t;
       }
@@ -193,7 +193,7 @@ class Stack {
           assert(ptr > 0);
           return underlying[--ptr];
       }
-      Type top() {
+      const Type& top() const {
           assert(ptr > 0);
           return underlying[ptr - 1];
       }

@@ -196,8 +196,7 @@ mainLoop:
             assert(!move.move.isNull());
             gameBuffer.emplace_back(move.move, board.stm == WHITE ? move.eval : -move.eval);
 
-            Board currentState          = board;
-            auto [board, threadManager] = thisThread->makeMove(currentState, move.move);
+            board.move(move.move);
             cachedPositions++;
         }
 
