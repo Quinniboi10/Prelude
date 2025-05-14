@@ -14,9 +14,11 @@
 struct Searcher;
 
 namespace Search {
+struct ThreadInfo;
+struct ThreadStackManager;
 using ConthistSegment = array<array<array<int, 64>, 6>, 2>;
 
-struct Stack {
+struct SearchStack {
     PvList           pv;
     ConthistSegment* conthist;
     Move             excluded;
@@ -29,84 +31,6 @@ enum ThreadType {
 enum NodeType {
     NONPV,
     PV
-};
-
-struct ThreadInfo {
-    // History is indexed [stm][from][to]
-    array<array<array<int, 64>, 64>, 2> history;
-
-    // Conthist is indexed [last stm][last pt][last to][stm][pt][to]
-    array<array<array<ConthistSegment, 64>, 6>, 2> conthist;
-
-    ThreadType type;
-
-    TranspositionTable& TT;
-    std::atomic<bool>&  breakFlag;
-
-    std::atomic<u64> nodes;
-    usize            seldepth;
-
-    usize minNmpPly;
-
-    ThreadInfo(ThreadType type, TranspositionTable& TT, std::atomic<bool>& breakFlag) :
-        type(type),
-        TT(TT),
-        breakFlag(breakFlag) {
-        deepFill(history, DEFAULT_HISTORY_VALUE);
-        deepFill(conthist, DEFAULT_HISTORY_VALUE);
-        breakFlag.store(false, std::memory_order_relaxed);
-        seldepth  = 0;
-        minNmpPly = 0;
-    }
-
-    // Copy constructor
-    ThreadInfo(const ThreadInfo& other) :
-        history(other.history),
-        conthist(other.conthist),
-        type(other.type),
-        TT(other.TT),
-        breakFlag(other.breakFlag) {
-        nodes.store(other.nodes.load(std::memory_order_relaxed), std::memory_order_relaxed);
-        seldepth  = other.seldepth;
-        minNmpPly = other.minNmpPly;
-    }
-
-    void updateHist(Color stm, Move m, int bonus) {
-        int clampedBonus = std::clamp(bonus, -MAX_HISTORY, MAX_HISTORY);
-        history[stm][m.from()][m.to()] += clampedBonus - history[stm][m.from()][m.to()] * abs(clampedBonus) / MAX_HISTORY;
-    }
-
-    int getHist(Color stm, Move m) { return history[stm][m.from()][m.to()]; }
-
-    ConthistSegment* getConthistSegment(Board& b, Move m) { return &conthist[b.stm][b.getPiece(m.from())][m.to()]; }
-
-    void updateConthist(Stack* ss, Board& b, Move m, int bonus) {
-        assert(ss != nullptr);
-
-        auto updateEntry = [&](int& entry) {
-            int clampedBonus = std::clamp(bonus, -MAX_HISTORY, MAX_HISTORY);
-            entry += clampedBonus - entry * abs(clampedBonus) / MAX_HISTORY;
-        };
-
-        if ((ss - 1)->conthist != nullptr)
-            updateEntry((*(ss - 1)->conthist)[b.stm][b.getPiece(m.from())][m.to()]);
-
-        if ((ss - 2)->conthist != nullptr)
-            updateEntry((*(ss - 2)->conthist)[b.stm][b.getPiece(m.from())][m.to()]);
-    }
-
-    int getConthist(ConthistSegment* c, Board& b, Move m) {
-        assert(c != nullptr);
-        return (*c)[b.stm][b.getPiece(m.from())][m.to()];
-    }
-
-    void reset() {
-        deepFill(history, DEFAULT_HISTORY_VALUE);
-        deepFill(conthist, DEFAULT_HISTORY_VALUE);
-
-        nodes.store(0, std::memory_order_relaxed);
-        seldepth = 0;
-    }
 };
 
 struct SearchParams {

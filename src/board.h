@@ -6,8 +6,6 @@
 #include "accumulator.h"
 
 struct Board {
-    // Set of accumulators for evaluation
-    AccumulatorPair accumulators;
     // Index is based on square, returns the piece type
     array<PieceType, 64> mailbox;
     // Indexed pawns, knights, bishops, rooks, queens, king
@@ -83,7 +81,6 @@ struct Board {
 
     void move(Move m);
     void move(string str);
-    void minimalMove(Move m);
 
     bool canNullMove() const;
     void nullMove();

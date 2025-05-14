@@ -1,0 +1,78 @@
+#include "thread.h"
+
+namespace Search {
+ThreadInfo::ThreadInfo(ThreadType type, TranspositionTable& TT, std::atomic<bool>& breakFlag) :
+    type(type),
+    TT(TT),
+    breakFlag(breakFlag) {
+    deepFill(history, DEFAULT_HISTORY_VALUE);
+    deepFill(conthist, DEFAULT_HISTORY_VALUE);
+    breakFlag.store(false, std::memory_order_relaxed);
+    seldepth  = 0;
+    minNmpPly = 0;
+}
+ThreadInfo::ThreadInfo(const ThreadInfo& other) :
+    history(other.history),
+    conthist(other.conthist),
+    type(other.type),
+    TT(other.TT),
+    breakFlag(other.breakFlag) {
+    nodes.store(other.nodes.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    seldepth  = other.seldepth;
+    minNmpPly = other.minNmpPly;
+}
+
+void ThreadInfo::updateConthist(SearchStack* ss, Board& b, Move m, int bonus) {
+    assert(ss != nullptr);
+
+    auto updateEntry = [&](int& entry) {
+        int clampedBonus = std::clamp(bonus, -MAX_HISTORY, MAX_HISTORY);
+        entry += clampedBonus - entry * abs(clampedBonus) / MAX_HISTORY;
+    };
+
+    if ((ss - 1)->conthist != nullptr)
+        updateEntry((*(ss - 1)->conthist)[b.stm][b.getPiece(m.from())][m.to()]);
+
+    if ((ss - 2)->conthist != nullptr)
+        updateEntry((*(ss - 2)->conthist)[b.stm][b.getPiece(m.from())][m.to()]);
+}
+
+std::pair<Board, ThreadStackManager> ThreadInfo::makeMove(Board& b, Move m) {
+    Board newBoard = b;
+    newBoard.move(m);
+
+    AccumulatorPair accumulators;
+    accumulators.resetAccumulators(b);
+    accumulatorStack.push(accumulators);
+
+    return std::pair<Board, ThreadStackManager>(std::piecewise_construct, std::tuple(newBoard), std::tie(*this));
+}
+
+std::pair<Board, ThreadStackManager> ThreadInfo::makeNullMove(Board& b) {
+    Board newBoard = b;
+    newBoard.nullMove();
+
+    AccumulatorPair accumulators;
+    accumulators.resetAccumulators(b);
+    accumulatorStack.push(accumulators);
+
+    return std::pair<Board, ThreadStackManager>(std::piecewise_construct, std::tuple(newBoard), std::tie(*this));
+}
+
+void ThreadInfo::refresh(Board& b) {
+    accumulatorStack.clear();
+
+    AccumulatorPair accumulators;
+    accumulators.resetAccumulators(b);
+    accumulatorStack.push(accumulators);
+}
+
+void ThreadInfo::reset() {
+    deepFill(history, DEFAULT_HISTORY_VALUE);
+    deepFill(conthist, DEFAULT_HISTORY_VALUE);
+
+    nodes.store(0, std::memory_order_relaxed);
+    seldepth = 0;
+}
+
+}
