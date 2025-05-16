@@ -237,11 +237,11 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
         ss->conthist = thisThread.getConthistSegment(board, m);
 
-        auto [testBoard, threadManager] = thisThread.makeMove(board, m);
         thisThread.nodes++;
         movesSeen++;
 
         usize extension = 0;
+        // Singular extensions
         if (ply > 0 && depth >= SE_MIN_DEPTH && ttHit && m == ttEntry->move && ttEntry->depth >= depth - 3 && ttEntry->flag != FAIL_LOW) {
             const int sBeta  = std::max(-INF_INT + 1, ttEntry->score - depth * 2);
             const int sDepth = (depth - 1) / 2;
@@ -261,6 +261,9 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         }
 
         i32 newDepth = depth + extension - 1;
+
+        // Make the move on the new board. This will also update stacks
+        auto [testBoard, threadManager] = thisThread.makeMove(board, m);
 
         i16 score;
         if (depth >= 2 && movesSeen >= 5 + 2 * (ply == 0) && !testBoard.inCheck()) {
