@@ -398,7 +398,6 @@ void Board::move(Move m) {
     MoveType  mt    = m.typeOf();
     PieceType pt    = getPiece(from);
     PieceType toPT  = NO_PIECE_TYPE;
-    PieceType endPT = m.typeOf() == PROMOTION ? m.promo() : pt;
 
     removePiece(stm, pt, from);
     if (isCapture(m)) {

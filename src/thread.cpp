@@ -41,8 +41,8 @@ std::pair<Board, ThreadStackManager> ThreadInfo::makeMove(Board& b, Move m) {
     Board newBoard = b;
     newBoard.move(m);
 
-    AccumulatorPair accumulators;
-    accumulators.resetAccumulators(newBoard);
+    AccumulatorPair accumulators = accumulatorStack.top();
+    accumulators.update(newBoard, m, b.getPiece(m.to()));
     accumulatorStack.push(accumulators);
 
     return std::pair<Board, ThreadStackManager>(std::piecewise_construct, std::tuple(newBoard), std::tie(*this));
