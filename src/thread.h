@@ -46,8 +46,8 @@ struct ThreadInfo {
         return (*c)[b.stm][b.getPiece(m.from())][m.to()];
     }
 
-    std::pair<Board, ThreadStackManager> makeMove(Board& b, Move m);
-    std::pair<Board, ThreadStackManager> makeNullMove(Board& b);
+    ThreadStackManager makeMove(Board& board, Board& newBoard, Move m);
+    ThreadStackManager makeNullMove(Board& newBoard);
 
     void refresh(Board& b);
 

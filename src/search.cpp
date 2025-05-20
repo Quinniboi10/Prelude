@@ -87,7 +87,8 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, Threa
             continue;
         }
 
-        auto [testBoard, threadManager] = thisThread.makeMove(board, m);
+        Board testBoard = board;
+        ThreadStackManager threadManager = thisThread.makeMove(board, testBoard, m);
         thisThread.nodes++;
 
         i16 score = -qsearch<isPV>(testBoard, ply + 1, -beta, -alpha, ss + 1, thisThread, sl);
@@ -161,7 +162,8 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         if (board.canNullMove() && staticEval >= beta && ply >= thisThread.minNmpPly) {
             const int          reduction = NMP_REDUCTION + std::min(2, (staticEval - beta) / NMP_EVAL_DIVISOR) + depth / NMP_DEPTH_DIVISOR;
 
-            auto [testBoard, threadManager] = thisThread.makeNullMove(board);
+            Board testBoard = board;
+            ThreadStackManager threadManager = thisThread.makeNullMove(testBoard);
             i32 score = -search<NodeType::NONPV>(testBoard, depth - reduction, ply + 1, -beta, -beta + 1, ss + 1, thisThread, sl);
 
             if (score >= beta) {
@@ -263,7 +265,8 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         i32 newDepth = depth + extension - 1;
 
         // Make the move on the new board. This will also update stacks
-        auto [testBoard, threadManager] = thisThread.makeMove(board, m);
+        Board testBoard = board;
+        ThreadStackManager threadManager = thisThread.makeMove(board, testBoard, m);
 
         i16 score;
         if (depth >= 2 && movesSeen >= 5 + 2 * (ply == 0) && !testBoard.inCheck()) {

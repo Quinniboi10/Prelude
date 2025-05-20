@@ -37,23 +37,21 @@ void ThreadInfo::updateConthist(SearchStack* ss, Board& b, Move m, int bonus) {
         updateEntry((*(ss - 2)->conthist)[b.stm][b.getPiece(m.from())][m.to()]);
 }
 
-std::pair<Board, ThreadStackManager> ThreadInfo::makeMove(Board& b, Move m) {
-    Board newBoard = b;
+ThreadStackManager ThreadInfo::makeMove(Board& board, Board& newBoard, Move m) {
     newBoard.move(m);
 
     accumulatorStack.push(accumulatorStack.top());
-    accumulatorStack.topAsReference().update(newBoard, m, b.getPiece(m.to()));
+    accumulatorStack.topAsReference().update(newBoard, m, board.getPiece(m.to()));
 
-    return {std::piecewise_construct, std::tuple(newBoard), std::tie(*this)};
+    return ThreadStackManager(*this);
 }
 
-std::pair<Board, ThreadStackManager> ThreadInfo::makeNullMove(Board& b) {
-    Board newBoard = b;
+ThreadStackManager ThreadInfo::makeNullMove(Board& newBoard) {
     newBoard.nullMove();
 
     accumulatorStack.push(accumulatorStack.top());
 
-    return {std::piecewise_construct, std::tuple(newBoard), std::tie(*this)};
+    return ThreadStackManager(*this);
 }
 
 void ThreadInfo::refresh(Board& b) {
