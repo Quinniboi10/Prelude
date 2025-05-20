@@ -41,11 +41,10 @@ std::pair<Board, ThreadStackManager> ThreadInfo::makeMove(Board& b, Move m) {
     Board newBoard = b;
     newBoard.move(m);
 
-    AccumulatorPair accumulators = accumulatorStack.top();
-    accumulators.update(newBoard, m, b.getPiece(m.to()));
-    accumulatorStack.push(accumulators);
+    accumulatorStack.push(accumulatorStack.top());
+    accumulatorStack.topAsReference().update(newBoard, m, b.getPiece(m.to()));
 
-    return std::pair<Board, ThreadStackManager>(std::piecewise_construct, std::tuple(newBoard), std::tie(*this));
+    return {std::piecewise_construct, std::tuple(newBoard), std::tie(*this)};
 }
 
 std::pair<Board, ThreadStackManager> ThreadInfo::makeNullMove(Board& b) {
@@ -54,7 +53,7 @@ std::pair<Board, ThreadStackManager> ThreadInfo::makeNullMove(Board& b) {
 
     accumulatorStack.push(accumulatorStack.top());
 
-    return std::pair<Board, ThreadStackManager>(std::piecewise_construct, std::tuple(newBoard), std::tie(*this));
+    return {std::piecewise_construct, std::tuple(newBoard), std::tie(*this)};
 }
 
 void ThreadInfo::refresh(Board& b) {

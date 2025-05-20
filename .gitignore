@@ -1,6 +1,9 @@
 # VS Code config
 .vscode
 
+# C-Lion config
+.idea
+
 # Engine build
 *.o
 Prelude.*

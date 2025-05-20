@@ -197,6 +197,10 @@ class Stack {
           assert(ptr > 0);
           return underlying[ptr - 1];
       }
+      Type& topAsReference() {
+          assert(ptr > 0);
+          return underlying[ptr - 1];
+      }
       void clear() {
           ptr = 0;
       }

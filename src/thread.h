@@ -57,7 +57,7 @@ struct ThreadInfo {
 struct ThreadStackManager {
     ThreadInfo& thisThread;
 
-    ThreadStackManager(ThreadInfo& thisThread) :
+    explicit ThreadStackManager(ThreadInfo& thisThread) :
         thisThread(thisThread) {}
 
     ThreadStackManager(const ThreadStackManager& other) = delete;
