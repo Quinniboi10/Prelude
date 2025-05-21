@@ -506,6 +506,8 @@ void Board::nullMove() {
     zobrist ^= STM_ZHASH;
     stm = ~stm;
 
+    posHistory.push_back(zobrist);
+
     fromNull = true;
     updateCheckPin();
 }
