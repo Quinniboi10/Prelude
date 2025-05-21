@@ -35,6 +35,26 @@ void AccumulatorPair::resetAccumulators(const Board& board) {
     }
 }
 
+void AccumulatorPair::update(const Board& board, const Move m, const PieceType toPT) {
+    const Color     stm   = ~board.stm;
+    const Square    from  = m.from();
+    const Square    to    = m.to();
+    const MoveType  mt    = m.typeOf();
+    const PieceType pt    = mt == PROMOTION ? PAWN : board.getPiece(to);
+    const PieceType endPT = mt == PROMOTION ? m.promo() : pt;
+
+    if (mt == EN_PASSANT)
+        addSubSub(stm, to, PAWN, from, PAWN, to + (stm == WHITE ? SOUTH : NORTH), PAWN);
+    else if (mt == CASTLE) {
+        const bool isKingside = to > from;
+        addAddSubSub(stm, KING_CASTLE_END_SQ[castleIndex(stm, isKingside)], KING, ROOK_CASTLE_END_SQ[castleIndex(stm, isKingside)], ROOK, from, KING, to, ROOK);
+    }
+    else if (toPT != NO_PIECE_TYPE)
+        addSubSub(stm, to, endPT, from, pt, to, toPT);
+    else
+        addSub(stm, to, endPT, from, pt);
+}
+
 // All friendly, for quiets
 void AccumulatorPair::addSub(Color stm, Square add, PieceType addPT, Square sub, PieceType subPT) {
     int addW = NNUE::feature(WHITE, stm, addPT, add);

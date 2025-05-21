@@ -2,6 +2,7 @@
 
 #include "ttable.h"
 #include "search.h"
+#include "thread.h"
 
 struct Searcher {
     TranspositionTable TT;

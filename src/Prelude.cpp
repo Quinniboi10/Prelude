@@ -203,8 +203,9 @@ int main(int argc, char* argv[]) {
         else if (tokens[0] == "datagen")
             Datagen::run(tokens.size() > 1 ? std::stoi(tokens[1]) : 1);
         else if (command == "debug.eval") {
-            cout << "Raw eval: " << nnue.forwardPass(&board) << endl;
-            nnue.showBuckets(&board);
+            searcher.mainData->refresh(board);
+            cout << "Raw eval: " << nnue.forwardPass(&board, searcher.mainData->accumulatorStack.top()) << endl;
+            nnue.showBuckets(&board, searcher.mainData->accumulatorStack.top());
         }
         else if (command == "debug.moves") {
             MoveList moves = Movegen::generateMoves<ALL_MOVES>(board);

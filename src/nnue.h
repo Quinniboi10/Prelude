@@ -2,6 +2,7 @@
 
 #include "types.h"
 #include "config.h"
+#include "thread.h"
 #include "accumulator.h"
 
 #ifdef __AVX512F__
@@ -26,8 +27,8 @@ struct NNUE {
 
     void loadNetwork(const string& filepath);
 
-    int  forwardPass(const Board* board);
-    void showBuckets(const Board* board);
+    int  forwardPass(const Board* board, const AccumulatorPair& accumulators);
+    void showBuckets(const Board* board, const AccumulatorPair& accumulators);
 
-    i16 evaluate(const Board& board);
+    i16 evaluate(const Board& board, Search::ThreadInfo& thisThread);
 };

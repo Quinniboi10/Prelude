@@ -8,7 +8,7 @@
 #include "ttable.h"
 #include "search.h"
 
-int evaluate(Board& board, Search::ThreadInfo& thisThread, Search::Stack* ss, Move m) {
+int evaluate(Board& board, Search::ThreadInfo& thisThread, Search::SearchStack* ss, Move m) {
     auto evaluateMVVLVA = [&]() {
         int victim   = PIECE_VALUES[board.getPiece(m.to())];
         int attacker = PIECE_VALUES[board.getPiece(m.from())];
@@ -33,7 +33,7 @@ struct Movepicker {
     u16             seen;
     Move            TTMove;
 
-    Movepicker(Board& board, Search::ThreadInfo& thisThread, Search::Stack* ss = nullptr) {
+    Movepicker(Board& board, Search::ThreadInfo& thisThread, Search::SearchStack* ss = nullptr) {
         moves = Movegen::generateMoves<mode>(board);
         seen  = 0;
 

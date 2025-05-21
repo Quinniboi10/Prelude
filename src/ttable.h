@@ -96,7 +96,7 @@ class TranspositionTable {
         for (usize sample = 0; sample < samples; sample++)
             hits += table[sample].zobrist != 0;
         usize hash = (int) (hits / (double) samples * 1000);
-        assert(hash < 1000);
+        assert(hash <= 1000);
         return hash;
     }
 };

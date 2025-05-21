@@ -3,6 +3,7 @@
 #include "movegen.h"
 #include "search.h"
 #include "constants.h"
+#include "thread.h"
 
 #include "../external/fmt/fmt/format.h"
 
@@ -191,9 +192,10 @@ mainLoop:
         startingPos = MarlinFormat(board);
 
         while (!board.isGameOver()) {
-            MoveEvaluation move = Search::iterativeDeepening(board, *thisThread, sp);
+            MoveEvaluation move = Search::iterativeDeepening(board, *thisThread.get(), sp);
             assert(!move.move.isNull());
             gameBuffer.emplace_back(move.move, board.stm == WHITE ? move.eval : -move.eval);
+
             board.move(move.move);
             cachedPositions++;
         }

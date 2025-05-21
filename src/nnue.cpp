@@ -2,6 +2,7 @@
 #include "config.h"
 #include "board.h"
 #include "util.h"
+#include "thread.h"
 #include "accumulator.h"
 #include "search.h"
 
@@ -123,7 +124,7 @@ i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usiz
     i32 res = 0;
     for (usize i = 0; i < HL_SIZE; i++) {
         res += (i32) SCReLU(stm[i]) * weightsToOut[bucket][i];
-        res += (i32) SCReLU(stm[i]) * weightsToOut[bucket][i + HL_SIZE];
+        res += (i32) SCReLU(nstm[i]) * weightsToOut[bucket][i + HL_SIZE];
     }
     return res;
 }
@@ -146,37 +147,34 @@ void NNUE::loadNetwork(const string& filepath) {
 
     // Load weightsToHL
     for (usize i = 0; i < weightsToHL.size(); ++i) {
-        weightsToHL[i] = readLittleEndian<int16_t>(stream);
+        weightsToHL[i] = readLittleEndian<i16>(stream);
     }
 
     // Load hiddenLayerBias
     for (usize i = 0; i < hiddenLayerBias.size(); ++i) {
-        hiddenLayerBias[i] = readLittleEndian<int16_t>(stream);
+        hiddenLayerBias[i] = readLittleEndian<i16>(stream);
     }
 
     // Load weightsToOut
     for (usize i = 0; i < weightsToOut.size(); ++i) {
         for (usize j = 0; j < weightsToOut[i].size(); j++) {
-            weightsToOut[i][j] = readLittleEndian<int16_t>(stream);
+            weightsToOut[i][j] = readLittleEndian<i16>(stream);
         }
     }
 
     // Load outputBias
     for (usize i = 0; i < outputBias.size(); ++i) {
-        outputBias[i] = readLittleEndian<int16_t>(stream);
+        outputBias[i] = readLittleEndian<i16>(stream);
     }
 }
 
 // Returns the output of the NN
-int NNUE::forwardPass(const Board* board) {
+int NNUE::forwardPass(const Board* board, const AccumulatorPair& accumulators) {
     const usize divisor      = 32 / OUTPUT_BUCKETS;
     const usize outputBucket = (popcount(board->pieces()) - 2) / divisor;
 
-    // Determine the side to move and the opposite side
-    Color stm = board->stm;
-
-    const Accumulator& accumulatorSTM = stm ? board->accumulators.white : board->accumulators.black;
-    const Accumulator& accumulatorOPP = ~stm ? board->accumulators.white : board->accumulators.black;
+    const Accumulator& accumulatorSTM = board->stm == WHITE ? accumulators.white : accumulators.black;
+    const Accumulator& accumulatorOPP = ~board->stm == WHITE ? accumulators.white : accumulators.black;
 
     // Accumulate output for STM and OPP using separate weight segments
     i64 eval = 0;
@@ -211,7 +209,7 @@ int NNUE::forwardPass(const Board* board) {
 }
 
 // Debug feature based on SF
-void NNUE::showBuckets(const Board* board) {
+void NNUE::showBuckets(const Board* board, const AccumulatorPair& accumulators) {
     const usize divisor     = 32 / OUTPUT_BUCKETS;
     const usize usingBucket = (popcount(board->pieces()) - 2) / divisor;
 
@@ -221,13 +219,10 @@ void NNUE::showBuckets(const Board* board) {
     cout << "|   Bucket   | Evaluation |" << endl;
     cout << "+------------+------------+" << endl;
 
+    const Accumulator& accumulatorSTM = board->stm == WHITE ? accumulators.white : accumulators.black;
+    const Accumulator& accumulatorOPP = ~board->stm == WHITE ? accumulators.white : accumulators.black;
+
     for (usize outputBucket = 0; outputBucket < OUTPUT_BUCKETS; outputBucket++) {
-        // Determine the side to move and the opposite side
-        Color stm = board->stm;
-
-        const Accumulator& accumulatorSTM = stm ? board->accumulators.white : board->accumulators.black;
-        const Accumulator& accumulatorOPP = ~stm ? board->accumulators.white : board->accumulators.black;
-
         // Accumulate output for STM and OPP using separate weight segments
         i64 eval = 0;
 
@@ -268,4 +263,14 @@ void NNUE::showBuckets(const Board* board) {
     }
 }
 
-i16 NNUE::evaluate(const Board& board) { return std::clamp(forwardPass(&board), static_cast<int>(Search::MATED_IN_MAX_PLY), static_cast<int>(Search::MATE_IN_MAX_PLY)); }
+i16 NNUE::evaluate(const Board& board, Search::ThreadInfo& thisThread) {
+    #ifndef NDEBUG
+    AccumulatorPair verifAccumulator;
+    verifAccumulator.resetAccumulators(board);
+    if (verifAccumulator != thisThread.accumulatorStack.top()) {
+        board.display();
+    }
+    assert(verifAccumulator == thisThread.accumulatorStack.top());
+    #endif
+    return std::clamp(forwardPass(&board, thisThread.accumulatorStack.top()), static_cast<int>(Search::MATED_IN_MAX_PLY), static_cast<int>(Search::MATE_IN_MAX_PLY));
+}

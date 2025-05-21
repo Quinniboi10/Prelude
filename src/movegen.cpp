@@ -268,7 +268,7 @@ u64 bulk(Board& board, usize depth) {
 
         testBoard = board;
 
-        testBoard.minimalMove(m);
+        testBoard.move(m);
         nodes += bulk(testBoard, depth - 1);
     }
 
@@ -302,7 +302,7 @@ u64 multithreadBulk(Board& board, usize depth) {
 
         testBoard = board;
 
-        testBoard.minimalMove(m);
+        testBoard.move(m);
 
         threads.emplace_back(runThread, testBoard, depth - 1);
     }
@@ -330,7 +330,7 @@ u64 perft(Board& board, usize depth) {
 
         testBoard = board;
 
-        testBoard.minimalMove(m);
+        testBoard.move(m);
         nodes += perft(testBoard, depth - 1);
     }
 
@@ -356,7 +356,7 @@ void Movegen::perft(Board& board, usize depth, bool bulk) {
 
         testBoard = board;
 
-        testBoard.minimalMove(m);
+        testBoard.move(m);
         if (bulk)
             nodesThisMove = ::bulk(testBoard, depth - 1);
         else
