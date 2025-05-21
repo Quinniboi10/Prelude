@@ -5,9 +5,10 @@
 #include "move.h"
 #include "accumulator.h"
 
+constexpr std::array<Square, 4> ROOK_CASTLE_END_SQ = {Square(d8), Square(f8), Square(d1), Square(f1)};
+constexpr std::array<Square, 4> KING_CASTLE_END_SQ = {Square(c8), Square(g8), Square(c1), Square(g1)};
+
 struct Board {
-    // Set of accumulators for evaluation
-    AccumulatorPair accumulators;
     // Index is based on square, returns the piece type
     array<PieceType, 64> mailbox;
     // Indexed pawns, knights, bishops, rooks, queens, king
@@ -83,7 +84,6 @@ struct Board {
 
     void move(Move m);
     void move(string str);
-    void minimalMove(Move m);
 
     bool canNullMove() const;
     void nullMove();

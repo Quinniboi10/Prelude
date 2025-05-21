@@ -261,7 +261,6 @@ void Board::reset() {
     fromNull = false;
 
     resetMailbox();
-    accumulators.resetAccumulators(*this);
     resetZobrist();
     updateCheckPin();
 }
@@ -350,7 +349,6 @@ void Board::loadFromFEN(string fen) {
     fromNull = false;
 
     resetMailbox();
-    accumulators.resetAccumulators(*this);
     resetZobrist();
     updateCheckPin();
 }
@@ -385,15 +383,10 @@ bool Board::isQuiet(Move m) const { return !isCapture(m) && (m.typeOf() != PROMO
 
 bool Board::isCapture(Move m) const { return ((1ULL << m.to() & pieces(~stm)) || m.typeOf() == EN_PASSANT); }
 
-// Make a move
-void Board::move(Move m) { move<false>(m); }
 // Make a move from a string
-void Board::move(string str) { move<false>(Move(str, *this)); }
-// Make a move on the board, but don't update accumulators
-void Board::minimalMove(Move m) { move<true>(m); }
+void Board::move(string str) { move(Move(str, *this)); }
 
-// Backend for all moves
-template<bool minimal>
+// Make a move
 void Board::move(Move m) {
     zobrist ^= hashCastling();
     zobrist ^= EP_ZTABLE[epSquare];
@@ -405,7 +398,6 @@ void Board::move(Move m) {
     MoveType  mt    = m.typeOf();
     PieceType pt    = getPiece(from);
     PieceType toPT  = NO_PIECE_TYPE;
-    PieceType endPT = m.typeOf() == PROMOTION ? m.promo() : pt;
 
     removePiece(stm, pt, from);
     if (isCapture(m)) {
@@ -413,15 +405,10 @@ void Board::move(Move m) {
         halfMoveClock = 0;
         posHistory.clear();
         if (mt != EN_PASSANT) {
-            if constexpr (!minimal)
-                accumulators.addSubSub(stm, to, endPT, from, pt, to, toPT);
             removePiece(~stm, toPT, to);
         }
     }
     else {
-        if (!minimal && mt != CASTLE)
-            accumulators.addSub(stm, to, endPT, from, pt);
-
         if (pt == PAWN)
             halfMoveClock = 0;
         else
@@ -436,8 +423,6 @@ void Board::move(Move m) {
             epSquare = Square(stm == WHITE ? from + NORTH : from + SOUTH);
         break;
     case EN_PASSANT:
-        if constexpr (!minimal)
-            accumulators.addSubSub(stm, to, PAWN, from, PAWN, to + (stm == WHITE ? SOUTH : NORTH), PAWN);
         removePiece(~stm, PAWN, to + (stm == WHITE ? SOUTH : NORTH));
         placePiece(stm, pt, to);
         break;
@@ -448,28 +433,20 @@ void Board::move(Move m) {
             if (from < to) {
                 placePiece(stm, KING, g1);
                 placePiece(stm, ROOK, f1);
-                if constexpr (!minimal)
-                    accumulators.addAddSubSub(stm, g1, KING, f1, ROOK, from, KING, to, ROOK);
             }
             else {
                 placePiece(stm, KING, c1);
                 placePiece(stm, ROOK, d1);
-                if constexpr (!minimal)
-                    accumulators.addAddSubSub(stm, c1, KING, d1, ROOK, from, KING, to, ROOK);
             }
         }
         else {
             if (from < to) {
                 placePiece(stm, KING, g8);
                 placePiece(stm, ROOK, f8);
-                if constexpr (!minimal)
-                    accumulators.addAddSubSub(stm, g8, KING, f8, ROOK, from, KING, to, ROOK);
             }
             else {
                 placePiece(stm, KING, c8);
                 placePiece(stm, ROOK, d8);
-                if constexpr (!minimal)
-                    accumulators.addAddSubSub(stm, c8, KING, d8, ROOK, from, KING, to, ROOK);
             }
         }
         break;
@@ -586,7 +563,7 @@ bool Board::isLegal(Move m) {
 
     if (m.typeOf() == EN_PASSANT) {
         Board testBoard = *this;
-        testBoard.minimalMove(m);
+        testBoard.move(m);
         return !testBoard.isUnderAttack(stm, Square(ctzll(testBoard.pieces(stm, KING))));
     }
 

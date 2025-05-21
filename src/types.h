@@ -175,4 +175,35 @@ public:
     }
 };
 
+template<typename Type, usize size>
+class Stack {
+    array<Type, size> underlying;
+    usize ptr;
+
+  public:
+      Stack() {
+          ptr = 0;
+      }
+
+      void push(const Type& t) {
+          assert(ptr < size);
+          underlying[ptr++] = t;
+      }
+      Type pop() {
+          assert(ptr > 0);
+          return underlying[--ptr];
+      }
+      const Type& top() const {
+          assert(ptr > 0);
+          return underlying[ptr - 1];
+      }
+      Type& topAsReference() {
+          assert(ptr > 0);
+          return underlying[ptr - 1];
+      }
+      void clear() {
+          ptr = 0;
+      }
+};
+
 struct Board;

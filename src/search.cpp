@@ -1,8 +1,9 @@
 #include "search.h"
+#include "config.h"
+#include "thread.h"
 #include "globals.h"
 #include "movegen.h"
 #include "searcher.h"
-#include "config.h"
 #include "constants.h"
 #include "movepicker.h"
 #include "wdl.h"
@@ -31,7 +32,7 @@ void                                          fillLmrTable() {
 
 // Quiesence search
 template<NodeType isPV>
-i16 qsearch(Board& board, usize ply, int alpha, int beta, Stack* ss, ThreadInfo& thisThread, SearchLimit& sl) {
+i16 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, ThreadInfo& thisThread, SearchLimit& sl) {
     if (ply > thisThread.seldepth)
         thisThread.seldepth = ply;
 
@@ -45,7 +46,7 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, Stack* ss, ThreadInfo&
         return ttEntry->score;
     }
 
-    int staticEval = nnue.evaluate(board);
+    int staticEval = nnue.evaluate(board, thisThread);
     if (ply >= MAX_PLY)
         return staticEval;
     if constexpr (isPV)
@@ -87,7 +88,7 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, Stack* ss, ThreadInfo&
         }
 
         Board testBoard = board;
-        testBoard.move(m);
+        ThreadStackManager threadManager = thisThread.makeMove(board, testBoard, m);
         thisThread.nodes++;
 
         i16 score = -qsearch<isPV>(testBoard, ply + 1, -beta, -alpha, ss + 1, thisThread, sl);
@@ -109,7 +110,7 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, Stack* ss, ThreadInfo&
 
 // Main search
 template<NodeType isPV>
-i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, ThreadInfo& thisThread, SearchLimit& sl) {
+i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack* ss, ThreadInfo& thisThread, SearchLimit& sl) {
     if (depth + ply > MAX_PLY)
         depth = MAX_PLY - ply;
     if constexpr (isPV)
@@ -147,7 +148,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
         depth--;
 
     ss->conthist    = nullptr;
-    i16& staticEval = ss->staticEval = nnue.evaluate(board);
+    i16& staticEval = ss->staticEval = nnue.evaluate(board, thisThread);
 
     bool improving = ply >= 2 && (ss - 2)->staticEval < staticEval;
 
@@ -159,9 +160,10 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
 
         // Null move pruning
         if (board.canNullMove() && staticEval >= beta && ply >= thisThread.minNmpPly) {
-            const int reduction = NMP_REDUCTION + std::min(2, (staticEval - beta) / NMP_EVAL_DIVISOR) + depth / NMP_DEPTH_DIVISOR;
+            const int          reduction = NMP_REDUCTION + std::min(2, (staticEval - beta) / NMP_EVAL_DIVISOR) + depth / NMP_DEPTH_DIVISOR;
+
             Board testBoard = board;
-            testBoard.nullMove();
+            ThreadStackManager threadManager = thisThread.makeNullMove(testBoard);
             i32 score = -search<NodeType::NONPV>(testBoard, depth - reduction, ply + 1, -beta, -beta + 1, ss + 1, thisThread, sl);
 
             if (score >= beta) {
@@ -237,12 +239,11 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
 
         ss->conthist = thisThread.getConthistSegment(board, m);
 
-        Board testBoard = board;
-        testBoard.move(m);
         thisThread.nodes++;
         movesSeen++;
 
         usize extension = 0;
+        // Singular extensions
         if (ply > 0 && depth >= SE_MIN_DEPTH && ttHit && m == ttEntry->move && ttEntry->depth >= depth - 3 && ttEntry->flag != FAIL_LOW) {
             const int sBeta  = std::max(-INF_INT + 1, ttEntry->score - depth * 2);
             const int sDepth = (depth - 1) / 2;
@@ -262,6 +263,10 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, Stack* ss, T
         }
 
         i32 newDepth = depth + extension - 1;
+
+        // Make the move on the new board. This will also update stacks
+        Board testBoard = board;
+        ThreadStackManager threadManager = thisThread.makeMove(board, testBoard, m);
 
         i16 score;
         if (depth >= 2 && movesSeen >= 5 + 2 * (ply == 0) && !testBoard.inCheck()) {
@@ -322,6 +327,7 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
     thisThread.breakFlag.store(false);
     thisThread.nodes    = 0;
     thisThread.seldepth = 0;
+    thisThread.refresh(board);
     const bool isMain   = thisThread.type == MAIN;
 
     assert(!isMain || searcher != nullptr);
@@ -340,10 +346,10 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
     SearchLimit depthOneSl(sp.time, 0, sp.nodes);
     SearchLimit mainSl(sp.time, searchTime, sp.nodes);
 
-    auto stack = std::make_unique<array<Stack, MAX_PLY + 3>>();
-    Stack* ss = reinterpret_cast<Stack*>(stack->data() + 2);
+    auto stack = std::make_unique<array<SearchStack, MAX_PLY + 3>>();
+    SearchStack* ss = reinterpret_cast<SearchStack*>(stack->data() + 2);
 
-    std::memset(stack.get(), 0, sizeof(Stack) * (MAX_PLY + 3));
+    std::memset(stack.get(), 0, sizeof(SearchStack) * (MAX_PLY + 3));
 
     usize depth = std::min(sp.depth, MAX_PLY);
 

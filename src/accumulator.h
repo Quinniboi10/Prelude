@@ -12,7 +12,11 @@ struct AccumulatorPair {
 
     void resetAccumulators(const Board& board);
 
+    void update(const Board& board, const Move m, const PieceType toPT);
+
     void addSub(Color stm, Square add, PieceType addPT, Square sub, PieceType subPT);
     void addSubSub(Color stm, Square add, PieceType addPT, Square sub1, PieceType subPT1, Square sub2, PieceType subPT2);
     void addAddSubSub(Color stm, Square add1, PieceType addPT1, Square add2, PieceType addPT2, Square sub1, PieceType subPT1, Square sub2, PieceType subPT2);
+
+    bool operator==(const AccumulatorPair& other) const { return white == other.white && black == other.black; }
 };
