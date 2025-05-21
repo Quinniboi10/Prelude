@@ -254,7 +254,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
             if (score < sBeta) {
                 if (!isPV && score < sBeta - SE_DOUBLE_MARGIN)
-                    extension = 2;
+                    extension = 2 + (board.isQuiet(m) && score < sBeta - SE_TRIPLE_MARGIN);
                 else
                     extension = 1;
             }

@@ -23,6 +23,7 @@ constexpr int FUTILITY_PRUNING_SCALAR = 80;
 
 constexpr int SE_MIN_DEPTH     = 8;
 constexpr int SE_DOUBLE_MARGIN = 30;
+constexpr int SE_TRIPLE_MARGIN = 60;
 
 constexpr int SEE_PRUNING_DETPH_SCALAR = -90;
 
