@@ -148,19 +148,19 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         depth--;
 
     ss->conthist    = nullptr;
-    i16& staticEval = ss->staticEval = nnue.evaluate(board, thisThread);
+    ss->staticEval = nnue.evaluate(board, thisThread);
 
-    bool improving = ply >= 2 && (ss - 2)->staticEval < staticEval;
+    bool improving = ply >= 2 && (ss - 2)->staticEval < ss->staticEval;
 
     if (!isPV && ply > 0 && !board.inCheck() && ss->excluded.isNull()) {
         // Reverse futility pruning
         int rfpMargin = RFP_DEPTH_SCALAR * (depth - improving);
-        if (staticEval - rfpMargin >= beta && depth < 7)
-            return staticEval;
+        if (ss->staticEval - rfpMargin >= beta && depth < 7)
+            return ss->staticEval;
 
         // Null move pruning
-        if (board.canNullMove() && staticEval >= beta && ply >= thisThread.minNmpPly) {
-            const int          reduction = NMP_REDUCTION + std::min(2, (staticEval - beta) / NMP_EVAL_DIVISOR) + depth / NMP_DEPTH_DIVISOR;
+        if (board.canNullMove() && ss->staticEval >= beta && ply >= thisThread.minNmpPly) {
+            const int          reduction = NMP_REDUCTION + std::min(2, (ss->staticEval - beta) / NMP_EVAL_DIVISOR) + depth / NMP_DEPTH_DIVISOR;
 
             Board testBoard = board;
             ThreadStackManager threadManager = thisThread.makeNullMove(testBoard);
@@ -219,6 +219,8 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         if (!board.isLegal(m))
             continue;
 
+        ss->historyScore = board.isQuiet(m) ? thisThread.getQuietHistory(board, ss, m) : 0;
+
         if (ply > 0 && !isLoss(bestScore)) {
             // Late move pruning
             if (!skipQuiets && board.isQuiet(m) && movesSeen >= (6 + depth * depth) / (2 - improving)) {
@@ -227,13 +229,19 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
             }
 
             // Futility pruning
-            if (!board.inCheck() && depth < 6 && board.isQuiet(m) && staticEval + FUTILITY_PRUNING_MARGIN + FUTILITY_PRUNING_SCALAR * depth < alpha) {
+            if (!board.inCheck() && depth < 6 && board.isQuiet(m) && ss->staticEval + FUTILITY_PRUNING_MARGIN + FUTILITY_PRUNING_SCALAR * depth < alpha) {
+                skipQuiets = true;
+                continue;
+            }
+
+            // History pruning
+            if (depth <= MIN_HIST_PRUNING_DEPTH && ss->historyScore < HIST_PRUNING_MARGIN + HIST_PRUNING_SCALAR * depth) {
                 skipQuiets = true;
                 continue;
             }
 
             // SEE pruning
-            if (!board.see(m, SEE_PRUNING_DETPH_SCALAR * depth))
+            if (!board.see(m, SEE_PRUNING_SCALAR * depth))
                 continue;
         }
 
