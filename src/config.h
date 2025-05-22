@@ -14,6 +14,9 @@ constexpr int INITIAL_ASP_WINDOW   = 30;
 
 constexpr int RFP_DEPTH_SCALAR = 70;
 
+constexpr int RAZORING_DEPTH = 4;
+constexpr int RAZORING_DEPTH_SCALAR = 500;
+
 constexpr int NMP_REDUCTION = 3;
 constexpr int NMP_DEPTH_DIVISOR = 3;
 constexpr int NMP_EVAL_DIVISOR  = 160;
@@ -24,7 +27,7 @@ constexpr int FUTILITY_PRUNING_SCALAR = 80;
 constexpr int SE_MIN_DEPTH     = 8;
 constexpr int SE_DOUBLE_MARGIN = 30;
 
-constexpr int SEE_PRUNING_DETPH_SCALAR = -90;
+constexpr int SEE_PRUNING_DEPTH_SCALAR = -90;
 
 
 constexpr int QS_FUTILITY_MARGIN = 100;

@@ -158,6 +158,10 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         if (staticEval - rfpMargin >= beta && depth < 7)
             return staticEval;
 
+        // Razoring
+        if (depth < RAZORING_DEPTH && staticEval + RAZORING_DEPTH_SCALAR * depth < alpha)
+            return staticEval;
+
         // Null move pruning
         if (board.canNullMove() && staticEval >= beta && ply >= thisThread.minNmpPly) {
             const int          reduction = NMP_REDUCTION + std::min(2, (staticEval - beta) / NMP_EVAL_DIVISOR) + depth / NMP_DEPTH_DIVISOR;
@@ -233,7 +237,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
             }
 
             // SEE pruning
-            if (!board.see(m, SEE_PRUNING_DETPH_SCALAR * depth))
+            if (!board.see(m, SEE_PRUNING_DEPTH_SCALAR * depth))
                 continue;
         }
 
