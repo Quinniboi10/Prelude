@@ -30,18 +30,20 @@ struct ThreadInfo {
     // Copy constructor
     ThreadInfo(const ThreadInfo& other);
 
+    i64 getQuietHistory(Board& b, SearchStack* ss, Move m) const;
+
     void updateHist(Color stm, Move m, int bonus) {
         int clampedBonus = std::clamp(bonus, -MAX_HISTORY, MAX_HISTORY);
         history[stm][m.from()][m.to()] += clampedBonus - history[stm][m.from()][m.to()] * abs(clampedBonus) / MAX_HISTORY;
     }
 
-    int getHist(Color stm, Move m) { return history[stm][m.from()][m.to()]; }
+    int getHist(Color stm, Move m) const { return history[stm][m.from()][m.to()]; }
 
     ConthistSegment* getConthistSegment(Board& b, Move m) { return &conthist[b.stm][b.getPiece(m.from())][m.to()]; }
 
     void updateConthist(SearchStack* ss, Board& b, Move m, int bonus);
 
-    int getConthist(ConthistSegment* c, Board& b, Move m) {
+    int getConthist(ConthistSegment* c, Board& b, Move m) const {
         assert(c != nullptr);
         return (*c)[b.stm][b.getPiece(m.from())][m.to()];
     }
