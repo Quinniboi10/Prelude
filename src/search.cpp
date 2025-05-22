@@ -346,10 +346,10 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
     SearchLimit depthOneSl(sp.time, 0, sp.nodes);
     SearchLimit mainSl(sp.time, searchTime, sp.nodes);
 
-    auto stack = std::make_unique<array<SearchStack, MAX_PLY + 3>>();
+    auto stack = std::make_unique<array<SearchStack, MAX_PLY + 4>>();
     SearchStack* ss = reinterpret_cast<SearchStack*>(stack->data() + 2);
 
-    std::memset(stack.get(), 0, sizeof(SearchStack) * (MAX_PLY + 3));
+    std::memset(stack->data(), 0, sizeof(SearchStack) * (stack->size()));
 
     usize depth = std::min(sp.depth, MAX_PLY);
 

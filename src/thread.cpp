@@ -35,6 +35,9 @@ void ThreadInfo::updateConthist(SearchStack* ss, Board& b, Move m, int bonus) {
 
     if ((ss - 2)->conthist != nullptr)
         updateEntry((*(ss - 2)->conthist)[b.stm][b.getPiece(m.from())][m.to()]);
+
+    if ((ss + 1)->conthist != nullptr)
+        updateEntry((*(ss + 1)->conthist)[b.stm][b.getPiece(m.from())][m.to()]);
 }
 
 ThreadStackManager ThreadInfo::makeMove(Board& board, Board& newBoard, Move m) {

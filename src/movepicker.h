@@ -23,6 +23,8 @@ int evaluate(Board& board, Search::ThreadInfo& thisThread, Search::SearchStack* 
         res += thisThread.getConthist((ss - 1)->conthist, board, m);
     if (ss != nullptr && (ss - 2)->conthist != nullptr)
         res += thisThread.getConthist((ss - 2)->conthist, board, m);
+    if (ss != nullptr && (ss + 1)->conthist != nullptr)
+        res += thisThread.getConthist((ss + 1)->conthist, board, m);
     return res;
 }
 
