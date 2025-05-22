@@ -15,6 +15,9 @@ constexpr double ASP_WIDENING_FACTOR  = 2.5;
 
 constexpr int RFP_DEPTH_SCALAR = 70;
 
+constexpr int RAZORING_DEPTH = 4;
+constexpr int RAZORING_DEPTH_SCALAR = 500;
+
 constexpr int NMP_REDUCTION = 3;
 constexpr int NMP_DEPTH_DIVISOR = 3;
 constexpr int NMP_EVAL_DIVISOR  = 160;
@@ -29,7 +32,7 @@ constexpr int MIN_HIST_PRUNING_DEPTH = 5;
 constexpr int HIST_PRUNING_MARGIN = -400;
 constexpr int HIST_PRUNING_SCALAR = -2500;
 
-constexpr int SEE_PRUNING_SCALAR = -90;
+constexpr int SEE_PRUNING_DEPTH_SCALAR = -90;
 
 
 constexpr int QS_FUTILITY_MARGIN = 100;
