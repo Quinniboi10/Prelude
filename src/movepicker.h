@@ -16,7 +16,7 @@ int evaluate(Board& board, Search::ThreadInfo& thisThread, Search::SearchStack* 
         return (victim * 100) - attacker;
     };
     if (board.isCapture(m))
-        return evaluateMVVLVA() + 600'000 - 800'000 * !board.see(m, -50);
+        return evaluateMVVLVA() + 600'000 - 800'000 * !board.see(m, -50) + thisThread.getCapthist(board, m);
 
     int res = thisThread.getHist(board.stm, m);
     if (ss != nullptr && (ss - 1)->conthist != nullptr)

@@ -7,6 +7,7 @@ ThreadInfo::ThreadInfo(ThreadType type, TranspositionTable& TT, std::atomic<bool
     breakFlag(breakFlag) {
     deepFill(history, DEFAULT_HISTORY_VALUE);
     deepFill(conthist, DEFAULT_HISTORY_VALUE);
+    deepFill(capthist, DEFAULT_HISTORY_VALUE);
     breakFlag.store(false, std::memory_order_relaxed);
     seldepth  = 0;
     minNmpPly = 0;
@@ -75,6 +76,7 @@ void ThreadInfo::refresh(Board& b) {
 void ThreadInfo::reset() {
     deepFill(history, DEFAULT_HISTORY_VALUE);
     deepFill(conthist, DEFAULT_HISTORY_VALUE);
+    deepFill(capthist, DEFAULT_HISTORY_VALUE);
 
     nodes.store(0, std::memory_order_relaxed);
     seldepth = 0;
