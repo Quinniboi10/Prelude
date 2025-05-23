@@ -236,7 +236,8 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
             // History pruning
             if (depth <= MIN_HIST_PRUNING_DEPTH && ss->historyScore < HIST_PRUNING_MARGIN + HIST_PRUNING_SCALAR * depth) {
-                skipQuiets = true;
+                if (board.isQuiet(m))
+                    skipQuiets = true;
                 continue;
             }
 
