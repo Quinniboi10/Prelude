@@ -20,6 +20,7 @@ using ConthistSegment = array<array<array<int, 64>, 6>, 2>;
 
 struct SearchStack {
     PvList           pv;
+    i64              historyScore;
     ConthistSegment* conthist;
     Move             excluded;
     i16              staticEval;

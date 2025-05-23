@@ -22,6 +22,16 @@ ThreadInfo::ThreadInfo(const ThreadInfo& other) :
     minNmpPly = other.minNmpPly;
 }
 
+i64 ThreadInfo::getQuietHistory(Board& b, SearchStack* ss, Move m) const {
+    i64 res = getHist(b.stm, m);
+    if (ss != nullptr && (ss - 1)->conthist != nullptr)
+        res += getConthist((ss - 1)->conthist, b, m);
+    if (ss != nullptr && (ss - 2)->conthist != nullptr)
+        res += getConthist((ss - 2)->conthist, b, m);
+
+    return res;
+}
+
 void ThreadInfo::updateConthist(SearchStack* ss, Board& b, Move m, int bonus) {
     assert(ss != nullptr);
 
