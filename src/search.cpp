@@ -302,8 +302,8 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         }
         if (score >= beta) {
             ttFlag = BETA_CUTOFF;
+            int bonus = 20 * depth * depth;
             if (board.isQuiet(m)) {
-                int bonus = 20 * depth * depth;
                 thisThread.updateHist(board.stm, m, bonus);
                 thisThread.updateConthist(ss, board, m, bonus);
                 // History malus
@@ -313,6 +313,9 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
                     thisThread.updateHist(board.stm, quietMove, -bonus);
                     thisThread.updateConthist(ss, board, quietMove, -bonus);
                 }
+            }
+            else {
+                thisThread.updateCapthist(board, m, bonus);
             }
             break;
         }

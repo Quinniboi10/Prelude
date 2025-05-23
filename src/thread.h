@@ -13,6 +13,9 @@ struct ThreadInfo {
     // Conthist is indexed [last stm][last pt][last to][stm][pt][to]
     array<array<array<ConthistSegment, 64>, 6>, 2> conthist;
 
+    // Capthist is indexed [stm][pt][captured pt][to]
+    array<array<array<array<int, 64>, 6>, 6>, 2> capthist;
+
     Stack<AccumulatorPair, MAX_PLY + 1> accumulatorStack;
 
     ThreadType type;
@@ -38,6 +41,14 @@ struct ThreadInfo {
     }
 
     int getHist(Color stm, Move m) const { return history[stm][m.from()][m.to()]; }
+
+    void updateCapthist(Board& b, Move m, int bonus) {
+        int clampedBonus = std::clamp(bonus, -MAX_HISTORY, MAX_HISTORY);
+        int& entry = capthist[b.stm][b.getPiece(m.from())][b.getPiece(m.to())][m.to()];
+        entry += clampedBonus - entry * abs(clampedBonus) / MAX_HISTORY;
+    }
+
+    int getCapthist(Board& b, Move m) const { return capthist[b.stm][b.getPiece(m.from())][b.getPiece(m.to())][m.to()]; }
 
     ConthistSegment* getConthistSegment(Board& b, Move m) { return &conthist[b.stm][b.getPiece(m.from())][m.to()]; }
 
