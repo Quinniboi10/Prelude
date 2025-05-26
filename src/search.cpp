@@ -110,7 +110,7 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, Threa
 
 // Main search
 template<NodeType isPV>
-i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack* ss, ThreadInfo& thisThread, SearchLimit& sl) {
+i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack* ss, ThreadInfo& thisThread, SearchLimit& sl, bool cutNode) {
     if (depth + ply > MAX_PLY)
         depth = MAX_PLY - ply;
     if constexpr (isPV)
@@ -164,7 +164,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
             Board testBoard = board;
             ThreadStackManager threadManager = thisThread.makeNullMove(testBoard);
-            i32 score = -search<NodeType::NONPV>(testBoard, depth - reduction, ply + 1, -beta, -beta + 1, ss + 1, thisThread, sl);
+            i32 score = -search<NodeType::NONPV>(testBoard, depth - reduction, ply + 1, -beta, -beta + 1, ss + 1, thisThread, sl, !cutNode);
 
             if (score >= beta) {
                 // Verification search to guard zugzwang
@@ -172,7 +172,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
                     return isWin(score) ? beta : score;
 
                 thisThread.minNmpPly = ply + (depth - NMP_REDUCTION) * 3 / 4;
-                score                = search<NodeType::NONPV>(board, depth - NMP_REDUCTION, ply, beta - 1, beta, ss, thisThread, sl);
+                score                = search<NodeType::NONPV>(board, depth - NMP_REDUCTION, ply, beta - 1, beta, ss, thisThread, sl, false);
                 thisThread.minNmpPly = 0;
 
                 if (score >= beta)
@@ -258,7 +258,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
             const int sDepth = (depth - 1) / 2;
 
             ss->excluded    = m;
-            const int score = search<NodeType::NONPV>(board, sDepth, ply, sBeta - 1, sBeta, ss, thisThread, sl);
+            const int score = search<NodeType::NONPV>(board, sDepth, ply, sBeta - 1, sBeta, ss, thisThread, sl, cutNode);
             ss->excluded    = Move::null();
 
             if (score < sBeta) {
@@ -279,16 +279,19 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
         i16 score;
         if (depth >= 2 && movesSeen >= 5 + 2 * (ply == 0) && !testBoard.inCheck()) {
-            int depthReduction = lmrTable[board.isQuiet(m)][depth][movesSeen] + !isPV;
+            // Late move reductions
+            int depthReduction = lmrTable[board.isQuiet(m)][depth][movesSeen]
+            + !isPV
+            + cutNode * 2;
 
-            score = -search<NodeType::NONPV>(testBoard, newDepth - depthReduction, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
+            score = -search<NodeType::NONPV>(testBoard, newDepth - depthReduction, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl, true);
             if (score > alpha)
-                score = -search<NodeType::NONPV>(testBoard, newDepth, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
+                score = -search<NodeType::NONPV>(testBoard, newDepth, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl, !cutNode);
         }
         else if (!isPV || movesSeen > 1)
-            score = -search<NodeType::NONPV>(testBoard, newDepth, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
+            score = -search<NodeType::NONPV>(testBoard, newDepth, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl, !cutNode);
         if (isPV && (movesSeen == 1 || score > alpha))
-            score = -search<isPV>(testBoard, newDepth, ply + 1, -beta, -alpha, ss + 1, thisThread, sl);
+            score = -search<isPV>(testBoard, newDepth, ply + 1, -beta, -alpha, ss + 1, thisThread, sl, false);
 
         if (score > bestScore) {
             bestScore = score;
@@ -387,14 +390,14 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
         };
 
         if (currDepth < MIN_ASP_WINDOW_DEPTH)
-            score = search<PV>(board, currDepth, 0, -INF_I16, INF_I16, ss, thisThread, sl);
+            score = search<PV>(board, currDepth, 0, -INF_I16, INF_I16, ss, thisThread, sl, false);
         else {
             int delta = INITIAL_ASP_WINDOW;
             int alpha = std::max(lastScore - delta, -INF_I16);
             int beta  = std::min(lastScore + delta, INF_I16);
 
             while (!searchCancelled()) {
-                score = search<PV>(board, currDepth, 0, alpha, beta, ss, thisThread, sl);
+                score = search<PV>(board, currDepth, 0, alpha, beta, ss, thisThread, sl, false);
                 if (score <= alpha || score >= beta) {
                     alpha = -INF_I16;
                     beta  = INF_I16;
