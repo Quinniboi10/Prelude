@@ -111,8 +111,9 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, Threa
 // Main search
 template<NodeType isPV>
 i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack* ss, ThreadInfo& thisThread, SearchLimit& sl, bool cutNode) {
-    if (depth + ply > MAX_PLY)
+    if (static_cast<i32>(depth + ply) > static_cast<i32>(MAX_PLY))
         depth = MAX_PLY - ply;
+
     if constexpr (isPV)
         ss->pv.length = 0;
     if (ply > thisThread.seldepth)
@@ -172,7 +173,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
                     return isWin(score) ? beta : score;
 
                 thisThread.minNmpPly = ply + (depth - NMP_REDUCTION) * 3 / 4;
-                score                = search<NodeType::NONPV>(board, depth - NMP_REDUCTION, ply, beta - 1, beta, ss, thisThread, sl, false);
+                score                = search<NodeType::NONPV>(board, depth - NMP_REDUCTION, ply, beta - 1, beta, ss, thisThread, sl, true);
                 thisThread.minNmpPly = 0;
 
                 if (score >= beta)
@@ -251,7 +252,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         thisThread.nodes++;
         movesSeen++;
 
-        usize extension = 0;
+        i32 extension = 0;
         // Singular extensions
         if (ply > 0 && depth >= SE_MIN_DEPTH && ttHit && m == ttEntry->move && ttEntry->depth >= depth - 3 && ttEntry->flag != FAIL_LOW) {
             const int sBeta  = std::max(-INF_INT + 1, ttEntry->score - depth * 2);
@@ -277,7 +278,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         Board testBoard = board;
         ThreadStackManager threadManager = thisThread.makeMove(board, testBoard, m);
 
-        i16 score;
+        i32 score;
         if (depth >= 2 && movesSeen >= 5 + 2 * (ply == 0) && !testBoard.inCheck()) {
             // Late move reductions
             int depthReduction = lmrTable[board.isQuiet(m)][depth][movesSeen]
