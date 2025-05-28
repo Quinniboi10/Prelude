@@ -189,6 +189,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
     int movesSeen = 0;
 
     MoveList seenQuiets;
+    MoveList seenNoisies;
 
     bool skipQuiets = false;
 
@@ -215,6 +216,8 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
         if (board.isQuiet(m))
             seenQuiets.add(m);
+        else
+            seenNoisies.add(m);
 
         if (!board.isLegal(m))
             continue;
@@ -316,6 +319,13 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
             }
             else {
                 thisThread.updateCapthist(board, m, bonus);
+                // History malus
+                for (const Move noisyMove : seenNoisies) {
+                    if (noisyMove == m)
+                        continue;
+                    thisThread.updateHist(board.stm, noisyMove, -bonus);
+                    thisThread.updateConthist(ss, board, noisyMove, -bonus);
+                }
             }
             break;
         }
