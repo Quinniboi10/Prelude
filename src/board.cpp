@@ -379,7 +379,7 @@ PieceType Board::getPiece(int sq) const { return mailbox[sq]; }
 // Move is a capture of any kind
 // Move is a queen promotion
 // Move is a knight promotion
-bool Board::isQuiet(Move m) const { return !isCapture(m) && (m.typeOf() != PROMOTION || m.promo() == QUEEN); }
+bool Board::isQuiet(Move m) const { return !isCapture(m) && (m.typeOf() != PROMOTION || m.promo() != QUEEN); }
 
 bool Board::isCapture(Move m) const { return ((1ULL << m.to() & pieces(~stm)) || m.typeOf() == EN_PASSANT); }
 
