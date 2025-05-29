@@ -281,7 +281,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         if (depth >= 2 && movesSeen >= 5 + 2 * (ply == 0) && !testBoard.inCheck()) {
             int depthReduction = lmrTable[board.isQuiet(m)][depth][movesSeen]
             + !isPV
-            - ss->historyScore / 8000;
+            - (ss->historyScore + 13000) / 8000;
 
             score = -search<NodeType::NONPV>(testBoard, newDepth - depthReduction, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
             if (score > alpha)
