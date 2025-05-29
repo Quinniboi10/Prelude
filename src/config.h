@@ -30,6 +30,9 @@ constexpr int HIST_PRUNING_SCALAR = -2500;
 
 constexpr int SEE_PRUNING_SCALAR = -90;
 
+constexpr int HISTORY_RED_MARGIN = 13000;
+constexpr int HISTORY_RED_DIVISOR = 8000;
+
 
 constexpr int QS_FUTILITY_MARGIN = 100;
 
