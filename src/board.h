@@ -72,6 +72,8 @@ struct Board {
 
     u64 attackersTo(Square sq, u64 occ) const;
 
+    u64 roughKeyAfter(const Move m) const;
+
     void reset();
 
     void loadFromFEN(string fen);

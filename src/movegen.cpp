@@ -280,8 +280,6 @@ u64 multithreadBulk(Board& board, usize depth) {
 
     MoveList moves = Movegen::generateMoves<ALL_MOVES>(board);
 
-    Board testBoard;
-
     if (depth == 0)
         return 1;
 
@@ -300,7 +298,7 @@ u64 multithreadBulk(Board& board, usize depth) {
             continue;
         }
 
-        testBoard = board;
+        Board testBoard = board;
 
         testBoard.move(m);
 
@@ -319,8 +317,6 @@ u64 perft(Board& board, usize depth) {
 
     MoveList moves = Movegen::generateMoves<ALL_MOVES>(board);
 
-    Board testBoard;
-
     if (depth == 0)
         return 1;
 
@@ -328,9 +324,12 @@ u64 perft(Board& board, usize depth) {
         if (!board.isLegal(m))
             continue;
 
-        testBoard = board;
+        Board testBoard = board;
 
         testBoard.move(m);
+
+        assert(board.roughKeyAfter(m) == testBoard.zobrist || m.typeOf() == CASTLE || m.typeOf() == EN_PASSANT || board.getPiece(m.from()) == ROOK || board.getPiece(m.to()) == ROOK || board.getPiece(m.from()) == KING);
+
         nodes += perft(testBoard, depth - 1);
     }
 
@@ -342,8 +341,6 @@ void Movegen::perft(Board& board, usize depth, bool bulk) {
 
     MoveList moves = generateMoves<ALL_MOVES>(board);
 
-    Board testBoard;
-
     u64 nodesThisMove = 0;
 
     Stopwatch<std::chrono::milliseconds> stopwatch;
@@ -354,7 +351,7 @@ void Movegen::perft(Board& board, usize depth, bool bulk) {
         if (!board.isLegal(m))
             continue;
 
-        testBoard = board;
+        Board testBoard = board;
 
         testBoard.move(m);
         if (bulk)

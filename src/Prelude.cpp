@@ -235,6 +235,8 @@ int main(int argc, char* argv[]) {
             cout << "Stm is " << (board.inCheck() ? "in check" : "NOT in check") << endl;
         else if (tokens[0] == "debug.islegal")
             cout << tokens[1] << " is " << (board.isLegal(Move(tokens[1], board)) ? "" : "not ") << "legal" << endl;
+        else if (tokens[0] == "debug.keyafter")
+            cout << "Expected hash: 0x" << std::hex << std::uppercase << board.roughKeyAfter(Move(tokens[1], board)) << std::dec << endl;
         else if (command == "debug.popcnt") {
             cout << "White pawns: " << popcount(board.pieces(WHITE, PAWN)) << endl;
             cout << "White knigts: " << popcount(board.pieces(WHITE, KNIGHT)) << endl;
