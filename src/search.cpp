@@ -132,10 +132,10 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
     }
 
     Transposition* ttEntry = thisThread.TT.getEntry(board.zobrist);
-    bool           ttHit   = ss->excluded.isNull() && ttEntry->zobrist == board.zobrist;
+    bool           ttHit   = ttEntry->isHit(board.zobrist);
 
     // TT cutoffs
-    if (!isPV && ttHit && ttEntry->depth >= depth
+    if (!isPV && ttHit && ss->excluded.isNull() && ttEntry->depth >= depth
         && (ttEntry->flag == EXACT                                       // Exact score
             || (ttEntry->flag == BETA_CUTOFF && ttEntry->score >= beta)  // Lower bound, fail high
             || (ttEntry->flag == FAIL_LOW && ttEntry->score <= alpha)    // Upper bound, fail low
@@ -144,7 +144,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
     }
 
     // Internal iterative reductions
-    if (ss->excluded.isNull() && (ttEntry->zobrist != board.zobrist || ttEntry->move.isNull()) && depth > 5)
+    if (ss->excluded.isNull() && (!ttHit || ttEntry->move.isNull()) && depth > 5)
         depth--;
 
     ss->conthist    = nullptr;
@@ -256,7 +256,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
         usize extension = 0;
         // Singular extensions
-        if (ply > 0 && depth >= SE_MIN_DEPTH && ttHit && m == ttEntry->move && ttEntry->depth >= depth - 3 && ttEntry->flag != FAIL_LOW) {
+        if (ply > 0 && depth >= SE_MIN_DEPTH && ttHit && ss->excluded.isNull() && m == ttEntry->move && ttEntry->depth >= depth - 3 && ttEntry->flag != FAIL_LOW) {
             const int sBeta  = std::max(-INF_INT + 1, ttEntry->score - depth * 2);
             const int sDepth = (depth - 1) / 2;
 

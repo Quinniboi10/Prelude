@@ -8,7 +8,7 @@
 #include <cstring>
 
 struct Transposition {
-    u64  zobrist;
+    u16  zobrist;
     Move move;
     i16  score;
     u8   flag;
@@ -22,12 +22,14 @@ struct Transposition {
         depth   = 0;
     }
     Transposition(u64 zobristKey, Move bestMove, u8 flag, i16 score, u8 depth) {
-        this->zobrist = zobristKey;
+        this->zobrist = static_cast<u16>(zobristKey >> 48);
         this->move    = bestMove;
         this->flag    = flag;
         this->score   = score;
         this->depth   = depth;
     }
+
+    bool isHit(u64 zobristKey) { return this->zobrist == static_cast<u16>(zobristKey >> 48); }
 };
 
 class TranspositionTable {
