@@ -14,8 +14,16 @@ struct Searcher {
     std::vector<Search::ThreadInfo> workerData;
     std::vector<std::thread>        workers;
 
+    u64 countNodes() {
+        u64 nodes = mainData->nodes;
+        for (Search::ThreadInfo& w : workerData)
+            nodes += w.nodes;
+        return nodes;
+    }
+
     void start(Board& board, Search::SearchParams sp);
     void stop();
+    Move findBestThreadMove();
 
     void makeThreads(int threads);
 

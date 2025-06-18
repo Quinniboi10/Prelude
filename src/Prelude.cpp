@@ -67,6 +67,8 @@ int main(int argc, char* argv[]) {
 
     Searcher searcher;
 
+    searcher.stopFlag.store(true, std::memory_order_relaxed);
+
     // *********** ./Prelude <ARGS> ************
     if (argc > 1) {
         string arg1 = argv[1];

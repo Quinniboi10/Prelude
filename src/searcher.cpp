@@ -15,6 +15,7 @@ void Searcher::start(Board& board, Search::SearchParams sp) {
 }
 
 void Searcher::stop() {
+    bool wasSearching = !stopFlag.load();
     stopFlag.store(true, std::memory_order_relaxed);
 
     if (mainThread.joinable())
@@ -26,6 +27,38 @@ void Searcher::stop() {
                 t.join();
 
     workers.clear();
+
+    if (wasSearching) {
+        // Output a final node count, for debugging reasons
+        cout << "info nodes " << countNodes() << endl;
+
+        cout << "bestmove " << findBestThreadMove() << endl;
+    }
+}
+
+Move Searcher::findBestThreadMove() {
+    Move bestMove;
+    i32  bestDepth;
+    i16  bestScore;
+
+    auto updateBest = [&](Search::ThreadInfo& t) {
+        bestMove  = t.pv.moves[0];
+        bestDepth = t.depth;
+        bestScore = t.score;
+    };
+
+    updateBest(*mainData.get());
+
+    for (Search::ThreadInfo& t : workerData) {
+        if (t.depth == bestDepth && t.score > bestScore)
+            updateBest(t);
+        else if (Search::isDecisive(t.score) && t.score > bestScore)
+            updateBest(t);
+        else if (t.depth > bestDepth && !(Search::isDecisive(t.score) && Search::isDecisive(bestScore) && std::abs(t.score) < std::abs(bestScore)))
+            updateBest(t);
+    }
+
+    return bestMove;
 }
 
 void Searcher::makeThreads(int threads) {

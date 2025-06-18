@@ -25,6 +25,11 @@ struct ThreadInfo {
 
     usize minNmpPly;
 
+    // Search summary (updated when ID finishes a depth)
+    usize  depth;
+    i32    score;
+    PvList pv;
+
     ThreadInfo(ThreadType type, TranspositionTable& TT, std::atomic<bool>& breakFlag);
 
     // Copy constructor

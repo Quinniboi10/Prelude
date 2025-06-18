@@ -365,16 +365,13 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
 
     usize depth = std::min(sp.depth, MAX_PLY);
 
-    i32    lastScore{};
-    PvList lastPV{};
+    i32&    lastScore = thisThread.score;
+    PvList& lastPV    = thisThread.pv;
 
     auto countNodes = [&]() {
-        u64 nodes = thisThread.nodes;
         if (searcher == nullptr)
-            return nodes;
-        for (ThreadInfo& w : searcher->workerData)
-            nodes += w.nodes;
-        return nodes;
+            return thisThread.nodes.load();
+        return searcher->countNodes();
     };
 
     for (usize currDepth = 1; currDepth <= depth; currDepth++) {
@@ -410,6 +407,7 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
         if (currDepth == 1) {
             lastScore = score;
             lastPV    = ss->pv;
+            thisThread.depth = 1;
         }
 
         if (searchCancelled())
@@ -420,6 +418,7 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
 
         lastScore = score;
         lastPV    = ss->pv;
+        thisThread.depth = currDepth;
 
         if (isMain) {
             // Go mate
@@ -431,9 +430,6 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
                 break;
         }
     }
-
-    if (isMain)
-        cout << "bestmove " << lastPV.moves[0] << endl;
 
     thisThread.breakFlag.store(true, std::memory_order_relaxed);
 
@@ -448,6 +444,7 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
         exit(-1);
     }
 #endif
+
     return MoveEvaluation(lastPV.moves[0], lastScore);
 }
 
