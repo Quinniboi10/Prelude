@@ -6,9 +6,15 @@
 
 using Accumulator = array<i16, HL_SIZE>;
 
+#ifdef __AVX512F__
+constexpr usize ALIGNMENT = 64;
+#else
+constexpr usize ALIGNMENT = 32;
+#endif
+
 struct AccumulatorPair {
-    alignas(32) Accumulator white;
-    alignas(32) Accumulator black;
+    alignas(ALIGNMENT) Accumulator white;
+    alignas(ALIGNMENT) Accumulator black;
 
     void resetAccumulators(const Board& board);
 

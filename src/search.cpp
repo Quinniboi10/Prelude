@@ -1,3 +1,4 @@
+#include "nnue.h"
 #include "search.h"
 #include "config.h"
 #include "thread.h"

@@ -8,9 +8,38 @@
 
 #include "../external/fmt/fmt/format.h"
 
-#include <fstream>
 #include <cstring>
 #include <algorithm>
+
+
+#ifndef EVALFILE
+    #define EVALFILE "./nnue.bin"
+#endif
+
+#ifdef _MSC_VER
+    #define MSVC
+    #pragma push_macro("_MSC_VER")
+    #undef _MSC_VER
+#endif
+
+#include "../external/incbin.h"
+
+#ifdef MSVC
+    #pragma pop_macro("_MSC_VER")
+    #undef MSVC
+#endif
+
+#if !defined(_MSC_VER) || defined(__clang__)
+INCBIN(EVAL, EVALFILE);
+#endif
+
+#if defined(_MSC_VER) && !defined(__clang__)
+const NNUE nnue(EVALFILE);
+    #pragma message("WARNING: This file was compiled with MSVC, this means that an nnue was NOT embedded into the exe.")
+#else
+const NNUE nnue = *reinterpret_cast<const NNUE*>(gEVALData);
+#endif
+
 
 i16 NNUE::ReLU(const i16 x) {
     if (x < 0)
@@ -88,7 +117,7 @@ using nativeVector = __m128i;
                 return _mm_cvtsi128_si32(vec); \
             }
     #endif
-i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usize bucket) {
+i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usize bucket) const {
     const usize VECTOR_SIZE = sizeof(nativeVector) / sizeof(i16);
     static_assert(HL_SIZE % VECTOR_SIZE == 0, "HL size must be divisible by the native register size of your CPU for vectorization to work");
     const nativeVector VEC_QA   = set1_epi16(QA);
@@ -120,7 +149,7 @@ i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usiz
 }
 #else
     #pragma message("Using compiler optimized NNUE inference")
-i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usize bucket) {
+i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usize bucket) const {
     i32 res = 0;
     for (usize i = 0; i < HL_SIZE; i++) {
         res += (i32) SCReLU(stm[i]) * weightsToOut[bucket][i];
@@ -138,38 +167,8 @@ usize NNUE::feature(Color perspective, Color color, PieceType piece, Square squa
     return colorIndex * 64 * 6 + piece * 64 + squareIndex;
 }
 
-void NNUE::loadNetwork(const string& filepath) {
-    std::ifstream stream(filepath, std::ios::binary);
-    if (!stream.is_open()) {
-        cerr << "Failed to open file: " + filepath << endl;
-        cerr << "Expect engine to not work as intended with bad evaluation" << endl;
-    }
-
-    // Load weightsToHL
-    for (usize i = 0; i < weightsToHL.size(); ++i) {
-        weightsToHL[i] = readLittleEndian<i16>(stream);
-    }
-
-    // Load hiddenLayerBias
-    for (usize i = 0; i < hiddenLayerBias.size(); ++i) {
-        hiddenLayerBias[i] = readLittleEndian<i16>(stream);
-    }
-
-    // Load weightsToOut
-    for (usize i = 0; i < weightsToOut.size(); ++i) {
-        for (usize j = 0; j < weightsToOut[i].size(); j++) {
-            weightsToOut[i][j] = readLittleEndian<i16>(stream);
-        }
-    }
-
-    // Load outputBias
-    for (usize i = 0; i < outputBias.size(); ++i) {
-        outputBias[i] = readLittleEndian<i16>(stream);
-    }
-}
-
 // Returns the output of the NN
-int NNUE::forwardPass(const Board* board, const AccumulatorPair& accumulators) {
+int NNUE::forwardPass(const Board* board, const AccumulatorPair& accumulators) const {
     const usize divisor      = 32 / OUTPUT_BUCKETS;
     const usize outputBucket = (popcount(board->pieces()) - 2) / divisor;
 
@@ -209,7 +208,7 @@ int NNUE::forwardPass(const Board* board, const AccumulatorPair& accumulators) {
 }
 
 // Debug feature based on SF
-void NNUE::showBuckets(const Board* board, const AccumulatorPair& accumulators) {
+void NNUE::showBuckets(const Board* board, const AccumulatorPair& accumulators) const {
     const usize divisor     = 32 / OUTPUT_BUCKETS;
     const usize usingBucket = (popcount(board->pieces()) - 2) / divisor;
 
@@ -263,7 +262,7 @@ void NNUE::showBuckets(const Board* board, const AccumulatorPair& accumulators) 
     }
 }
 
-i16 NNUE::evaluate(const Board& board, Search::ThreadInfo& thisThread) {
+i16 NNUE::evaluate(const Board& board, Search::ThreadInfo& thisThread) const {
     #ifndef NDEBUG
     AccumulatorPair verifAccumulator;
     verifAccumulator.resetAccumulators(board);

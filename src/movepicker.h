@@ -8,7 +8,7 @@
 #include "ttable.h"
 #include "search.h"
 
-int evaluate(Board& board, Search::ThreadInfo& thisThread, Search::SearchStack* ss, Move m) {
+int evaluateMove(Board& board, Search::ThreadInfo& thisThread, Search::SearchStack* ss, Move m) {
     auto evaluateMVVLVA = [&]() {
         int victim   = PIECE_VALUES[board.getPiece(m.to())];
         int attacker = PIECE_VALUES[board.getPiece(m.from())];
@@ -42,7 +42,7 @@ struct Movepicker {
         for (usize i = 0; i < moves.length; i++) {
             const Move m = moves.moves[i];
 
-            moveScores[i] = evaluate(board, thisThread, ss, m);
+            moveScores[i] = evaluateMove(board, thisThread, ss, m);
             moveScores[i] += 700'000 * (m == TTMove);
         }
     }

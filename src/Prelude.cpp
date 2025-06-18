@@ -11,49 +11,15 @@
 #include "movegen.h"
 #include "search.h"
 #include "ttable.h"
+#include "globals.h"
 #include "datagen.h"
 #include "searcher.h"
 
-#ifndef EVALFILE
-    #define EVALFILE "./nnue.bin"
-#endif
-
-#ifdef _MSC_VER
-    #define MSVC
-    #pragma push_macro("_MSC_VER")
-    #undef _MSC_VER
-#endif
-
-#include "../external/incbin.h"
-
-#ifdef MSVC
-    #pragma pop_macro("_MSC_VER")
-    #undef MSVC
-#endif
-
-#if !defined(_MSC_VER) || defined(__clang__)
-INCBIN(EVAL, EVALFILE);
-#endif
-
-
 usize MOVE_OVERHEAD = 20;
-NNUE  nnue;
 bool  chess960 = false;
 
 // ****** MAIN ENTRY POINT, HANDLES UCI ******
 int main(int argc, char* argv[]) {
-    auto loadDefaultNet = [&]([[maybe_unused]] bool warnMSVC = false) {
-#if defined(_MSC_VER) && !defined(__clang__)
-        nnue.loadNetwork(EVALFILE);
-        if (warnMSVC)
-            cerr << "WARNING: This file was compiled with MSVC, this means that an nnue was NOT embedded into the exe." << endl;
-#else
-        nnue = *reinterpret_cast<const NNUE*>(gEVALData);
-#endif
-    };
-
-    loadDefaultNet(true);
-
     Board board;
 
     string              command;
@@ -105,7 +71,6 @@ int main(int argc, char* argv[]) {
             cout << "option name Threads type spin default 1 min 1 max 512" << endl;
             cout << "option name Hash type spin default 16 min 1 max 524288" << endl;
             cout << "option name Move Overhead type spin default 20 min 0 max 1000" << endl;
-            cout << "option name EvalFile type string default internal" << endl;
             cout << "option name UCI_Chess960 type check default false" << endl;
             cout << "uciok" << endl;
         }
@@ -151,13 +116,6 @@ int main(int argc, char* argv[]) {
         else if (tokens[0] == "setoption") {
             if (tokens[2] == "Hash") {
                 searcher.resizeTT(std::stoi(tokens[findIndexOf(tokens, "value") + 1]));
-            }
-            else if (tokens[2] == "EvalFile") {
-                string value = tokens[findIndexOf(tokens, "value") + 1];
-                if (value == "internal")
-                    loadDefaultNet();
-                else
-                    nnue.loadNetwork(value);
             }
             else if (tokens[2] == "Move" && tokens[3] == "Overhead")
                 MOVE_OVERHEAD = std::stoi(tokens[findIndexOf(tokens, "value") + 1]);
