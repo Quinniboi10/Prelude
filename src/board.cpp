@@ -10,7 +10,7 @@
 #include <random>
 
 // Piece zobrist table
-array<array<array<u64, 64>, 6>, 2> PIECE_ZTABLE;
+MultiArray<u64, 2, 6, 64> PIECE_ZTABLE;
 // En passant zobrist table
 array<u64, 65> EP_ZTABLE;
 // Zobrist for stm

@@ -5,8 +5,8 @@
 #include <cassert>
 #include <thread>
 
-array<array<u64, 64>, 64> LINE;
-array<array<u64, 64>, 64> LINESEG;
+MultiArray<u64, 64, 64> LINE;
+MultiArray<u64, 64, 64> LINESEG;
 
 // Magic code from https://github.com/nkarve/surge/blob/master/src/tables.cpp
 constexpr int diagonalOf(Square s) { return 7 + rankOf(s) - fileOf(s); }
