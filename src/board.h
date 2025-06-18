@@ -5,8 +5,8 @@
 #include "move.h"
 #include "accumulator.h"
 
-constexpr std::array<Square, 4> ROOK_CASTLE_END_SQ = {Square(d8), Square(f8), Square(d1), Square(f1)};
-constexpr std::array<Square, 4> KING_CASTLE_END_SQ = {Square(c8), Square(g8), Square(c1), Square(g1)};
+constexpr array<Square, 4> ROOK_CASTLE_END_SQ = {Square(d8), Square(f8), Square(d1), Square(f1)};
+constexpr array<Square, 4> KING_CASTLE_END_SQ = {Square(c8), Square(g8), Square(c1), Square(g1)};
 
 struct Board {
     // Index is based on square, returns the piece type

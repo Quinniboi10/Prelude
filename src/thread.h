@@ -8,10 +8,10 @@
 namespace Search {
 struct ThreadInfo {
     // History is indexed [stm][from][to]
-    array<array<array<int, 64>, 64>, 2> history;
+    MultiArray<int, 2, 64, 64> history;
 
     // Conthist is indexed [last stm][last pt][last to][stm][pt][to]
-    array<array<array<ConthistSegment, 64>, 6>, 2> conthist;
+    MultiArray<ConthistSegment, 2, 6, 64> conthist;
 
     Stack<AccumulatorPair, MAX_PLY + 1> accumulatorStack;
 

@@ -115,9 +115,6 @@ enum TTFlag : u8 {
     UNDEFINED, FAIL_LOW, BETA_CUTOFF, EXACT
 };
 
-extern array<array<u64, 64>, 64> LINE;
-extern array<array<u64, 64>, 64> LINESEG;
-
 struct Colors {
     // ANSI codes for colors https://raw.githubusercontent.com/fidian/ansi/master/images/color-codes.png
     static constexpr std::string_view RESET = "\033[0m";
@@ -205,5 +202,20 @@ class Stack {
           ptr = 0;
       }
 };
+
+namespace internal {
+    template <typename T, usize kN, usize... kNs>
+    struct MultiArrayImpl {
+        using Type = array<typename MultiArrayImpl<T, kNs...>::Type, kN>;
+    };
+
+    template <typename T, usize kN>
+    struct MultiArrayImpl<T, kN> {
+        using Type = array<T, kN>;
+    };
+}
+
+template <typename T, usize... kNs>
+using MultiArray = typename internal::MultiArrayImpl<T, kNs...>::Type;
 
 struct Board;

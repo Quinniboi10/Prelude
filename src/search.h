@@ -16,7 +16,7 @@ struct Searcher;
 namespace Search {
 struct ThreadInfo;
 struct ThreadStackManager;
-using ConthistSegment = array<array<array<int, 64>, 6>, 2>;
+using ConthistSegment = MultiArray<int, 2, 6, 64>;
 
 struct SearchStack {
     PvList           pv;

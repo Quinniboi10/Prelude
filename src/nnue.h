@@ -14,7 +14,7 @@ constexpr usize ALIGNMENT = 32;
 struct NNUE {
     alignas(ALIGNMENT) array<i16, HL_SIZE * 768> weightsToHL;
     alignas(ALIGNMENT) array<i16, HL_SIZE> hiddenLayerBias;
-    alignas(ALIGNMENT) array<array<i16, HL_SIZE * 2>, OUTPUT_BUCKETS> weightsToOut;
+    alignas(ALIGNMENT) MultiArray<i16, OUTPUT_BUCKETS, HL_SIZE * 2> weightsToOut;
     array<i16, OUTPUT_BUCKETS> outputBias;
 
     static i16 ReLU(const i16 x);

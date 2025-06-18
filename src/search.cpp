@@ -11,8 +11,8 @@
 #include <cmath>
 
 namespace Search {
-array<array<array<int, 219>, MAX_PLY + 1>, 2> lmrTable;
-void                                          fillLmrTable() {
+MultiArray<int, 2, MAX_PLY + 1, 219> lmrTable;
+void                                 fillLmrTable() {
     for (int isQuiet = 0; isQuiet <= 1; isQuiet++)
         for (usize depth = 0; depth <= MAX_PLY; depth++)
             for (int movesSeen = 0; movesSeen <= 218; movesSeen++) {
