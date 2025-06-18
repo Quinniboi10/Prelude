@@ -219,6 +219,9 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         if (!board.isLegal(m))
             continue;
 
+        // TT prefetching
+        thisThread.TT.prefetch(board.roughKeyAfter(m));
+
         ss->historyScore = board.isQuiet(m) ? thisThread.getQuietHistory(board, ss, m) : 0;
 
         if (ply > 0 && !isLoss(bestScore)) {

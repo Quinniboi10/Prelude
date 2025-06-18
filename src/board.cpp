@@ -36,6 +36,8 @@ void Board::fillZobristTable() {
 
     for (auto& right : CASTLING_ZTABLE)
         right = dist(engine);
+
+    EP_ZTABLE[NO_SQUARE] = 0;
 }
 
 // Returns the piece on a square as a character
@@ -229,6 +231,38 @@ u64 Board::pieces(Color c, PieceType pt1, PieceType pt2) const { return (byPiece
 u64 Board::attackersTo(Square sq, u64 occ) const {
     return (Movegen::getRookAttacks(sq, occ) & pieces(ROOK, QUEEN)) | (Movegen::getBishopAttacks(sq, occ) & pieces(BISHOP, QUEEN)) | (Movegen::pawnAttackBB(WHITE, sq) & pieces(BLACK, PAWN))
          | (Movegen::pawnAttackBB(BLACK, sq) & pieces(WHITE, PAWN)) | (Movegen::KNIGHT_ATTACKS[sq] & pieces(KNIGHT)) | (Movegen::KING_ATTACKS[sq] & pieces(KING));
+}
+
+// Estimates the key after a move, ignores EP and castling
+u64 Board::roughKeyAfter(const Move m) const {
+    u64 key = zobrist ^ STM_ZHASH;
+
+    if (m.isNull())
+        return key;
+
+    const Square    from     = m.from();
+    const Square    to       = m.to();
+    const MoveType  mt       = m.typeOf();
+    const PieceType pt       = getPiece(from);
+    const PieceType endPT    = mt == PROMOTION ? m.promo() : pt;
+    const PieceType targetPT = getPiece(to);
+
+    // Clear EP square
+    key ^= EP_ZTABLE[epSquare] * (epSquare != NO_SQUARE);
+
+    key ^= PIECE_ZTABLE[stm][pt][from];   // Piece on the from square
+    key ^= PIECE_ZTABLE[stm][endPT][to];  // Piece on the end square
+
+    // Double push
+    if (pt == PAWN && (to + 16 == from || to - 16 == from) && (pieces(~stm, PAWN) & (shift<EAST>((1ULL << to) & ~MASK_FILE[HFILE]) | shift<WEST>((1ULL << to) & ~MASK_FILE[AFILE]))))
+        key ^= EP_ZTABLE[stm == WHITE ? from + NORTH : from + SOUTH];
+
+    // Capture
+    if (targetPT != NO_PIECE_TYPE)
+        key ^= PIECE_ZTABLE[~stm][targetPT][to];
+
+
+    return key;
 }
 
 // Reset the board to startpos
