@@ -147,8 +147,16 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
     if (ss->excluded.isNull() && (ttEntry->zobrist != board.zobrist || ttEntry->move.isNull()) && depth > 5)
         depth--;
 
-    ss->conthist    = nullptr;
-    ss->staticEval = nnue.evaluate(board, thisThread);
+    ss->conthist = nullptr;
+
+    if (!board.inCheck()) {
+        if (ttEntry->zobrist == board.zobrist)
+            ss->staticEval = ttEntry->eval;
+        else {
+            ss->staticEval = nnue.evaluate(board, thisThread);
+            *ttEntry = Transposition(board.zobrist, Move::null(), UNDEFINED, 0, ss->staticEval, 0);
+        }
+    }
 
     bool improving = ply >= 2 && (ss - 2)->staticEval < ss->staticEval;
 
@@ -329,7 +337,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
     }
 
     if (ss->excluded.isNull())
-        *ttEntry = Transposition(board.zobrist, ttFlag == FAIL_LOW ? ttEntry->move : bestMove, ttFlag, bestScore, depth);
+        *ttEntry = Transposition(board.zobrist, ttFlag == FAIL_LOW ? ttEntry->move : bestMove, ttFlag, bestScore, ss->staticEval, depth);
 
     return bestScore;
 }
