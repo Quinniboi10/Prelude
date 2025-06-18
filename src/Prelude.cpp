@@ -132,7 +132,7 @@ int main(int argc, char* argv[]) {
             }
         }
         else if (tokens[0] == "go") {
-            searcher.stop();
+            searcher.stop(&board);
 
             usize depth = getValueFollowing("depth", MAX_PLY);
 
@@ -169,9 +169,9 @@ int main(int argc, char* argv[]) {
                 chess960 = tokens[findIndexOf(tokens, "value") + 1] == "true";
         }
         else if (command == "stop")
-            searcher.stop();
+            searcher.stop(&board);
         else if (command == "quit") {
-            searcher.stop();
+            searcher.stop(&board);
             return 0;
         }
 

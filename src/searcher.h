@@ -22,7 +22,7 @@ struct Searcher {
     }
 
     void start(Board& board, Search::SearchParams sp);
-    void stop();
+    void stop(Board* board);
     Move findBestThreadMove();
 
     void makeThreads(int threads);

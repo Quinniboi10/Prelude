@@ -374,7 +374,7 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
         return searcher->countNodes();
     };
 
-    for (usize currDepth = 1; currDepth <= depth; currDepth++) {
+    for (i32 currDepth = 1; currDepth <= depth; currDepth++) {
         SearchLimit& sl = currDepth == 1 ? depthOneSl : mainSl;
 
         i32 score = 0;
