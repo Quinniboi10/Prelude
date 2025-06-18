@@ -7,6 +7,78 @@
 #include <thread>
 #include <cstring>
 
+#include <cstddef>
+#include <cstdlib>
+#include <stdexcept>
+
+#if defined(_MSC_VER) || defined(__MINGW32__)
+    #include <malloc.h>
+#elif defined(__linux__)
+    #include <sys/mman.h>
+#endif
+
+// Alignment code based on Integral
+inline void* alignedAlloc(usize alignment, usize size) {
+    void* ptr = nullptr;
+
+#if defined(_MSC_VER) || defined(__MINGW32__)
+    ptr = _aligned_malloc(size, alignment);
+    if (!ptr)
+        throw std::bad_alloc();
+#elif defined(__APPLE__) || defined(__unix__)
+    if (posix_memalign(&ptr, alignment, size) != 0)
+        throw std::bad_alloc();
+#else
+    // C++17+ std::aligned_alloc, size must be multiple of alignment
+    if (size % alignment != 0) {
+        size += alignment - (size % alignment);
+    }
+    ptr = std::aligned_alloc(alignment, size);
+    if (!ptr)
+        throw std::bad_alloc();
+#endif
+
+#if defined(__linux__)
+    // Optional: Performance hint for huge pages
+    madvise(ptr, size, MADV_HUGEPAGE);
+#endif
+
+    return ptr;
+}
+
+template<typename T, usize Alignment>
+struct AlignedAllocator {
+    using value_type = T;
+
+    AlignedAllocator() noexcept {}
+    template<typename U>
+    AlignedAllocator(const AlignedAllocator<U, Alignment>&) noexcept {}
+
+    T* allocate(usize n) {
+        void* ptr = alignedAlloc(Alignment, n * sizeof(T));
+        return static_cast<T*>(ptr);
+    }
+
+    void deallocate(T* p, usize) noexcept {
+#if defined(_MSC_VER) || defined(__MINGW32__)
+        _aligned_free(p);
+#else
+        std::free(p);
+#endif
+    }
+};
+
+template<typename T1, usize A1, typename T2, usize A2>
+bool operator==(AlignedAllocator<T1, A1>, AlignedAllocator<T2, A2>) noexcept {
+    return A1 == A2;
+}
+
+template<typename T1, usize A1, typename T2, usize A2>
+bool operator!=(AlignedAllocator<T1, A1>, AlignedAllocator<T2, A2>) noexcept {
+    return !(AlignedAllocator<T1, A1>{} == AlignedAllocator<T2, A2>{});
+}
+
+
 struct Transposition {
     u64  zobrist;
     Move move;
@@ -30,36 +102,37 @@ struct Transposition {
     }
 };
 
+constexpr usize TT_ALIGNMENT = 64;
+
 class TranspositionTable {
     Transposition* table;
 
    public:
     u64 size;
 
-    TranspositionTable(usize sizeInMB = 16) {
-        table = nullptr;
+    TranspositionTable(usize sizeInMB = 16) :
+        table(nullptr),
+        size(0) {
         reserve(sizeInMB);
     }
 
     ~TranspositionTable() {
-        if (table != nullptr)
+        if (table != nullptr) {
+#if defined(_MSC_VER) || defined(__MINGW32__)
+            _aligned_free(table);
+#else
             std::free(table);
+#endif
+        }
     }
-
 
     void clear(usize threadCount = 1) {
         assert(threadCount > 0);
-
         std::vector<std::thread> threads;
 
         auto clearTT = [&](usize threadId) {
-            // The segment length is the number of entries each thread must clear
-            // To find where your thread should start (in entries), you can do threadId * segmentLength
-            // Converting segment length into the number of entries to clear can be done via length * bytes per entry
-
             usize start = (size * threadId) / threadCount;
             usize end   = std::min((size * (threadId + 1)) / threadCount, size);
-
             std::memset(table + start, 0, (end - start) * sizeof(Transposition));
         };
 
@@ -75,16 +148,18 @@ class TranspositionTable {
 
     void reserve(usize newSizeMiB) {
         assert(newSizeMiB > 0);
-        // Find number of bytes allowed
         size = newSizeMiB * 1024 * 1024 / sizeof(Transposition);
-        if (table != nullptr)
+        if (table != nullptr) {
+#if defined(_MSC_VER) || defined(__MINGW32__)
+            _aligned_free(table);
+#else
             std::free(table);
-        table = static_cast<Transposition*>(std::malloc(size * sizeof(Transposition)));
+#endif
+        }
+        table = static_cast<Transposition*>(alignedAlloc(TT_ALIGNMENT, size * sizeof(Transposition)));
     }
 
-    u64 index(u64 key) {
-        return static_cast<u64>((static_cast<u128>(key) * static_cast<u128>(size)) >> 64);
-    }
+    u64 index(u64 key) { return static_cast<u64>((static_cast<u128>(key) * static_cast<u128>(size)) >> 64); }
 
     void prefetch(u64 key) { __builtin_prefetch(this->getEntry(key)); }
 
@@ -97,7 +172,7 @@ class TranspositionTable {
         usize hits    = 0;
         for (usize sample = 0; sample < samples; sample++)
             hits += table[sample].zobrist != 0;
-        usize hash = (int) (hits / (double) samples * 1000);
+        usize hash = (int) ((hits / (double) samples) * 1000);
         assert(hash <= 1000);
         return hash;
     }
