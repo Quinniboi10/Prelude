@@ -86,6 +86,8 @@ class TranspositionTable {
         return static_cast<u64>((static_cast<u128>(key) * static_cast<u128>(size)) >> 64);
     }
 
+    void prefetch(u64 key) { __builtin_prefetch(this->getEntry(key)); }
+
     void setEntry(u64 key, Transposition& entry) { table[index(key)] = entry; }
 
     Transposition* getEntry(u64 key) { return &table[index(key)]; }
