@@ -20,6 +20,7 @@ struct Transposition {
         move    = Move();
         flag    = 0;
         score   = 0;
+        eval    = 0;
         depth   = 0;
     }
     Transposition(u64 zobristKey, Move bestMove, u8 flag, i16 score, i16 staticEval, u8 depth) {
