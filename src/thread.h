@@ -21,6 +21,7 @@ struct ThreadInfo {
     std::atomic<bool>&  breakFlag;
 
     std::atomic<u64> nodes;
+    std::atomic<u64> tbHits;
     usize            seldepth;
 
     usize minNmpPly;

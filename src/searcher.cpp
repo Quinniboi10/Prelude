@@ -1,15 +1,18 @@
 #include "searcher.h"
 #include "types.h"
 #include "search.h"
+#include "globals.h"
 #include "wdl.h"
 
 void Searcher::start(Board& board, Search::SearchParams sp) {
     time           = sp.time;
     mainData->nodes = 0;
+    mainData->tbHits = 0;
     mainThread     = std::thread(Search::iterativeDeepening, board, std::ref(*mainData), sp, this);
 
     for (usize i = 0; i < workerData.size(); i++) {
         workerData[i].nodes = 0;
+        workerData[i].tbHits = 0;
         workers.emplace_back(Search::iterativeDeepening, board, std::ref(workerData[i]), sp, nullptr);
     }
 }
@@ -45,16 +48,26 @@ string Searcher::searchReport(Board& board, usize depth, i32 score, PvList& pv) 
     for (Search::ThreadInfo& t : workerData)
         nodes += t.nodes;
 
+    u64 tbHits = mainData->tbHits;
+    for (Search::ThreadInfo& t : workerData)
+        nodes += t.tbHits;
+
     ans << "info depth " << depth << " seldepth " << mainData->seldepth << " time " << time.elapsed() << " hashfull " << TT.hashfull() << " nodes " << nodes;
     if (time.elapsed() > 0)
         ans << " nps " << nodes * 1000 / time.elapsed();
-    ans << " score ";
-    if (Search::isDecisive(score)) {
-        ans << "mate ";
-        ans << ((score < 0) ? "-" : "") << (Search::MATE_SCORE - std::abs(score)) / 2 + 1;
+    if (tbEnabled)
+        ans << " tbhits " << tbHits;
+
+    // Don't report scores if it's from the TB
+    if (!Search::isTBScore(score)) {
+        ans << " score ";
+        if (Search::isDecisive(score)) {
+            ans << "mate ";
+            ans << ((score < 0) ? "-" : "") << (Search::MATE_SCORE - std::abs(score)) / 2 + 1;
+        }
+        else
+            ans << "cp " << scaleEval(score, board);
     }
-    else
-        ans << "cp " << scaleEval(score, board);
 
     ans << " pv";
     for (Move m : pv)

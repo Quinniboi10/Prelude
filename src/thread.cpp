@@ -77,6 +77,7 @@ void ThreadInfo::reset() {
     deepFill(conthist, DEFAULT_HISTORY_VALUE);
 
     nodes.store(0, std::memory_order_relaxed);
+    tbHits.store(0, std::memory_order_relaxed);
     seldepth = 0;
 }
 

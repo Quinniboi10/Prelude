@@ -3,6 +3,8 @@
 #include "nnue.h"
 
 extern bool chess960;
+extern bool tbEnabled;
+extern i32  syzygyDepth;
 extern NNUE nnue;
 
 extern MultiArray<u64, 64, 64> LINE;

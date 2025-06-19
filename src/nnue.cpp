@@ -294,10 +294,9 @@ i16 NNUE::evaluate(const Board& board, Search::ThreadInfo& thisThread) {
     #ifndef NDEBUG
     AccumulatorPair verifAccumulator;
     verifAccumulator.resetAccumulators(board);
-    if (verifAccumulator != thisThread.accumulatorStack.top()) {
+    if (verifAccumulator != thisThread.accumulatorStack.top())
         board.display();
-    }
     assert(verifAccumulator == thisThread.accumulatorStack.top());
     #endif
-    return std::clamp(forwardPass(&board, thisThread.accumulatorStack.top()), static_cast<int>(Search::MATED_IN_MAX_PLY), static_cast<int>(Search::MATE_IN_MAX_PLY));
+    return std::clamp(forwardPass(&board, thisThread.accumulatorStack.top()), static_cast<int>(Search::TB_MATED_IN_MAX_PLY), static_cast<int>(Search::TB_MATE_IN_MAX_PLY));
 }
