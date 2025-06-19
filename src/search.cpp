@@ -1,4 +1,5 @@
 #include "search.h"
+#include "tb.h"
 #include "config.h"
 #include "thread.h"
 #include "globals.h"
@@ -146,6 +147,48 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         else if (isWin(ttScore))
             return ttScore - ply;
         return ttScore;
+    }
+
+    // Probe Syzygy tables
+    int syzygyMinScore = -MATE_SCORE;
+    int syzygyMaxScore = MATE_SCORE;
+    if (tbEnabled && ply > 0 && ss->excluded.isNull() && popcount(board.pieces()) <= 7 && depth >= syzygyDepth && board.halfMoveClock == 0
+        && !board.canCastle(board.stm) && !board.canCastle(~board.stm)) {
+        const TableProbe result = probePos(board);
+        if (result != TableProbe::FAILED) {
+            thisThread.tbHits++;
+            i32 score;
+            TTFlag flag;
+
+            if (result == TableProbe::WIN) {
+                score = TB_MATE_SCORE - ply;
+                flag = BETA_CUTOFF;
+            }
+            else if (result == TableProbe::LOSS) {
+                score = -TB_MATE_SCORE + ply;
+                flag = FAIL_LOW;
+            }
+            else {
+                score = 0;
+                flag = EXACT;
+            }
+
+            if (flag == EXACT || flag == FAIL_LOW && score <= alpha || flag == BETA_CUTOFF && score >= beta) {
+                // Save updated TT entry and return
+                *ttEntry = Transposition(board.zobrist, Move::null(), flag, score, depth);
+                return score;
+            }
+
+            if constexpr (isPV) {
+                if (flag == FAIL_LOW)
+                    syzygyMaxScore = score;
+                else if (flag == BETA_CUTOFF) {
+                    syzygyMinScore = score;
+                    // We can safely try to raise alpha if we have a lower bound score
+                    alpha = std::max(alpha, syzygyMinScore);
+                }
+            }
+        }
     }
 
     // Internal iterative reductions
@@ -335,6 +378,9 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         }
         return 0;
     }
+
+    if (tbEnabled)
+        bestScore = std::clamp(bestScore, syzygyMinScore, syzygyMaxScore);
 
     if (ss->excluded.isNull()) {
         // Adjust TT score for mates
