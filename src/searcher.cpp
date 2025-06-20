@@ -52,22 +52,28 @@ string Searcher::searchReport(Board& board, usize depth, i32 score, PvList& pv) 
     for (Search::ThreadInfo& t : workerData)
         nodes += t.tbHits;
 
+
+    if (Search::isTBScore(score)) {
+        if (Search::isWin(score))
+            cout << "info string TB win found in " << Search::TB_MATE_SCORE - score << " ply" << endl;
+        else if (Search::isLoss(score))
+            cout << "info string TB loss found in " << Search::TB_MATE_SCORE + score << " ply" << endl;
+    }
+
     ans << "info depth " << depth << " seldepth " << mainData->seldepth << " time " << time.elapsed() << " hashfull " << TT.hashfull() << " nodes " << nodes;
     if (time.elapsed() > 0)
         ans << " nps " << nodes * 1000 / time.elapsed();
     if (tbEnabled)
         ans << " tbhits " << tbHits;
 
-    // Don't report scores if it's from the TB
-    if (!Search::isTBScore(score)) {
-        ans << " score ";
-        if (Search::isDecisive(score)) {
-            ans << "mate ";
-            ans << ((score < 0) ? "-" : "") << (Search::MATE_SCORE - std::abs(score)) / 2 + 1;
-        }
-        else
-            ans << "cp " << scaleEval(score, board);
+    ans << " score ";
+    // Don't report mate scores if it's from the TB
+    if (Search::isDecisive(score) && !Search::isTBScore(score)) {
+        ans << "mate ";
+        ans << ((score < 0) ? "-" : "") << (Search::MATE_SCORE - std::abs(score)) / 2 + 1;
     }
+    else
+        ans << "cp " << (Search::isTBScore(score) ? score : scaleEval(score, board));
 
     ans << " pv";
     for (Move m : pv)
