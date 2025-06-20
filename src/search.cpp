@@ -87,7 +87,7 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, Threa
             continue;
         }
 
-        Board testBoard = board;
+        Board              testBoard     = board;
         ThreadStackManager threadManager = thisThread.makeMove(board, testBoard, m);
         thisThread.nodes++;
 
@@ -140,14 +140,19 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
             || (ttEntry->flag == BETA_CUTOFF && ttEntry->score >= beta)  // Lower bound, fail high
             || (ttEntry->flag == FAIL_LOW && ttEntry->score <= alpha)    // Upper bound, fail low
             )) {
-        return ttEntry->score;
+        const i32& ttScore = ttEntry->score;
+        if (isLoss(ttScore))
+            return ttScore + ply;
+        else if (isWin(ttScore))
+            return ttScore - ply;
+        return ttScore;
     }
 
     // Internal iterative reductions
     if (ss->excluded.isNull() && (ttEntry->zobrist != board.zobrist || ttEntry->move.isNull()) && depth > 5)
         depth--;
 
-    ss->conthist    = nullptr;
+    ss->conthist   = nullptr;
     ss->staticEval = nnue.evaluate(board, thisThread);
 
     bool improving = ply >= 2 && (ss - 2)->staticEval < ss->staticEval;
@@ -160,11 +165,11 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
         // Null move pruning
         if (board.canNullMove() && ss->staticEval >= beta && ply >= thisThread.minNmpPly) {
-            const int          reduction = NMP_REDUCTION + std::min(2, (ss->staticEval - beta) / NMP_EVAL_DIVISOR) + depth / NMP_DEPTH_DIVISOR;
+            const int reduction = NMP_REDUCTION + std::min(2, (ss->staticEval - beta) / NMP_EVAL_DIVISOR) + depth / NMP_DEPTH_DIVISOR;
 
-            Board testBoard = board;
+            Board              testBoard     = board;
             ThreadStackManager threadManager = thisThread.makeNullMove(testBoard);
-            i32 score = -search<NodeType::NONPV>(testBoard, depth - reduction, ply + 1, -beta, -beta + 1, ss + 1, thisThread, sl);
+            i32                score         = -search<NodeType::NONPV>(testBoard, depth - reduction, ply + 1, -beta, -beta + 1, ss + 1, thisThread, sl);
 
             if (score >= beta) {
                 // Verification search to guard zugzwang
@@ -182,11 +187,12 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
     }
 
     int  bestScore = -INF_INT;
-    Move bestMove = Move::null();
+    Move bestMove  = Move::null();
 
     TTFlag ttFlag = FAIL_LOW;
 
-    int movesSeen = 0;
+    int movesSearched = 0;  // Moves searched
+    int movesSeen     = 0;  // Moves movepicker has given
 
     MoveList seenQuiets;
 
@@ -219,6 +225,8 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         if (!board.isLegal(m))
             continue;
 
+        movesSeen++;
+
         // TT prefetching
         thisThread.TT.prefetch(board.roughKeyAfter(m));
 
@@ -226,7 +234,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
         if (ply > 0 && !isLoss(bestScore)) {
             // Late move pruning
-            if (!skipQuiets && board.isQuiet(m) && movesSeen >= (6 + depth * depth) / (2 - improving)) {
+            if (!skipQuiets && board.isQuiet(m) && movesSearched >= (6 + depth * depth) / (2 - improving)) {
                 skipQuiets = true;
                 continue;
             }
@@ -252,7 +260,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         ss->conthist = thisThread.getConthistSegment(board, m);
 
         thisThread.nodes++;
-        movesSeen++;
+        movesSearched++;
 
         usize extension = 0;
         // Singular extensions
@@ -277,28 +285,28 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         i32 newDepth = depth + extension - 1;
 
         // Make the move on the new board. This will also update stacks
-        Board testBoard = board;
+        Board              testBoard     = board;
         ThreadStackManager threadManager = thisThread.makeMove(board, testBoard, m);
 
         i16 score;
-        if (depth >= 2 && movesSeen >= 5 + 2 * (ply == 0) && !testBoard.inCheck()) {
-            int depthReduction = lmrTable[board.isQuiet(m)][depth][movesSeen] + !isPV;
+        if (depth >= 2 && movesSearched >= 5 + 2 * (ply == 0) && !testBoard.inCheck()) {
+            int depthReduction = lmrTable[board.isQuiet(m)][depth][movesSearched] + !isPV;
 
             score = -search<NodeType::NONPV>(testBoard, newDepth - depthReduction, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
             if (score > alpha)
                 score = -search<NodeType::NONPV>(testBoard, newDepth, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
         }
-        else if (!isPV || movesSeen > 1)
+        else if (!isPV || movesSearched > 1)
             score = -search<NodeType::NONPV>(testBoard, newDepth, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
-        if (isPV && (movesSeen == 1 || score > alpha))
+        if (isPV && (movesSearched == 1 || score > alpha))
             score = -search<isPV>(testBoard, newDepth, ply + 1, -beta, -alpha, ss + 1, thisThread, sl);
 
         if (score > bestScore) {
             bestScore = score;
             if (score > alpha) {
                 bestMove = m;
-                ttFlag = EXACT;
-                alpha  = score;
+                ttFlag   = EXACT;
+                alpha    = score;
                 if constexpr (isPV)
                     ss->pv.update(m, (ss + 1)->pv);
             }
@@ -328,8 +336,16 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         return 0;
     }
 
-    if (ss->excluded.isNull())
-        *ttEntry = Transposition(board.zobrist, ttFlag == FAIL_LOW ? ttEntry->move : bestMove, ttFlag, bestScore, depth);
+    if (ss->excluded.isNull()) {
+        // Adjust TT score for mates
+        i32 ttScore = bestScore;
+        if (isLoss(bestScore))
+            ttScore = bestScore - ply;
+        else if (isWin(bestScore))
+            ttScore = bestScore + ply;
+
+        *ttEntry = Transposition(board.zobrist, ttFlag == FAIL_LOW ? ttEntry->move : bestMove, ttFlag, ttScore, depth);
+    }
 
     return bestScore;
 }
@@ -340,7 +356,7 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
     thisThread.nodes    = 0;
     thisThread.seldepth = 0;
     thisThread.refresh(board);
-    const bool isMain   = thisThread.type == MAIN;
+    const bool isMain = thisThread.type == MAIN;
 
     assert(!isMain || searcher != nullptr);
 
@@ -358,8 +374,8 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
     SearchLimit depthOneSl(sp.time, 0, sp.nodes);
     SearchLimit mainSl(sp.time, searchTime, sp.nodes);
 
-    auto stack = std::make_unique<array<SearchStack, MAX_PLY + 3>>();
-    SearchStack* ss = reinterpret_cast<SearchStack*>(stack->data() + 2);
+    auto         stack = std::make_unique<array<SearchStack, MAX_PLY + 3>>();
+    SearchStack* ss    = reinterpret_cast<SearchStack*>(stack->data() + 2);
 
     std::memset(stack.get(), 0, sizeof(SearchStack) * (MAX_PLY + 3));
 
