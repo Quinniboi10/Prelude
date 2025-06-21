@@ -152,9 +152,9 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
     // Probe Syzygy tables
     int syzygyMinScore = -MATE_SCORE;
     int syzygyMaxScore = MATE_SCORE;
-    if (tbEnabled && ply > 0 && ss->excluded.isNull() && popcount(board.pieces()) <= 7 && depth >= syzygyDepth && board.halfMoveClock == 0
+    if (tbEnabled && ply > 0 && ss->excluded.isNull() && popcount(board.pieces()) <= tb::PIECES && depth >= syzygyDepth && board.halfMoveClock == 0
         && !board.canCastle(board.stm) && !board.canCastle(~board.stm)) {
-        const TableProbe result = probePos(board);
+        const TableProbe result = tb::probePos(board);
         if (result != TableProbe::FAILED) {
             thisThread.tbHits++;
             i32 score;
@@ -266,6 +266,9 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
             seenQuiets.add(m);
 
         if (!board.isLegal(m))
+            continue;
+
+        if (ply == 0 && !thisThread.rootMoves.has(m))
             continue;
 
         movesSeen++;
@@ -438,6 +441,24 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
             nodes += w.nodes;
         return nodes;
     };
+
+    // Setup the root moves to be searched
+    thisThread.rootMoves.length = 0;
+
+    if (tbEnabled && !board.canCastle(WHITE) && !board.canCastle(BLACK) && popcount(board.pieces()) <= tb::PIECES) {
+        MoveList         rootMoves;
+        const TableProbe result = tb::probeRoot(rootMoves, board);
+
+        if (result != TableProbe::FAILED)
+            thisThread.rootMoves = rootMoves;
+        else
+            thisThread.rootMoves = Movegen::generateLegalMoves(board);
+
+        for (Move m : rootMoves)
+            cout << m << endl; 
+    }
+    else
+        thisThread.rootMoves = Movegen::generateLegalMoves(board);
 
     for (usize currDepth = 1; currDepth <= depth; currDepth++) {
         SearchLimit& sl = currDepth == 1 ? depthOneSl : mainSl;
