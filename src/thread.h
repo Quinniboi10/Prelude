@@ -24,6 +24,8 @@ struct ThreadInfo {
     std::atomic<u64> tbHits;
     usize            seldepth;
 
+    MoveList rootMoves;
+
     usize minNmpPly;
 
     ThreadInfo(ThreadType type, TranspositionTable& TT, std::atomic<bool>& breakFlag);

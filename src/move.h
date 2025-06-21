@@ -111,4 +111,12 @@ struct MoveList {
 
     auto begin() { return moves.begin(); }
     auto end() { return moves.begin() + length; }
+
+    bool has(Move m) { return std::find(begin(), end(), m) != end(); }
+    void remove(Move m) {
+        assert(has(m));
+        auto location = std::find(begin(), end(), m);
+        if (location != end())
+            *(location) = moves[--length];
+    }
 };

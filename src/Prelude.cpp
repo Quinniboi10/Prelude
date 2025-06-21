@@ -250,7 +250,7 @@ int main(int argc, char* argv[]) {
             if (!tbEnabled)
                 cout << "Tablebases are not enabled" << endl;
             else
-                cout << "TB probe result: " << static_cast<int>(probePos(board)) << endl;
+                cout << "TB probe result: " << static_cast<int>(tb::probePos(board)) << endl;
         }
         else if (command == "debug.popcnt") {
             cout << "White pawns: " << popcount(board.pieces(WHITE, PAWN)) << endl;

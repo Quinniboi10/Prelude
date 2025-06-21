@@ -52,13 +52,14 @@ string Searcher::searchReport(Board& board, usize depth, i32 score, PvList& pv) 
     for (Search::ThreadInfo& t : workerData)
         nodes += t.tbHits;
 
-
+    #ifndef NDEBUG
     if (Search::isTBScore(score)) {
         if (Search::isWin(score))
             cout << "info string TB win found in " << Search::TB_MATE_SCORE - score << " ply" << endl;
         else if (Search::isLoss(score))
             cout << "info string TB loss found in " << Search::TB_MATE_SCORE + score << " ply" << endl;
     }
+    #endif
 
     ans << "info depth " << depth << " seldepth " << mainData->seldepth << " time " << time.elapsed() << " hashfull " << TT.hashfull() << " nodes " << nodes;
     if (time.elapsed() > 0)
