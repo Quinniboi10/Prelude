@@ -43,7 +43,7 @@ i32 NNUE::SCReLU(const i16 x) {
 using Vectori16 = __m512i;
 using Vectori32 = __m512i;
         #define set1_epi16 _mm512_set1_epi16
-        #define load_epi16 _mm512_load_si512
+        #define load_epi16(x) _mm512_load_si512(reinterpret_cast<const Vectori16*>(x))
         #define min_epi16 _mm512_min_epi16
         #define max_epi16 _mm512_max_epi16
         #define madd_epi16 _mm512_madd_epi16
@@ -55,7 +55,7 @@ using Vectori32 = __m512i;
 using Vectori16 = __m256i;
 using Vectori32 = __m256i;
         #define set1_epi16 _mm256_set1_epi16
-        #define load_epi16 _mm256_load_si256
+        #define load_epi16(x) _mm256_load_si256(reinterpret_cast<const Vectori16*>(x))
         #define min_epi16 _mm256_min_epi16
         #define max_epi16 _mm256_max_epi16
         #define madd_epi16 _mm256_madd_epi16
@@ -78,14 +78,14 @@ using Vectori32 = __m256i;
 using Vectori16 = int16x8_t;
 using Vectori32 = int32x4_t;
         #define set1_epi16 vdupq_n_s16
-        #define load_epi16 vld1q_s16
+        #define load_epi16(x) vld1q_s16(reinterpret_cast<const i16*>(x))
         #define min_epi16 vminq_s16
         #define max_epi16 vmaxq_s16
         #define madd_epi16 \
             [](Vectori16 a, Vectori16 b) { \
-                const Vectori16 low = vmull_s16(vget_low_s16(a), vget_low_s16(b));
-                const Vectori16 high = vmull_high_s16(a, b);
-                return vpaddq_s32(low, high);
+                const Vectori16 low = vmull_s16(vget_low_s16(a), vget_low_s16(b)); \
+                const Vectori16 high = vmull_high_s16(a, b); \
+                return vpaddq_s32(low, high); \
             }
         #define mullo_epi16 vmulq_s16
         #define add_epi32 vaddq_s32
@@ -96,7 +96,7 @@ using Vectori32 = int32x4_t;
 using Vectori16 = __m128i;
 using Vectori32 = __m128i;
         #define set1_epi16 _mm_set1_epi16
-        #define load_epi16 _mm_load_si128
+        #define load_epi16(x) _mm_load_si128(reinterpret_cast<const Vectori16*>(x))
         #define min_epi16 _mm_min_epi16
         #define max_epi16 _mm_max_epi16
         #define madd_epi16 _mm_madd_epi16
@@ -122,8 +122,8 @@ i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usiz
     #pragma unroll
     for (usize i = 0; i < HL_SIZE; i += VECTOR_SIZE) {
         // Load accumulators
-        const Vectori16 stmAccumValues  = load_epi16(reinterpret_cast<const Vectori16*>(&stm[i]));
-        const Vectori16 nstmAccumValues = load_epi16(reinterpret_cast<const Vectori16*>(&nstm[i]));
+        const Vectori16 stmAccumValues  = load_epi16(&stm[i]);
+        const Vectori16 nstmAccumValues = load_epi16(&nstm[i]);
 
         // Clamp values
         const Vectori16 stmClamped  = min_epi16(VEC_QA, max_epi16(stmAccumValues, VEC_ZERO));
@@ -143,59 +143,6 @@ i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usiz
 
     return reduce_epi32(accumulator);
 }
-#elif defined(__ARM_NEON)
-
-i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usize bucket) {
-    vectori32 sum = vdupq_n_s32(0);
-
-    constexpr usize VECTOR_SIZE = sizeof(vectori16) / sizeof(i16);
-    static_assert(HL_SIZE % VECTOR_SIZE == 0, "HL size must be divisible by the native register size of your CPU for vectorization to work");
-
-    const vectori16 VEC_QA   = vdupq_n_s16(QA);
-    const vectori16 VEC_ZERO = vdupq_n_s16(0);
-
-    const auto madd = [](vectori16 a, vectori16 b) {
-        const auto low  = vmull_s16(vget_low_s16(a), vget_low_s16(b));
-        const auto high = vmull_high_s16(a, b);
-        return vpaddq_s32(low, high);
-    };
-
-    #pragma unroll
-    for (usize i = 0; i < HL_SIZE; i += VECTOR_SIZE) {
-        // Load accumulators
-        vectori16 stmAccumValues  = vld1q_s16(reinterpret_cast<const i16*>(&stm[i]));
-        vectori16 nstmAccumValues = vld1q_s16(reinterpret_cast<const i16*>(&nstm[i]));
-
-        // Clamp values: max(x, 0)
-        vectori16 stmClamped  = vmaxq_s16(stmAccumValues, VEC_ZERO);
-        vectori16 nstmClamped = vmaxq_s16(nstmAccumValues, VEC_ZERO);
-        // min(max(x,0), QA)
-        stmClamped  = vminq_s16(stmClamped, VEC_QA);
-        nstmClamped = vminq_s16(nstmClamped, VEC_QA);
-
-        // Load weights
-        vectori16 stmWeights  = vld1q_s16(reinterpret_cast<const i16*>(&weightsToOut[bucket][i]));
-        vectori16 nstmWeights = vld1q_s16(reinterpret_cast<const i16*>(&weightsToOut[bucket][i + HL_SIZE]));
-
-        // Multiply accumulators and weights
-        vectori16 stmProd  = vmulq_s16(stmClamped, stmWeights);
-        vectori16 nstmProd = vmulq_s16(nstmClamped, nstmWeights);
-
-        // SCReLU
-        vectori32 stmActivated  = madd(stmClamped, stmProd);
-        vectori32 nstmActivated = madd(nstmClamped, nstmProd);
-
-        // Accumulate
-        sum = vaddq_s32(sum, stmActivated);
-        sum = vaddq_s32(sum, nstmActivated);
-    }
-
-    // Horizontal add
-    i32 output = vaddvq_s32(sum);
-
-    return output;
-}
-
 #else
     #pragma message("Using compiler optimized NNUE inference")
 i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usize bucket) {
