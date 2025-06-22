@@ -109,36 +109,36 @@ int pyrrhic_char_to_piece_type(char c) {
 }
 
 
-uint64_t pyrrhic_calc_key(const PyrrhicPosition *pos, int mirror) {
+uint64_t pyrrhic_calc_key(const PyrrhicPosition* pos, int mirror) {
 
     uint64_t white = mirror ? pos->black : pos->white;
     uint64_t black = mirror ? pos->white : pos->black;
 
-    return PYRRHIC_POPCOUNT(white & pos->queens ) * PYRRHIC_PRIME_WQUEEN
-         + PYRRHIC_POPCOUNT(white & pos->rooks  ) * PYRRHIC_PRIME_WROOK
-         + PYRRHIC_POPCOUNT(white & pos->bishops) * PYRRHIC_PRIME_WBISHOP
-         + PYRRHIC_POPCOUNT(white & pos->knights) * PYRRHIC_PRIME_WKNIGHT
-         + PYRRHIC_POPCOUNT(white & pos->pawns  ) * PYRRHIC_PRIME_WPAWN
-         + PYRRHIC_POPCOUNT(black & pos->queens ) * PYRRHIC_PRIME_BQUEEN
-         + PYRRHIC_POPCOUNT(black & pos->rooks  ) * PYRRHIC_PRIME_BROOK
-         + PYRRHIC_POPCOUNT(black & pos->bishops) * PYRRHIC_PRIME_BBISHOP
-         + PYRRHIC_POPCOUNT(black & pos->knights) * PYRRHIC_PRIME_BKNIGHT
-         + PYRRHIC_POPCOUNT(black & pos->pawns  ) * PYRRHIC_PRIME_BPAWN;
+    return static_cast<uint64_t>(PYRRHIC_POPCOUNT(white & pos->queens)) * static_cast<uint64_t>(PYRRHIC_PRIME_WQUEEN)
+         + static_cast<uint64_t>(PYRRHIC_POPCOUNT(white & pos->rooks)) * static_cast<uint64_t>(PYRRHIC_PRIME_WROOK)
+         + static_cast<uint64_t>(PYRRHIC_POPCOUNT(white & pos->bishops)) * static_cast<uint64_t>(PYRRHIC_PRIME_WBISHOP)
+         + static_cast<uint64_t>(PYRRHIC_POPCOUNT(white & pos->knights)) * static_cast<uint64_t>(PYRRHIC_PRIME_WKNIGHT)
+         + static_cast<uint64_t>(PYRRHIC_POPCOUNT(white & pos->pawns)) * static_cast<uint64_t>(PYRRHIC_PRIME_WPAWN)
+         + static_cast<uint64_t>(PYRRHIC_POPCOUNT(black & pos->queens)) * static_cast<uint64_t>(PYRRHIC_PRIME_BQUEEN)
+         + static_cast<uint64_t>(PYRRHIC_POPCOUNT(black & pos->rooks)) * static_cast<uint64_t>(PYRRHIC_PRIME_BROOK)
+         + static_cast<uint64_t>(PYRRHIC_POPCOUNT(black & pos->bishops)) * static_cast<uint64_t>(PYRRHIC_PRIME_BBISHOP)
+         + static_cast<uint64_t>(PYRRHIC_POPCOUNT(black & pos->knights)) * static_cast<uint64_t>(PYRRHIC_PRIME_BKNIGHT)
+         + static_cast<uint64_t>(PYRRHIC_POPCOUNT(black & pos->pawns)) * static_cast<uint64_t>(PYRRHIC_PRIME_BPAWN);
 }
 
-uint64_t pyrrhic_calc_key_from_pcs(int *pieces, int mirror) {
-
-    return pieces[PYRRHIC_WQUEEN  ^ (mirror ? 8 : 0)] * PYRRHIC_PRIME_WQUEEN
-         + pieces[PYRRHIC_WROOK   ^ (mirror ? 8 : 0)] * PYRRHIC_PRIME_WROOK
-         + pieces[PYRRHIC_WBISHOP ^ (mirror ? 8 : 0)] * PYRRHIC_PRIME_WBISHOP
-         + pieces[PYRRHIC_WKNIGHT ^ (mirror ? 8 : 0)] * PYRRHIC_PRIME_WKNIGHT
-         + pieces[PYRRHIC_WPAWN   ^ (mirror ? 8 : 0)] * PYRRHIC_PRIME_WPAWN
-         + pieces[PYRRHIC_BQUEEN  ^ (mirror ? 8 : 0)] * PYRRHIC_PRIME_BQUEEN
-         + pieces[PYRRHIC_BROOK   ^ (mirror ? 8 : 0)] * PYRRHIC_PRIME_BROOK
-         + pieces[PYRRHIC_BBISHOP ^ (mirror ? 8 : 0)] * PYRRHIC_PRIME_BBISHOP
-         + pieces[PYRRHIC_BKNIGHT ^ (mirror ? 8 : 0)] * PYRRHIC_PRIME_BKNIGHT
-         + pieces[PYRRHIC_BPAWN   ^ (mirror ? 8 : 0)] * PYRRHIC_PRIME_BPAWN;
+uint64_t pyrrhic_calc_key_from_pcs(int* pieces, int mirror) {
+    return static_cast<uint64_t>(pieces[PYRRHIC_WQUEEN ^ (mirror ? 8 : 0)]) * static_cast<uint64_t>(PYRRHIC_PRIME_WQUEEN)
+         + static_cast<uint64_t>(pieces[PYRRHIC_WROOK ^ (mirror ? 8 : 0)]) * static_cast<uint64_t>(PYRRHIC_PRIME_WROOK)
+         + static_cast<uint64_t>(pieces[PYRRHIC_WBISHOP ^ (mirror ? 8 : 0)]) * static_cast<uint64_t>(PYRRHIC_PRIME_WBISHOP)
+         + static_cast<uint64_t>(pieces[PYRRHIC_WKNIGHT ^ (mirror ? 8 : 0)]) * static_cast<uint64_t>(PYRRHIC_PRIME_WKNIGHT)
+         + static_cast<uint64_t>(pieces[PYRRHIC_WPAWN ^ (mirror ? 8 : 0)]) * static_cast<uint64_t>(PYRRHIC_PRIME_WPAWN)
+         + static_cast<uint64_t>(pieces[PYRRHIC_BQUEEN ^ (mirror ? 8 : 0)]) * static_cast<uint64_t>(PYRRHIC_PRIME_BQUEEN)
+         + static_cast<uint64_t>(pieces[PYRRHIC_BROOK ^ (mirror ? 8 : 0)]) * static_cast<uint64_t>(PYRRHIC_PRIME_BROOK)
+         + static_cast<uint64_t>(pieces[PYRRHIC_BBISHOP ^ (mirror ? 8 : 0)]) * static_cast<uint64_t>(PYRRHIC_PRIME_BBISHOP)
+         + static_cast<uint64_t>(pieces[PYRRHIC_BKNIGHT ^ (mirror ? 8 : 0)]) * static_cast<uint64_t>(PYRRHIC_PRIME_BKNIGHT)
+         + static_cast<uint64_t>(pieces[PYRRHIC_BPAWN ^ (mirror ? 8 : 0)]) * static_cast<uint64_t>(PYRRHIC_PRIME_BPAWN);
 }
+
 
 uint64_t pyrrhic_calc_key_from_pieces(uint8_t *pieces, int length) {
 
@@ -429,4 +429,3 @@ bool pyrrhic_legal_move(const PyrrhicPosition *pos, PyrrhicMove move) {
    PyrrhicPosition pos1;
    return pyrrhic_do_move(&pos1, pos, move);
 }
-

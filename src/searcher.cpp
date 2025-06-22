@@ -4,6 +4,8 @@
 #include "globals.h"
 #include "wdl.h"
 
+#include <algorithm>
+
 void Searcher::start(Board& board, Search::SearchParams sp) {
     time           = sp.time;
     mainData->nodes = 0;
@@ -51,6 +53,8 @@ string Searcher::searchReport(Board& board, usize depth, i32 score, PvList& pv) 
     u64 tbHits = mainData->tbHits;
     for (Search::ThreadInfo& t : workerData)
         nodes += t.tbHits;
+
+    score = std::clamp(score, mainData->minRootScore, mainData->maxRootScore);
 
     #ifndef NDEBUG
     if (Search::isTBScore(score)) {

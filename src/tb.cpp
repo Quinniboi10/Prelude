@@ -72,10 +72,7 @@ TableProbe tb::probeRoot(MoveList& rootMoves, const Board& board) {
     int result = tb_probe_root_dtz(board.pieces(WHITE), board.pieces(BLACK), board.pieces(KING), board.pieces(QUEEN), board.pieces(ROOK), board.pieces(BISHOP), board.pieces(KNIGHT),
                                    board.pieces(PAWN), board.halfMoveClock, epSquare, board.stm == WHITE, isRepeated, &tbRootMoves);
 
-    // Fall back to WDL if DTZ fails
-    if (result == static_cast<int>(TB_RESULT_FAILED))
-        result = tb_probe_root_wdl(board.pieces(WHITE), board.pieces(BLACK), board.pieces(KING), board.pieces(QUEEN), board.pieces(ROOK), board.pieces(BISHOP), board.pieces(KNIGHT),
-                                   board.pieces(PAWN), board.halfMoveClock, epSquare, board.stm == WHITE, isRepeated, &tbRootMoves);
+    // Falling back on WDL leads to starnge results
 
     // Terminal state at root
     if (result == static_cast<int>(TB_RESULT_FAILED) || tbRootMoves.size == 0)
@@ -89,21 +86,22 @@ TableProbe tb::probeRoot(MoveList& rootMoves, const Board& board) {
 
     const TbRootMove& best = tbRootMoves.moves[0];
 
-    if (best.tbRank >= 900) {
+    static constexpr i32 TB_MAX_DTZ = 262144;
+    static constexpr i32 WIN_BOUND  = TB_MAX_DTZ - 100;
+    static constexpr i32 DRAW_BOUND = -TB_MAX_DTZ + 101;
+
+    if (best.tbRank >= WIN_BOUND) {
         wdl     = TableProbe::WIN;
-        minRank = 900;
+        minRank = WIN_BOUND;
     }
-    else if (best.tbRank >= -899) {
+    else if (best.tbRank >= DRAW_BOUND) {
         wdl     = TableProbe::DRAW;
-        minRank = -899;
+        minRank = DRAW_BOUND;
     }
     else {
         wdl     = TableProbe::LOSS;
-        minRank = -1000;
+        minRank = -TB_MAX_DTZ;
     }
-
-    for (usize i = 0; i < tbRootMoves.size; i++)
-        cout << "Move-score pair from TB: " << fromTB(tbRootMoves.moves[i].move) << " - " << tbRootMoves.moves[i].tbRank << endl;
 
     for (usize i = 0; i < tbRootMoves.size; i++) {
         TbRootMove& m = tbRootMoves.moves[i];

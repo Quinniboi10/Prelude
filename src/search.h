@@ -83,7 +83,7 @@ constexpr i32 MATE_SCORE       = 32767;
 constexpr i32 MATE_IN_MAX_PLY  = MATE_SCORE - MAX_PLY;
 constexpr i32 MATED_IN_MAX_PLY = -MATE_SCORE + MAX_PLY;
 
-constexpr i32 TB_MATE_SCORE       = MATE_IN_MAX_PLY - 1;
+constexpr i32 TB_MATE_SCORE       = std::min(30000, MATE_IN_MAX_PLY - 1);
 constexpr i32 TB_MATE_IN_MAX_PLY  = TB_MATE_SCORE - MAX_PLY;
 constexpr i32 TB_MATED_IN_MAX_PLY = -TB_MATE_SCORE + MAX_PLY;
 

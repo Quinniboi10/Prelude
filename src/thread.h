@@ -23,6 +23,8 @@ struct ThreadInfo {
     std::atomic<u64> nodes;
     std::atomic<u64> tbHits;
     usize            seldepth;
+    i32              minRootScore;
+    i32              maxRootScore;
 
     MoveList rootMoves;
 

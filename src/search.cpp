@@ -402,8 +402,10 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 // This can't take a board as a reference because isLegal can change the current board state for a few dozen clock cycles
 MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchParams sp, Searcher* searcher) {
     thisThread.breakFlag.store(false);
-    thisThread.nodes    = 0;
-    thisThread.seldepth = 0;
+    thisThread.nodes        = 0;
+    thisThread.seldepth     = 0;
+    thisThread.minRootScore = -MATE_SCORE;
+    thisThread.maxRootScore = MATE_SCORE;
     thisThread.refresh(board);
     const bool isMain = thisThread.type == MAIN;
 
@@ -449,13 +451,23 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
         MoveList         rootMoves;
         const TableProbe result = tb::probeRoot(rootMoves, board);
 
-        if (result != TableProbe::FAILED)
+        if (result != TableProbe::FAILED) {
             thisThread.rootMoves = rootMoves;
+            switch (result) {
+                case TableProbe::WIN:
+                    thisThread.minRootScore = TB_MATE_SCORE;
+                    break;
+                case TableProbe::DRAW:
+                    thisThread.minRootScore = thisThread.maxRootScore = 0;
+                    break;
+                case TableProbe::LOSS:
+                    thisThread.maxRootScore = -TB_MATE_SCORE;
+                default:
+                    break;
+            }
+        }
         else
             thisThread.rootMoves = Movegen::generateLegalMoves(board);
-
-        for (Move m : rootMoves)
-            cout << m << endl; 
     }
     else
         thisThread.rootMoves = Movegen::generateLegalMoves(board);

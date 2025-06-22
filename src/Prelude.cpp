@@ -69,6 +69,8 @@ int main(int argc, char* argv[]) {
     board.reset();
 
     Searcher searcher;
+    
+    TBManager tbManager;
 
     // *********** ./Prelude <ARGS> ************
     if (argc > 1) {

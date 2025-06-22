@@ -2,6 +2,7 @@
 
 #include "types.h"
 #include "move.h"
+#include "globals.h"
 
 enum class TableProbe {
     FAILED,
@@ -22,3 +23,10 @@ TableProbe probePos(const Board& board);
 
 TableProbe probeRoot(MoveList& rootMoves, const Board& board);
 }
+
+struct TBManager {
+    ~TBManager() {
+        if (tbEnabled)
+            tb::free();
+    }
+};
