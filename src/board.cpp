@@ -164,12 +164,12 @@ void Board::updateCheckPin() {
 
     // *** PAWN ATTACKS ***
     if (stm == WHITE) {
-        checkMask |= shift<NORTH_WEST>(kingBB & ~MASK_FILE[File::AFILE]) & pieces(BLACK, PAWN);
-        checkMask |= shift<NORTH_EAST>(kingBB & ~MASK_FILE[File::HFILE]) & pieces(BLACK, PAWN);
+        checkMask |= shift<NORTH_WEST>(kingBB & ~MASK_FILE[AFILE]) & pieces(BLACK, PAWN);
+        checkMask |= shift<NORTH_EAST>(kingBB & ~MASK_FILE[HFILE]) & pieces(BLACK, PAWN);
     }
     else {
-        checkMask |= shift<SOUTH_WEST>(kingBB & ~MASK_FILE[File::AFILE]) & pieces(WHITE, PAWN);
-        checkMask |= shift<SOUTH_EAST>(kingBB & ~MASK_FILE[File::HFILE]) & pieces(WHITE, PAWN);
+        checkMask |= shift<SOUTH_WEST>(kingBB & ~MASK_FILE[AFILE]) & pieces(WHITE, PAWN);
+        checkMask |= shift<SOUTH_EAST>(kingBB & ~MASK_FILE[HFILE]) & pieces(WHITE, PAWN);
     }
 
     doubleCheck = popcount(checks | checkMask) > 1;
@@ -254,7 +254,7 @@ u64 Board::roughKeyAfter(const Move m) const {
     key ^= PIECE_ZTABLE[stm][endPT][to];  // Piece on the end square
 
     // Double push
-    if (pt == PAWN && (to + 16 == from || to - 16 == from) && (pieces(~stm, PAWN) & (shift<EAST>((1ULL << to) & ~MASK_FILE[File::HFILE]) | shift<WEST>((1ULL << to) & ~MASK_FILE[File::AFILE]))))
+    if (pt == PAWN && (to + 16 == from || to - 16 == from) && (pieces(~stm, PAWN) & (shift<EAST>((1ULL << to) & ~MASK_FILE[HFILE]) | shift<WEST>((1ULL << to) & ~MASK_FILE[AFILE]))))
         key ^= EP_ZTABLE[stm == WHITE ? from + NORTH : from + SOUTH];
 
     // Capture

@@ -3,18 +3,18 @@ void Movegen::pawnMoves(const Board& board, MoveList& moves) {
     u64       pawns        = board.pieces(board.stm, PAWN);
     Direction pushDir      = board.stm == WHITE ? NORTH : SOUTH;
     u64       singlePushes = shift(pushDir, pawns) & ~board.pieces();
-    u64       pushPromo    = singlePushes & (MASK_RANK[Rank::RANK1] | MASK_RANK[Rank::RANK8]);
+    u64       pushPromo    = singlePushes & (MASK_RANK[RANK1] | MASK_RANK[RANK8]);
     singlePushes ^= pushPromo;
 
     u64 doublePushes = shift(pushDir, singlePushes) & ~board.pieces();
-    doublePushes &= board.stm == WHITE ? MASK_RANK[Rank::RANK4] : MASK_RANK[Rank::RANK5];
+    doublePushes &= board.stm == WHITE ? MASK_RANK[RANK4] : MASK_RANK[RANK5];
 
-    u64 captureEast = shift(pushDir + EAST, pawns & ~MASK_FILE[File::HFILE]) & board.pieces(~board.stm);
-    u64 captureWest = shift(pushDir + WEST, pawns & ~MASK_FILE[File::AFILE]) & board.pieces(~board.stm);
+    u64 captureEast = shift(pushDir + EAST, pawns & ~MASK_FILE[HFILE]) & board.pieces(~board.stm);
+    u64 captureWest = shift(pushDir + WEST, pawns & ~MASK_FILE[AFILE]) & board.pieces(~board.stm);
 
-    u64 eastPromo = captureEast & (MASK_RANK[Rank::RANK1] | MASK_RANK[Rank::RANK8]);
+    u64 eastPromo = captureEast & (MASK_RANK[RANK1] | MASK_RANK[RANK8]);
     captureEast ^= eastPromo;
-    u64 westPromo = captureWest & (MASK_RANK[Rank::RANK1] | MASK_RANK[Rank::RANK8]);
+    u64 westPromo = captureWest & (MASK_RANK[RANK1] | MASK_RANK[RANK8]);
     captureWest ^= westPromo;
 
     if constexpr (mode == NOISY_ONLY) {
