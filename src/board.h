@@ -90,6 +90,7 @@ struct Board {
     bool canNullMove() const;
     void nullMove();
 
+    bool canCastle(Color c) const;
     bool canCastle(Color c, bool kingside) const;
 
     bool isLegal(Move m);

@@ -83,9 +83,14 @@ constexpr i32 MATE_SCORE       = 32767;
 constexpr i32 MATE_IN_MAX_PLY  = MATE_SCORE - MAX_PLY;
 constexpr i32 MATED_IN_MAX_PLY = -MATE_SCORE + MAX_PLY;
 
-inline bool isWin(i32 score) { return score >= MATE_IN_MAX_PLY; }
-inline bool isLoss(i32 score) { return score <= MATED_IN_MAX_PLY; }
+constexpr i32 TB_MATE_SCORE       = std::min(30000, MATE_IN_MAX_PLY - 1);
+constexpr i32 TB_MATE_IN_MAX_PLY  = TB_MATE_SCORE - MAX_PLY;
+constexpr i32 TB_MATED_IN_MAX_PLY = -TB_MATE_SCORE + MAX_PLY;
+
+inline bool isWin(i32 score) { return score >= TB_MATE_IN_MAX_PLY; }
+inline bool isLoss(i32 score) { return score <= TB_MATED_IN_MAX_PLY; }
 inline bool isDecisive(i32 score) { return isWin(score) || isLoss(score); }
+inline bool isTBScore(i32 score) { return isDecisive(score) && std::abs(score) <= TB_MATE_SCORE; }
 
 MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchParams sp, Searcher* searcher = nullptr);
 

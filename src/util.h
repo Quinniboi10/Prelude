@@ -54,6 +54,16 @@ inline std::vector<string> split(const string& str, char delim) {
     return result;
 }
 
+inline string mergeFromIndex(const std::vector<string>& arr, usize n) {
+    std::ostringstream oss;
+    for (usize i = n; i < arr.size(); ++i) {
+        if (i > n)
+            oss << ' ';
+        oss << arr[i];
+    }
+    return oss.str();
+}
+
 // Function from stockfish
 template<typename IntType>
 inline IntType readLittleEndian(std::istream& stream) {
@@ -93,7 +103,7 @@ constexpr File fileOf(Square s) { return File(s & 0b111); }
 
 constexpr Rank flipRank(Square s) { return Rank(s ^ 0b111000); }
 
-constexpr Square toSquare(Rank rank, File file) { return static_cast<Square>((rank << 3) | file); }
+constexpr Square toSquare(Rank rank, File file) { return static_cast<Square>((static_cast<int>(rank) << 3) | file); }
 
 // Takes square (h8) and converts it into a bitboard index (64)
 constexpr Square parseSquare(const std::string_view square) { return static_cast<Square>((square.at(1) - '1') * 8 + (square.at(0) - 'a')); }

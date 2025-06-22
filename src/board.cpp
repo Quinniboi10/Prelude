@@ -546,6 +546,7 @@ void Board::nullMove() {
     updateCheckPin();
 }
 
+bool Board::canCastle(Color c) const { return castleSq(c, true) != NO_SQUARE || castleSq(c, false) != NO_SQUARE; }
 bool Board::canCastle(Color c, bool kingside) const { return castleSq(c, kingside) != NO_SQUARE; }
 
 bool Board::isLegal(Move m) {
