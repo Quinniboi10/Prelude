@@ -39,9 +39,10 @@ INCBIN(EVAL, EVALFILE);
 
 usize MOVE_OVERHEAD = 20;
 NNUE  nnue;
-bool  chess960    = false;
-bool  tbEnabled   = false;
-i32   syzygyDepth = 1;
+bool  chess960         = false;
+bool  tbEnabled        = false;
+i32   syzygyDepth      = 1;
+i32   syzygyProbeLimit = 32;
 
 // ****** MAIN ENTRY POINT, HANDLES UCI ******
 int main(int argc, char* argv[]) {
@@ -113,6 +114,7 @@ int main(int argc, char* argv[]) {
             cout << "option name EvalFile type string default internal" << endl;
             cout << "option name SyzygyPath type string default <empty>" << endl;
             cout << "option name SyzygyProbeDepth type spin default 1 min 1 max " << MAX_PLY << endl;
+            cout << "option name SyzygyProbeLimit type spin default 32 min 3 max 32 " << endl;
             cout << "option name UCI_Chess960 type check default false" << endl;
             cout << "uciok" << endl;
         }
@@ -174,6 +176,10 @@ int main(int argc, char* argv[]) {
                 tb::setPath(mergeFromIndex(tokens, findIndexOf(tokens, "value") + 1));
             else if (tokens[2] == "SyzygyProbeDepth")
                 syzygyDepth = std::stoi(tokens[findIndexOf(tokens, "value") + 1]);
+            else if (tokens[2] == "SyzygyProbeLimit") {
+                syzygyProbeLimit = std::stoi(tokens[findIndexOf(tokens, "value") + 1]);
+                tb::PIECES       = std::min(tb::PIECES, syzygyProbeLimit);
+            }
             else if (tokens[2] == "UCI_Chess960")
                 chess960 = tokens[findIndexOf(tokens, "value") + 1] == "true";
         }

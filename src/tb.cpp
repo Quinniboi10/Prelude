@@ -10,7 +10,7 @@ void tb::setPath(const string& path) {
     tb_init(path.data());
     cout << "info string found " << TB_NUM_WDL << " wdl entries" << endl;
     cout << "info string found " << TB_NUM_DTZ << " dtz entries" << endl;
-    PIECES = TB_LARGEST;
+    PIECES = std::min(TB_LARGEST, syzygyProbeLimit);
 }
 
 void tb::free() { tb_free(); }
