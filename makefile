@@ -19,7 +19,20 @@ endif
 
 # Compiler and flags
 CXX      := clang++
-CXXFLAGS := -O3 -march=native -ffast-math -fno-finite-math-only -funroll-loops -flto -fuse-ld=lld -std=c++20 -static -DNDEBUG
+CXXFLAGS := -O3 -march=native -ffast-math -fno-finite-math-only -funroll-loops -flto -std=c++20 -DNDEBUG
+
+ifeq ($(OS),Windows_NT)
+  ARCH := $(PROCESSOR_ARCHITECTURE)
+else
+  ARCH := $(shell uname -m)
+endif
+
+IS_ARM := $(filter ARM arm64 aarch64 arm%,$(ARCH))
+
+ifeq ($(IS_ARM),)
+  CXXFLAGS += -static -fuse-ld=lld
+endif
+
 
 # Default target executable name and evaluation file path
 EXE      ?= Prelude$(EXE_EXT)

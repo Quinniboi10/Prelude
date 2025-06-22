@@ -154,9 +154,9 @@ inline string formatTime(u64 timeInMS) {
     return result;
 }
 
-inline string padStr(string str, usize target, u64 minPadding = 2) {
-    u64 padding = std::max(target - str.length(), minPadding);
-    for (u64 i = 0; i < padding; i++)
+inline string padStr(string str, i64 target, u64 minPadding = 2) {
+    i64 padding = std::max<i64>(target - static_cast<i64>(str.length()), minPadding);
+    for (i64 i = 0; i < padding; i++)
         str += " ";
     return str;
 }
