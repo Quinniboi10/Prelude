@@ -34,11 +34,14 @@ i32 NNUE::SCReLU(const i16 x) {
     return x * x;
 }
 
-#if defined(__x86_64__) || defined(__amd64__) || (defined(_WIN64) && (defined(_M_X64) || defined(_M_AMD64)))
-    #include <immintrin.h>
+#if defined(__x86_64__) || defined(__amd64__) || (defined(_WIN64) && (defined(_M_X64) || defined(_M_AMD64)) || defined(__ARM_NEON))
+    #ifndef __ARM_NEON
+        #include <immintrin.h>
+    #endif
     #if defined(__AVX512F__)
         #pragma message("Using AVX512 NNUE inference")
-using nativeVector = __m512i;
+using Vectori16 = __m512i;
+using Vectori32 = __m512i;
         #define set1_epi16 _mm512_set1_epi16
         #define load_epi16 _mm512_load_si512
         #define min_epi16 _mm512_min_epi16
@@ -49,7 +52,8 @@ using nativeVector = __m512i;
         #define reduce_epi32 _mm512_reduce_add_epi32
     #elif defined(__AVX2__)
         #pragma message("Using AVX2 NNUE inference")
-using nativeVector = __m256i;
+using Vectori16 = __m256i;
+using Vectori32 = __m256i;
         #define set1_epi16 _mm256_set1_epi16
         #define load_epi16 _mm256_load_si256
         #define min_epi16 _mm256_min_epi16
@@ -58,7 +62,7 @@ using nativeVector = __m256i;
         #define mullo_epi16 _mm256_mullo_epi16
         #define add_epi32 _mm256_add_epi32
         #define reduce_epi32 \
-            [](nativeVector vec) { \
+            [](Vectori32 vec) { \
                 __m128i xmm1 = _mm256_extracti128_si256(vec, 1); \
                 __m128i xmm0 = _mm256_castsi256_si128(vec); \
                 xmm0         = _mm_add_epi32(xmm0, xmm1); \
@@ -68,10 +72,29 @@ using nativeVector = __m256i;
                 xmm0         = _mm_add_epi32(xmm0, xmm1); \
                 return _mm_cvtsi128_si32(xmm0); \
             }
+    #elif defined(__ARM_NEON)
+        #include <arm_neon.h>
+        #pragma message("Using NEON NNUE inference")
+using Vectori16 = int16x8_t;
+using Vectori32 = int32x4_t;
+        #define set1_epi16 vdupq_n_s16
+        #define load_epi16 vld1q_s16
+        #define min_epi16 vminq_s16
+        #define max_epi16 vmaxq_s16
+        #define madd_epi16 \
+            [](Vectori16 a, Vectori16 b) { \
+                const Vectori16 low = vmull_s16(vget_low_s16(a), vget_low_s16(b));
+                const Vectori16 high = vmull_high_s16(a, b);
+                return vpaddq_s32(low, high);
+            }
+        #define mullo_epi16 vmulq_s16
+        #define add_epi32 vaddq_s32
+        #define reduce_epi32 vaddvq_s32
     #else
         #pragma message("Using SSE NNUE inference")
 // Assumes SSE support here
-using nativeVector = __m128i;
+using Vectori16 = __m128i;
+using Vectori32 = __m128i;
         #define set1_epi16 _mm_set1_epi16
         #define load_epi16 _mm_load_si128
         #define min_epi16 _mm_min_epi16
@@ -80,7 +103,7 @@ using nativeVector = __m128i;
         #define mullo_epi16 _mm_mullo_epi16
         #define add_epi32 _mm_add_epi32
         #define reduce_epi32 \
-            [](nativeVector vec) { \
+            [](Vectori32 vec) { \
                 __m128i xmm1 = _mm_shuffle_epi32(vec, 238); \
                 vec          = _mm_add_epi32(vec, xmm1); \
                 xmm1         = _mm_shuffle_epi32(vec, 85); \
@@ -89,30 +112,30 @@ using nativeVector = __m128i;
             }
     #endif
 i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usize bucket) {
-    const usize VECTOR_SIZE = sizeof(nativeVector) / sizeof(i16);
+    const usize VECTOR_SIZE = sizeof(Vectori16) / sizeof(i16);
     static_assert(HL_SIZE % VECTOR_SIZE == 0, "HL size must be divisible by the native register size of your CPU for vectorization to work");
-    const nativeVector VEC_QA   = set1_epi16(QA);
-    const nativeVector VEC_ZERO = set1_epi16(0);
+    const Vectori16 VEC_QA   = set1_epi16(QA);
+    const Vectori16 VEC_ZERO = set1_epi16(0);
 
-    nativeVector accumulator{};
+    Vectori32 accumulator{};
 
     #pragma unroll
     for (usize i = 0; i < HL_SIZE; i += VECTOR_SIZE) {
         // Load accumulators
-        const nativeVector stmAccumValues  = load_epi16(reinterpret_cast<const nativeVector*>(&stm[i]));
-        const nativeVector nstmAccumValues = load_epi16(reinterpret_cast<const nativeVector*>(&nstm[i]));
+        const Vectori16 stmAccumValues  = load_epi16(reinterpret_cast<const Vectori16*>(&stm[i]));
+        const Vectori16 nstmAccumValues = load_epi16(reinterpret_cast<const Vectori16*>(&nstm[i]));
 
         // Clamp values
-        const nativeVector stmClamped  = min_epi16(VEC_QA, max_epi16(stmAccumValues, VEC_ZERO));
-        const nativeVector nstmClamped = min_epi16(VEC_QA, max_epi16(nstmAccumValues, VEC_ZERO));
+        const Vectori16 stmClamped  = min_epi16(VEC_QA, max_epi16(stmAccumValues, VEC_ZERO));
+        const Vectori16 nstmClamped = min_epi16(VEC_QA, max_epi16(nstmAccumValues, VEC_ZERO));
 
         // Load weights
-        const nativeVector stmWeights  = load_epi16(reinterpret_cast<const nativeVector*>(&weightsToOut[bucket][i]));
-        const nativeVector nstmWeights = load_epi16(reinterpret_cast<const nativeVector*>(&weightsToOut[bucket][i + HL_SIZE]));
+        const Vectori16 stmWeights  = load_epi16(reinterpret_cast<const Vectori16*>(&weightsToOut[bucket][i]));
+        const Vectori16 nstmWeights = load_epi16(reinterpret_cast<const Vectori16*>(&weightsToOut[bucket][i + HL_SIZE]));
 
         // SCReLU it
-        const nativeVector stmActivated  = madd_epi16(stmClamped, mullo_epi16(stmClamped, stmWeights));
-        const nativeVector nstmActivated = madd_epi16(nstmClamped, mullo_epi16(nstmClamped, nstmWeights));
+        const Vectori32 stmActivated  = madd_epi16(stmClamped, mullo_epi16(stmClamped, stmWeights));
+        const Vectori32 nstmActivated = madd_epi16(nstmClamped, mullo_epi16(nstmClamped, nstmWeights));
 
         accumulator = add_epi32(accumulator, stmActivated);
         accumulator = add_epi32(accumulator, nstmActivated);
@@ -121,10 +144,6 @@ i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usiz
     return reduce_epi32(accumulator);
 }
 #elif defined(__ARM_NEON)
-#include <arm_neon.h>
-    #pragma message("Using NEON NNUE inference")
-using vectori16 = int16x8_t;
-using vectori32 = int32x4_t;
 
 i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usize bucket) {
     vectori32 sum = vdupq_n_s32(0);
@@ -134,6 +153,12 @@ i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usiz
 
     const vectori16 VEC_QA   = vdupq_n_s16(QA);
     const vectori16 VEC_ZERO = vdupq_n_s16(0);
+
+    const auto madd = [](vectori16 a, vectori16 b) {
+        const auto low  = vmull_s16(vget_low_s16(a), vget_low_s16(b));
+        const auto high = vmull_high_s16(a, b);
+        return vpaddq_s32(low, high);
+    };
 
     #pragma unroll
     for (usize i = 0; i < HL_SIZE; i += VECTOR_SIZE) {
@@ -157,25 +182,16 @@ i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usiz
         vectori16 nstmProd = vmulq_s16(nstmClamped, nstmWeights);
 
         // SCReLU
-        vectori16 stmActivated  = vmulq_s16(stmClamped, stmProd);
-        vectori16 nstmActivated = vmulq_s16(nstmClamped, nstmProd);
-
-        // Pairwise add to 32-bit int
-        vectori32 stmWideL  = vmovl_s16(vget_low_s16(stmActivated));
-        vectori32 stmWideH  = vmovl_s16(vget_high_s16(stmActivated));
-        vectori32 nstmWideL = vmovl_s16(vget_low_s16(nstmActivated));
-        vectori32 nstmWideH = vmovl_s16(vget_high_s16(nstmActivated));
+        vectori32 stmActivated  = madd(stmClamped, stmProd);
+        vectori32 nstmActivated = madd(nstmClamped, nstmProd);
 
         // Accumulate
-        sum = vaddq_s32(sum, stmWideL);
-        sum = vaddq_s32(sum, stmWideH);
-        sum = vaddq_s32(sum, nstmWideL);
-        sum = vaddq_s32(sum, nstmWideH);
+        sum = vaddq_s32(sum, stmActivated);
+        sum = vaddq_s32(sum, nstmActivated);
     }
 
     // Horizontal add
-    int32x2_t sum2   = vadd_s32(vget_low_s32(sum), vget_high_s32(sum));
-    i32       output = vget_lane_s32(sum2, 0) + vget_lane_s32(sum2, 1);
+    i32 output = vaddvq_s32(sum);
 
     return output;
 }
