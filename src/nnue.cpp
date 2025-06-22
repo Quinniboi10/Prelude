@@ -95,6 +95,8 @@ i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usiz
     const nativeVector VEC_ZERO = set1_epi16(0);
 
     nativeVector accumulator{};
+
+    #pragma unroll
     for (usize i = 0; i < HL_SIZE; i += VECTOR_SIZE) {
         // Load accumulators
         const nativeVector stmAccumValues  = load_epi16(reinterpret_cast<const nativeVector*>(&stm[i]));
@@ -118,10 +120,72 @@ i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usiz
 
     return reduce_epi32(accumulator);
 }
+#elif defined(__ARM_NEON)
+#include <arm_neon.h>
+    #pragma message("Using NEON NNUE inference")
+using vectori16 = int16x8_t;
+using vectori32 = int32x4_t;
+
+i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usize bucket) {
+    vectori32 sum = vdupq_n_s32(0);
+
+    constexpr usize VECTOR_SIZE = sizeof(vectori16) / sizeof(i16);
+    static_assert(HL_SIZE % VECTOR_SIZE == 0, "HL size must be divisible by the native register size of your CPU for vectorization to work");
+
+    const vectori16 VEC_QA   = vdupq_n_s16(QA);
+    const vectori16 VEC_ZERO = vdupq_n_s16(0);
+
+    #pragma unroll
+    for (usize i = 0; i < HL_SIZE; i += VECTOR_SIZE) {
+        // Load accumulators
+        vectori16 stmAccumValues  = vld1q_s16(reinterpret_cast<const i16*>(&stm[i]));
+        vectori16 nstmAccumValues = vld1q_s16(reinterpret_cast<const i16*>(&nstm[i]));
+
+        // Clamp values: max(x, 0)
+        vectori16 stmClamped  = vmaxq_s16(stmAccumValues, VEC_ZERO);
+        vectori16 nstmClamped = vmaxq_s16(nstmAccumValues, VEC_ZERO);
+        // min(max(x,0), QA)
+        stmClamped  = vminq_s16(stmClamped, VEC_QA);
+        nstmClamped = vminq_s16(nstmClamped, VEC_QA);
+
+        // Load weights
+        vectori16 stmWeights  = vld1q_s16(reinterpret_cast<const i16*>(&weightsToOut[bucket][i]));
+        vectori16 nstmWeights = vld1q_s16(reinterpret_cast<const i16*>(&weightsToOut[bucket][i + HL_SIZE]));
+
+        // Multiply accumulators and weights
+        vectori16 stmProd  = vmulq_s16(stmClamped, stmWeights);
+        vectori16 nstmProd = vmulq_s16(nstmClamped, nstmWeights);
+
+        // SCReLU
+        vectori16 stmActivated  = vmulq_s16(stmClamped, stmProd);
+        vectori16 nstmActivated = vmulq_s16(nstmClamped, nstmProd);
+
+        // Pairwise add to 32-bit int
+        vectori32 stmWideL  = vmovl_s16(vget_low_s16(stmActivated));
+        vectori32 stmWideH  = vmovl_s16(vget_high_s16(stmActivated));
+        vectori32 nstmWideL = vmovl_s16(vget_low_s16(nstmActivated));
+        vectori32 nstmWideH = vmovl_s16(vget_high_s16(nstmActivated));
+
+        // Accumulate
+        sum = vaddq_s32(sum, stmWideL);
+        sum = vaddq_s32(sum, stmWideH);
+        sum = vaddq_s32(sum, nstmWideL);
+        sum = vaddq_s32(sum, nstmWideH);
+    }
+
+    // Horizontal add
+    int32x2_t sum2   = vadd_s32(vget_low_s32(sum), vget_high_s32(sum));
+    i32       output = vget_lane_s32(sum2, 0) + vget_lane_s32(sum2, 1);
+
+    return output;
+}
+
 #else
     #pragma message("Using compiler optimized NNUE inference")
 i32 NNUE::vectorizedSCReLU(const Accumulator& stm, const Accumulator& nstm, usize bucket) {
     i32 res = 0;
+
+    #pragma unroll
     for (usize i = 0; i < HL_SIZE; i++) {
         res += (i32) SCReLU(stm[i]) * weightsToOut[bucket][i];
         res += (i32) SCReLU(nstm[i]) * weightsToOut[bucket][i + HL_SIZE];
