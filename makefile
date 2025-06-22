@@ -47,7 +47,7 @@ all: $(EXE)
 
 # Link the executable
 $(EXE): $(SRCS)
-	$(CXX) $(CXXFLAGS) -DEVALFILE=\"$(EVALFILE)\" $(GIT_HEAD_COMMIT_ID_DEF) $(SRCS) ./external/fmt/format.cc -o $@
+	$(CXX) $(CXXFLAGS) -DEVALFILE=\"$(EVALFILE)\" $(GIT_HEAD_COMMIT_ID_DEF) $(SRCS) ./external/fmt/format.cc ./external/Pyrrhic/tbprobe.cpp -o $@
 
 # Debug build
 .PHONY: debug

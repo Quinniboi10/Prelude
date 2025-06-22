@@ -1,4 +1,5 @@
 #include "search.h"
+#include "tb.h"
 #include "config.h"
 #include "thread.h"
 #include "globals.h"
@@ -148,6 +149,48 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         return ttScore;
     }
 
+    // Probe Syzygy tables
+    int syzygyMinScore = -MATE_SCORE;
+    int syzygyMaxScore = MATE_SCORE;
+    if (tbEnabled && ply > 0 && ss->excluded.isNull() && popcount(board.pieces()) <= tb::PIECES && depth >= syzygyDepth && board.halfMoveClock == 0
+        && !board.canCastle(board.stm) && !board.canCastle(~board.stm)) {
+        const TableProbe result = tb::probePos(board);
+        if (result != TableProbe::FAILED) {
+            thisThread.tbHits++;
+            i32 score;
+            TTFlag flag;
+
+            if (result == TableProbe::WIN) {
+                score = TB_MATE_SCORE - ply;
+                flag = BETA_CUTOFF;
+            }
+            else if (result == TableProbe::LOSS) {
+                score = -TB_MATE_SCORE + ply;
+                flag = FAIL_LOW;
+            }
+            else {
+                score = 0;
+                flag = EXACT;
+            }
+
+            if (flag == EXACT || flag == FAIL_LOW && score <= alpha || flag == BETA_CUTOFF && score >= beta) {
+                // Save updated TT entry and return
+                *ttEntry = Transposition(board.zobrist, Move::null(), flag, score, depth);
+                return score;
+            }
+
+            if constexpr (isPV) {
+                if (flag == FAIL_LOW)
+                    syzygyMaxScore = score;
+                else if (flag == BETA_CUTOFF) {
+                    syzygyMinScore = score;
+                    // We can safely try to raise alpha if we have a lower bound score
+                    alpha = std::max(alpha, syzygyMinScore);
+                }
+            }
+        }
+    }
+
     // Internal iterative reductions
     if (ss->excluded.isNull() && (ttEntry->zobrist != board.zobrist || ttEntry->move.isNull()) && depth > 5)
         depth--;
@@ -223,6 +266,9 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
             seenQuiets.add(m);
 
         if (!board.isLegal(m))
+            continue;
+
+        if (ply == 0 && !thisThread.rootMoves.has(m))
             continue;
 
         movesSeen++;
@@ -336,6 +382,9 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         return 0;
     }
 
+    if (tbEnabled)
+        bestScore = std::clamp(bestScore, syzygyMinScore, syzygyMaxScore);
+
     if (ss->excluded.isNull()) {
         // Adjust TT score for mates
         i32 ttScore = bestScore;
@@ -353,8 +402,10 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 // This can't take a board as a reference because isLegal can change the current board state for a few dozen clock cycles
 MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchParams sp, Searcher* searcher) {
     thisThread.breakFlag.store(false);
-    thisThread.nodes    = 0;
-    thisThread.seldepth = 0;
+    thisThread.nodes        = 0;
+    thisThread.seldepth     = 0;
+    thisThread.minRootScore = -MATE_SCORE;
+    thisThread.maxRootScore = MATE_SCORE;
     thisThread.refresh(board);
     const bool isMain = thisThread.type == MAIN;
 
@@ -392,6 +443,34 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
             nodes += w.nodes;
         return nodes;
     };
+
+    // Setup the root moves to be searched
+    thisThread.rootMoves.length = 0;
+
+    if (tbEnabled && !board.canCastle(WHITE) && !board.canCastle(BLACK) && popcount(board.pieces()) <= tb::PIECES) {
+        MoveList         rootMoves;
+        const TableProbe result = tb::probeRoot(rootMoves, board);
+
+        if (result != TableProbe::FAILED) {
+            thisThread.rootMoves = rootMoves;
+            switch (result) {
+                case TableProbe::WIN:
+                    thisThread.minRootScore = TB_MATE_SCORE;
+                    break;
+                case TableProbe::DRAW:
+                    thisThread.minRootScore = thisThread.maxRootScore = 0;
+                    break;
+                case TableProbe::LOSS:
+                    thisThread.maxRootScore = -TB_MATE_SCORE;
+                default:
+                    break;
+            }
+        }
+        else
+            thisThread.rootMoves = Movegen::generateLegalMoves(board);
+    }
+    else
+        thisThread.rootMoves = Movegen::generateLegalMoves(board);
 
     for (usize currDepth = 1; currDepth <= depth; currDepth++) {
         SearchLimit& sl = currDepth == 1 ? depthOneSl : mainSl;

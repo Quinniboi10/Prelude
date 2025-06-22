@@ -4,6 +4,7 @@
 #include <thread>
 #include <string>
 
+#include "tb.h"
 #include "board.h"
 #include "move.h"
 #include "nnue.h"
@@ -38,7 +39,10 @@ INCBIN(EVAL, EVALFILE);
 
 usize MOVE_OVERHEAD = 20;
 NNUE  nnue;
-bool  chess960 = false;
+bool  chess960         = false;
+bool  tbEnabled        = false;
+i32   syzygyDepth      = 1;
+i32   syzygyProbeLimit = 32;
 
 // ****** MAIN ENTRY POINT, HANDLES UCI ******
 int main(int argc, char* argv[]) {
@@ -66,6 +70,8 @@ int main(int argc, char* argv[]) {
     board.reset();
 
     Searcher searcher;
+    
+    TBManager tbManager;
 
     // *********** ./Prelude <ARGS> ************
     if (argc > 1) {
@@ -106,6 +112,9 @@ int main(int argc, char* argv[]) {
             cout << "option name Hash type spin default 16 min 1 max 524288" << endl;
             cout << "option name Move Overhead type spin default 20 min 0 max 1000" << endl;
             cout << "option name EvalFile type string default internal" << endl;
+            cout << "option name SyzygyPath type string default <empty>" << endl;
+            cout << "option name SyzygyProbeDepth type spin default 1 min 1 max " << MAX_PLY << endl;
+            cout << "option name SyzygyProbeLimit type spin default 32 min 3 max 32 " << endl;
             cout << "option name UCI_Chess960 type check default false" << endl;
             cout << "uciok" << endl;
         }
@@ -149,9 +158,13 @@ int main(int argc, char* argv[]) {
             searcher.start(board, Search::SearchParams(commandTime, depth, maxNodes, softNodes, mtime, wtime, btime, winc, binc, mate));
         }
         else if (tokens[0] == "setoption") {
-            if (tokens[2] == "Hash") {
+            if (tokens[2] == "Threads")
+                searcher.makeThreads(std::stoi(tokens[findIndexOf(tokens, "value") + 1]));
+            else if (tokens[2] == "Hash") {
                 searcher.resizeTT(std::stoi(tokens[findIndexOf(tokens, "value") + 1]));
             }
+            else if (tokens[2] == "Move" && tokens[3] == "Overhead")
+                MOVE_OVERHEAD = std::stoi(tokens[findIndexOf(tokens, "value") + 1]);
             else if (tokens[2] == "EvalFile") {
                 string value = tokens[findIndexOf(tokens, "value") + 1];
                 if (value == "internal")
@@ -159,10 +172,14 @@ int main(int argc, char* argv[]) {
                 else
                     nnue.loadNetwork(value);
             }
-            else if (tokens[2] == "Move" && tokens[3] == "Overhead")
-                MOVE_OVERHEAD = std::stoi(tokens[findIndexOf(tokens, "value") + 1]);
-            else if (tokens[2] == "Threads")
-                searcher.makeThreads(std::stoi(tokens[findIndexOf(tokens, "value") + 1]));
+            else if (tokens[2] == "SyzygyPath")
+                tb::setPath(mergeFromIndex(tokens, findIndexOf(tokens, "value") + 1));
+            else if (tokens[2] == "SyzygyProbeDepth")
+                syzygyDepth = std::stoi(tokens[findIndexOf(tokens, "value") + 1]);
+            else if (tokens[2] == "SyzygyProbeLimit") {
+                syzygyProbeLimit = std::stoi(tokens[findIndexOf(tokens, "value") + 1]);
+                tb::PIECES       = std::min(tb::PIECES, syzygyProbeLimit);
+            }
             else if (tokens[2] == "UCI_Chess960")
                 chess960 = tokens[findIndexOf(tokens, "value") + 1] == "true";
         }
@@ -235,8 +252,14 @@ int main(int argc, char* argv[]) {
             cout << "Stm is " << (board.inCheck() ? "in check" : "NOT in check") << endl;
         else if (tokens[0] == "debug.islegal")
             cout << tokens[1] << " is " << (board.isLegal(Move(tokens[1], board)) ? "" : "not ") << "legal" << endl;
-        else if (tokens[0] == "debug.keyafter")
+        else if (command == "debug.keyafter")
             cout << "Expected hash: 0x" << std::hex << std::uppercase << board.roughKeyAfter(Move(tokens[1], board)) << std::dec << endl;
+        else if (command == "debug.probetb") {
+            if (!tbEnabled)
+                cout << "Tablebases are not enabled" << endl;
+            else
+                cout << "TB probe result: " << static_cast<int>(tb::probePos(board)) << endl;
+        }
         else if (command == "debug.popcnt") {
             cout << "White pawns: " << popcount(board.pieces(WHITE, PAWN)) << endl;
             cout << "White knigts: " << popcount(board.pieces(WHITE, KNIGHT)) << endl;
