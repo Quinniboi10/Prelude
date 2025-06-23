@@ -7,6 +7,7 @@ ThreadInfo::ThreadInfo(ThreadType type, TranspositionTable& TT, std::atomic<bool
     breakFlag(breakFlag) {
     deepFill(history, DEFAULT_HISTORY_VALUE);
     deepFill(conthist, DEFAULT_HISTORY_VALUE);
+    deepFill(capthist, DEFAULT_HISTORY_VALUE);
     breakFlag.store(false, std::memory_order_relaxed);
 
     nodes            = 0;
@@ -20,6 +21,7 @@ ThreadInfo::ThreadInfo(ThreadType type, TranspositionTable& TT, std::atomic<bool
 ThreadInfo::ThreadInfo(const ThreadInfo& other) :
     history(other.history),
     conthist(other.conthist),
+    capthist(other.capthist),
     accumulatorStack(other.accumulatorStack),
     type(other.type),
     TT(other.TT),
