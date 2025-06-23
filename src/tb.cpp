@@ -72,10 +72,15 @@ TableProbe tb::probeRoot(MoveList& rootMoves, const Board& board) {
     int result = tb_probe_root_dtz(board.pieces(WHITE), board.pieces(BLACK), board.pieces(KING), board.pieces(QUEEN), board.pieces(ROOK), board.pieces(BISHOP), board.pieces(KNIGHT),
                                    board.pieces(PAWN), board.halfMoveClock, epSquare, board.stm == WHITE, isRepeated, &tbRootMoves);
 
-    // Falling back on WDL leads to starnge results
+    if (result == 0) {
+        cout << "info string DTZ probe failed, attempting WDL" << endl;
 
-    // Terminal state at root
-    if (result == static_cast<int>(TB_RESULT_FAILED) || tbRootMoves.size == 0)
+        result = tb_probe_root_wdl(board.pieces(WHITE), board.pieces(BLACK), board.pieces(KING), board.pieces(QUEEN), board.pieces(ROOK), board.pieces(BISHOP), board.pieces(KNIGHT),
+                                   board.pieces(PAWN), board.halfMoveClock, epSquare, board.stm == WHITE, false, &tbRootMoves);
+    }
+
+    // Terminal state at root or failed probe
+    if (result == 0 || tbRootMoves.size == 0)
         return TableProbe::FAILED;
 
     // Sort moves by given rank

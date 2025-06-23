@@ -377,7 +377,7 @@ void Board::loadFromFEN(string fen) {
     else
         epSquare = NO_SQUARE;
 
-    halfMoveClock = tokens.size() > 4 ? (stoi(tokens[5])) : 0;
+    halfMoveClock = tokens.size() > 4 ? (stoi(tokens[4])) : 0;
     fullMoveClock = tokens.size() > 5 ? (stoi(tokens[5])) : 1;
 
     fromNull = false;
