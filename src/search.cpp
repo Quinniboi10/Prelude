@@ -319,7 +319,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
             ss->excluded    = Move::null();
 
             if (score < sBeta) {
-                if (!isPV && score < sBeta - SE_DOUBLE_MARGIN)
+                if (score < sBeta - SE_DOUBLE_MARGIN)
                     extension = 2;
                 else
                     extension = 1;
