@@ -435,6 +435,7 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
 
     i32    lastScore{};
     PvList lastPV{};
+    i32    stability = 0;
 
     auto countNodes = [&]() {
         u64 nodes = thisThread.nodes;
@@ -507,6 +508,8 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
             lastScore = score;
             lastPV    = ss->pv;
         }
+        else if (ss->pv.moves[0] == lastPV.moves[0])
+            stability++;
 
         if (searchCancelled())
             break;
@@ -518,12 +521,14 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
         lastPV    = ss->pv;
 
         if (isMain) {
+            const double stabilityFactor = STABILITY_BASE - STABILITY_SLOPE * stability;
+
             // Go mate
             if (sp.mate > 0 && static_cast<usize>((MATE_SCORE - std::abs(score)) / 2 + 1) <= sp.mate)
                 break;
 
             // Soft TM
-            if (softTime > 0 && static_cast<i64>(sp.time.elapsed()) >= softTime)
+            if (softTime > 0 && static_cast<i64>(sp.time.elapsed()) >= softTime * stabilityFactor)
                 break;
         }
     }

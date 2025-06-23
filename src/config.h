@@ -37,6 +37,9 @@ constexpr int QS_FUTILITY_MARGIN = 100;
 constexpr usize DEFAULT_MOVES_TO_GO = 20;
 constexpr usize INC_DIVISOR         = 2;
 
+constexpr double STABILITY_BASE  = 1.25;
+constexpr double STABILITY_SLOPE = 0.04;
+
 extern usize MOVE_OVERHEAD;
 
 // ************ NNUE ************
