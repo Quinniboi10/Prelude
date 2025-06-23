@@ -58,6 +58,12 @@ void ThreadInfo::updateConthist(SearchStack* ss, Board& b, Move m, int bonus) {
         updateEntry((*(ss - 2)->conthist)[b.stm][b.getPiece(m.from())][m.to()]);
 }
 
+void ThreadInfo::updateCapthist(Board& b, Move m, int bonus) {
+    int  clampedBonus = std::clamp(bonus, -MAX_HISTORY, MAX_HISTORY);
+    int& entry            = capthist[b.stm][b.getPiece(m.from())][b.getPiece(m.to())][m.to()];
+    entry += clampedBonus - entry * abs(clampedBonus) / MAX_HISTORY;
+}
+
 ThreadStackManager ThreadInfo::makeMove(Board& board, Board& newBoard, Move m) {
     newBoard.move(m);
 

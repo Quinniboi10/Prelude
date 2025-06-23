@@ -13,6 +13,9 @@ struct ThreadInfo {
     // Conthist is indexed [last stm][last pt][last to][stm][pt][to]
     MultiArray<ConthistSegment, 2, 6, 64> conthist;
 
+    // Capthist is indexed [stm][moving pt][captured pt][to]
+    MultiArray<int, 2, 6, 6, 64> capthist;
+
     Stack<AccumulatorPair, MAX_PLY + 1> accumulatorStack;
 
     ThreadType type;
@@ -51,6 +54,13 @@ struct ThreadInfo {
     int getConthist(ConthistSegment* c, Board& b, Move m) const {
         assert(c != nullptr);
         return (*c)[b.stm][b.getPiece(m.from())][m.to()];
+    }
+
+    void updateCapthist(Board& b, Move m, int bonus);
+
+    int getCapthist(Board& b, Move m) const {
+        assert(b.getPiece(m.to()) != NO_PIECE_TYPE);
+        return capthist[b.stm][b.getPiece(m.from())][b.getPiece(m.to())][m.to()];
     }
 
     ThreadStackManager makeMove(Board& board, Board& newBoard, Move m);

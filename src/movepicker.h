@@ -8,15 +8,14 @@
 #include "ttable.h"
 #include "search.h"
 
-int evaluate(Board& board, Search::ThreadInfo& thisThread, Search::SearchStack* ss, Move m) {
-    auto evaluateMVVLVA = [&]() {
+int evalMove(Board& board, Search::ThreadInfo& thisThread, Search::SearchStack* ss, Move m) {
+    auto evaluateMVV = [&]() {
         int victim   = PIECE_VALUES[board.getPiece(m.to())];
-        int attacker = PIECE_VALUES[board.getPiece(m.from())];
 
-        return (victim * 100) - attacker;
+        return (victim * 100);
     };
     if (board.isCapture(m))
-        return evaluateMVVLVA() + 600'000 - 800'000 * !board.see(m, -50);
+        return evaluateMVV() + thisThread.getCapthist(board, m) + 600'000 - 800'000 * !board.see(m, -50);
 
     int res = thisThread.getHist(board.stm, m);
     if (ss != nullptr && (ss - 1)->conthist != nullptr)
@@ -42,7 +41,7 @@ struct Movepicker {
         for (usize i = 0; i < moves.length; i++) {
             const Move m = moves.moves[i];
 
-            moveScores[i] = evaluate(board, thisThread, ss, m);
+            moveScores[i] = evalMove(board, thisThread, ss, m);
             moveScores[i] += 700'000 * (m == TTMove);
         }
     }
