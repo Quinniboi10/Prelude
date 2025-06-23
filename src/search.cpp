@@ -328,7 +328,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
                 extension = -2;
         }
 
-        i32 newDepth = depth + extension - 1;
+        i32 newDepth = depth + extension * (2 - !isPV) - 1;
 
         // Make the move on the new board. This will also update stacks
         Board              testBoard     = board;
