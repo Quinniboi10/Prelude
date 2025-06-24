@@ -238,6 +238,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
     int movesSeen     = 0;  // Moves movepicker has given
 
     MoveList seenQuiets;
+    MoveList seenNoisies;
 
     bool skipQuiets = false;
 
@@ -264,6 +265,8 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
         if (board.isQuiet(m))
             seenQuiets.add(m);
+        else
+            seenNoisies.add(m);
 
         if (!board.isLegal(m))
             continue;
@@ -276,7 +279,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         // TT prefetching
         thisThread.TT.prefetch(board.roughKeyAfter(m));
 
-        ss->historyScore = board.isQuiet(m) ? thisThread.getQuietHistory(board, ss, m) : 0;
+        ss->historyScore = board.isQuiet(m) ? thisThread.getQuietHistory(board, ss, m) : thisThread.getCapthist(board, m);
 
         if (ply > 0 && !isLoss(bestScore)) {
             // Late move pruning
@@ -359,9 +362,9 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
             }
         }
         if (score >= beta) {
-            ttFlag = BETA_CUTOFF;
+            ttFlag    = BETA_CUTOFF;
+            int bonus = 20 * depth * depth;
             if (board.isQuiet(m)) {
-                int bonus = 20 * depth * depth;
                 thisThread.updateHist(board.stm, m, bonus);
                 thisThread.updateConthist(ss, board, m, bonus);
                 // History malus
@@ -370,6 +373,15 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
                         continue;
                     thisThread.updateHist(board.stm, quietMove, -bonus);
                     thisThread.updateConthist(ss, board, quietMove, -bonus);
+                }
+            }
+            else {
+                thisThread.updateCapthist(board, m, bonus);
+                // Capthist malus
+                for (const Move noisyMove : seenNoisies) {
+                    if (noisyMove == m)
+                        continue;
+                    thisThread.updateCapthist(board, noisyMove, -bonus);
                 }
             }
             break;
