@@ -8,14 +8,29 @@ ThreadInfo::ThreadInfo(ThreadType type, TranspositionTable& TT, std::atomic<bool
     deepFill(history, DEFAULT_HISTORY_VALUE);
     deepFill(conthist, DEFAULT_HISTORY_VALUE);
     breakFlag.store(false, std::memory_order_relaxed);
+
+    nodes            = 0;
+    tbHits           = 0;
+    seldepth         = 0;
+    minRootScore     = -MATE_SCORE;
+    maxRootScore     = MATE_SCORE;
+    rootMoves.length = 0;
+    minNmpPly        = 0;
 }
 ThreadInfo::ThreadInfo(const ThreadInfo& other) :
     history(other.history),
     conthist(other.conthist),
+    accumulatorStack(other.accumulatorStack),
     type(other.type),
     TT(other.TT),
-    breakFlag(other.breakFlag) {
+    breakFlag(other.breakFlag),
+    seldepth(other.seldepth),
+    minRootScore(other.minRootScore),
+    maxRootScore(other.maxRootScore),
+    rootMoves(other.rootMoves),
+    minNmpPly(other.minNmpPly) {
     nodes.store(other.nodes.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    tbHits.store(other.tbHits.load(std::memory_order_relaxed), std::memory_order_relaxed);
 }
 
 i64 ThreadInfo::getQuietHistory(Board& b, SearchStack* ss, Move m) const {

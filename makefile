@@ -19,7 +19,7 @@ endif
 
 # Compiler and flags
 CXX      := clang++
-CXXFLAGS := -O3 -march=native -ffast-math -fno-finite-math-only -funroll-loops -flto -std=c++20 -DNDEBUG
+CXXFLAGS := -O3 -march=native -fno-finite-math-only -funroll-loops -flto -std=c++20 -DNDEBUG
 
 ifeq ($(OS),Windows_NT)
   ARCH := $(PROCESSOR_ARCHITECTURE)
