@@ -33,6 +33,8 @@ void Searcher::stop() {
     workers.clear();
 }
 
+void Searcher::waitUntilFinished() { stopFlag.wait(false); }
+
 void Searcher::makeThreads(int threads) {
     threads -= 1;
 
