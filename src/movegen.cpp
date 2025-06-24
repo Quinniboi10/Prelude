@@ -276,7 +276,7 @@ u64 bulk(Board& board, usize depth) {
 }
 
 u64 multithreadBulk(Board& board, usize depth) {
-    std::atomic<u64> nodes = 0;
+    std::atomic<u64> nodes(0);
 
     MoveList moves = Movegen::generateMoves<ALL_MOVES>(board);
 
