@@ -4,6 +4,8 @@
 #include "search.h"
 #include "thread.h"
 
+#include <thread>
+
 struct Searcher {
     TranspositionTable TT;
     std::atomic<bool>  stopFlag;
@@ -14,8 +16,16 @@ struct Searcher {
     std::vector<Search::ThreadInfo> workerData;
     std::vector<std::thread>        workers;
 
+    Searcher() {
+        TT.clear();
+        stopFlag.store(true);
+        time.reset();
+        mainData->reset();
+    }
+
     void start(Board& board, Search::SearchParams sp);
     void stop();
+    void waitUntilFinished();
 
     void makeThreads(int threads);
 

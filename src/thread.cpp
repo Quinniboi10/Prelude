@@ -90,6 +90,7 @@ void ThreadInfo::reset() {
     nodes.store(0, std::memory_order_relaxed);
     tbHits.store(0, std::memory_order_relaxed);
     seldepth = 0;
+    minNmpPly = 0;
 }
 
 }
