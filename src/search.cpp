@@ -198,7 +198,11 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
     ss->conthist   = nullptr;
     ss->staticEval = nnue.evaluate(board, thisThread);
 
-    bool improving = ply >= 2 && (ss - 2)->staticEval < ss->staticEval;
+    bool improving = (ss - 2)->staticEval < ss->staticEval;
+    bool oppWorsening = (ss - 1)->staticEval > -ss->staticEval;
+
+    if ((ss - 1)->reduction >= 3 && !oppWorsening)
+        depth++;
 
     if (!isPV && ply > 0 && !board.inCheck() && ss->excluded.isNull()) {
         // Reverse futility pruning
@@ -337,9 +341,13 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         i16 score;
         if (depth >= 2 && movesSearched >= 5 + 2 * (ply == 0) && !testBoard.inCheck()) {
             // LMR
-            int depthReduction = lmrTable[board.isQuiet(m)][depth][movesSearched] + !isPV * 1024;
+            i32 depthReduction = lmrTable[board.isQuiet(m)][depth][movesSearched] + !isPV * 1024;
 
-            score = -search<NodeType::NONPV>(testBoard, newDepth - depthReduction / 1024, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
+            ss->reduction = depthReduction / 1024;
+
+            score = -search<NodeType::NONPV>(testBoard, newDepth - ss->reduction, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
+
+            ss->reduction = 0;
             if (score > alpha)
                 score = -search<NodeType::NONPV>(testBoard, newDepth, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
         }
