@@ -47,7 +47,7 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, Threa
         return ttEntry->score;
     }
 
-    int staticEval = nnue.evaluate(board, thisThread);
+    int staticEval = !board.inCheck() ? nnue.evaluate(board, thisThread) : 0;
     if (ply >= MAX_PLY)
         return staticEval;
     if constexpr (isPV)
@@ -61,6 +61,9 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, Threa
         alpha = bestScore;
 
     i32 futilityScore = bestScore + QS_FUTILITY_MARGIN;
+
+    Move   bestMove = Move::null();
+    TTFlag ttFlag   = FAIL_LOW;
 
     Movepicker<NOISY_ONLY> picker(board, thisThread);
     while (picker.hasNext()) {
@@ -97,14 +100,20 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, Threa
         if (score > bestScore) {
             bestScore = score;
             if (score > alpha) {
-                alpha = score;
+                bestMove = m;
+                ttFlag   = EXACT;
+                alpha    = score;
                 if constexpr (isPV)
                     ss->pv.update(m, (ss + 1)->pv);
             }
         }
-        if (score >= beta)
+        if (score >= beta) {
+            ttFlag = BETA_CUTOFF;
             break;
+        }
     }
+
+    *ttEntry = Transposition(board.zobrist, ttFlag == FAIL_LOW ? ttEntry->move : bestMove, ttFlag, bestScore, 0);
 
     return bestScore;
 }
