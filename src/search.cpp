@@ -212,7 +212,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
         // Razoring
         if (depth <= MAX_RAZORING_DEPTH && alpha < 2000 && ss->staticEval + RAZORING_SCALAR * depth < alpha) {
-            const i32 score = qsearch(board, plpy, alpha, alpha + 1, ss, thisThread, sl);
+            const i32 score = qsearch<NodeType::NONPV>(board, ply, alpha, alpha + 1, ss, thisThread, sl);
             if (score <= alpha)
                 return score;
         }
