@@ -47,18 +47,25 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, Threa
         return ttEntry->score;
     }
 
-    int staticEval = nnue.evaluate(board, thisThread);
+    int bestScore = -INF_INT;
+
+    if (!board.inCheck()) {
+        int staticEval = nnue.evaluate(board, thisThread);
+        if (ply >= MAX_PLY)
+            return staticEval;
+
+        bestScore = staticEval;
+
+        if (bestScore >= beta)
+            return bestScore;
+        if (alpha < bestScore)
+            alpha = bestScore;
+    }
+
     if (ply >= MAX_PLY)
-        return staticEval;
+        return 0;
     if constexpr (isPV)
         ss->pv.length = 0;
-
-    int bestScore = staticEval;
-
-    if (bestScore >= beta)
-        return bestScore;
-    if (alpha < bestScore)
-        alpha = bestScore;
 
     i32 futilityScore = bestScore + QS_FUTILITY_MARGIN;
 
