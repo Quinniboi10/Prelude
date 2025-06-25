@@ -175,7 +175,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
             if (flag == EXACT || flag == FAIL_LOW && score <= alpha || flag == BETA_CUTOFF && score >= beta) {
                 // Save updated TT entry and return
-                *ttEntry = Transposition(board.zobrist, Move::null(), flag, score, depth);
+                *ttEntry = Transposition(board.zobrist, Move::null(), flag, score, MAX_PLY);
                 return score;
             }
 
