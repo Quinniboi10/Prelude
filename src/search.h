@@ -21,6 +21,7 @@ using ConthistSegment = MultiArray<int, 2, 6, 64>;
 struct SearchStack {
     PvList           pv;
     i64              historyScore;
+    i32              reduction;
     ConthistSegment* conthist;
     Move             excluded;
     i16              staticEval;
