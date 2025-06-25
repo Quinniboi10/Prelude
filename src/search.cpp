@@ -47,7 +47,7 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, Threa
         return ttEntry->score;
     }
 
-    int staticEval = !board.inCheck() ? nnue.evaluate(board, thisThread) : 0;
+    int staticEval = nnue.evaluate(board, thisThread);
     if (ply >= MAX_PLY)
         return staticEval;
     if constexpr (isPV)
