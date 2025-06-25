@@ -121,7 +121,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
     if (board.isDraw() && ply > 0)
         return 0;
     if (depth <= 0)
-        return qsearch<isPV>(board, ply, alpha, beta, ss, thisThread, sl);
+        return nnue.evaluate(board, thisThread);
 
     // Mate distance pruning
     if (ply > 0) {
