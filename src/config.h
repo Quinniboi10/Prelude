@@ -15,6 +15,9 @@ constexpr double ASP_WIDENING_FACTOR  = 2.5;
 
 constexpr int RFP_DEPTH_SCALAR = 70;
 
+constexpr int MAX_RAZORING_DEPTH = 4;
+constexpr int RAZORING_SCALAR    = 300;
+
 constexpr int NMP_REDUCTION = 3;
 constexpr int NMP_DEPTH_DIVISOR = 3;
 constexpr int NMP_EVAL_DIVISOR  = 160;
