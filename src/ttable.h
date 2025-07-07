@@ -13,6 +13,7 @@ struct Transposition {
     i16  score;
     u8   flag;
     u8   depth;
+    u8   age;
 
     Transposition() {
         zobrist = 0;
@@ -20,6 +21,7 @@ struct Transposition {
         flag    = 0;
         score   = 0;
         depth   = 0;
+        age     = 0;
     }
     Transposition(u64 zobristKey, Move bestMove, u8 flag, i16 score, u8 depth) {
         this->zobrist = zobristKey;
@@ -27,17 +29,20 @@ struct Transposition {
         this->flag    = flag;
         this->score   = score;
         this->depth   = depth;
+        age           = 0;
     }
 };
 
 class TranspositionTable {
     Transposition* table;
+    u8             age;
 
    public:
     u64 size;
 
     TranspositionTable(usize sizeInMB = 16) {
         table = nullptr;
+        age   = 0;
         reserve(sizeInMB);
     }
 
@@ -88,9 +93,18 @@ class TranspositionTable {
 
     void prefetch(u64 key) { __builtin_prefetch(this->getEntry(key)); }
 
-    void setEntry(u64 key, Transposition& entry) { table[index(key)] = entry; }
+    void setEntry(u64 key, Transposition& entry) {
+        entry.age         = age;
+        table[index(key)] = entry;
+    }
 
     Transposition* getEntry(u64 key) { return &table[index(key)]; }
+
+    void updateAge() { age++; }
+
+    bool shouldReplace(const Transposition& entry, const Transposition& newEntry) const {
+        return newEntry.flag == EXACT || newEntry.zobrist != entry.zobrist || newEntry.age != entry.age || newEntry.depth < entry.depth + 4;
+    }
 
     usize hashfull() {
         usize samples = std::min((u64) 1000, size);
