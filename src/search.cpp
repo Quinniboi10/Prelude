@@ -112,7 +112,10 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, Threa
         }
     }
 
-    *ttEntry = Transposition(board.zobrist, bestMove, ttFlag, bestScore, 0);
+    Transposition newEntry = Transposition(board.zobrist, ttFlag == FAIL_LOW ? ttEntry->move : bestMove, ttFlag, bestScore, 0);
+
+    if (thisThread.TT.shouldReplace(*ttEntry, newEntry))
+        thisThread.TT.setEntry(board.zobrist, newEntry);
 
     return bestScore;
 }
@@ -427,7 +430,10 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         else if (isWin(bestScore))
             ttScore = bestScore + ply;
 
-        *ttEntry = Transposition(board.zobrist, ttFlag == FAIL_LOW ? ttEntry->move : bestMove, ttFlag, ttScore, depth);
+        Transposition newEntry = Transposition(board.zobrist, ttFlag == FAIL_LOW ? ttEntry->move : bestMove, ttFlag, ttScore, depth);
+
+        if (thisThread.TT.shouldReplace(*ttEntry, newEntry))
+            thisThread.TT.setEntry(board.zobrist, newEntry);
     }
 
     return bestScore;

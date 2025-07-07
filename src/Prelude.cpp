@@ -140,6 +140,7 @@ int main(int argc, char* argv[]) {
         }
         else if (tokens[0] == "go") {
             searcher.stop();
+            searcher.TT.updateAge();
 
             usize depth = getValueFollowing("depth", MAX_PLY);
 
