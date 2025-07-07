@@ -60,7 +60,9 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, Threa
     if (alpha < bestScore)
         alpha = bestScore;
 
-    i32 futilityScore = bestScore + QS_FUTILITY_MARGIN;
+    i32    futilityScore = bestScore + QS_FUTILITY_MARGIN;
+    Move   bestMove      = Move::null();
+    TTFlag ttFlag        = FAIL_LOW;
 
     Movepicker<NOISY_ONLY> picker(board, thisThread);
     while (picker.hasNext()) {
@@ -97,14 +99,20 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, Threa
         if (score > bestScore) {
             bestScore = score;
             if (score > alpha) {
+                ttFlag = EXACT;
+                bestMove = m;
                 alpha = score;
                 if constexpr (isPV)
                     ss->pv.update(m, (ss + 1)->pv);
             }
         }
-        if (score >= beta)
+        if (score >= beta) {
+            ttFlag = BETA_CUTOFF;
             break;
+        }
     }
+
+    *ttEntry = Transposition(board.zobrist, bestMove, ttFlag, bestScore, 0);
 
     return bestScore;
 }
