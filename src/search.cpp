@@ -333,11 +333,11 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         usize extension = 0;
         // Singular extensions
         if (ply > 0 && depth >= SE_MIN_DEPTH && ttHit && m == ttEntry->move && ttEntry->depth >= depth - 3 && ttEntry->flag != FAIL_LOW) {
-            const int sBeta  = std::max(-INF_INT + 1, ttEntry->score - depth * 2);
-            const int sDepth = (depth - 1) / 2;
+            const i32 sBeta  = std::max(-INF_INT + 1, ttEntry->score - depth * 2);
+            const i32 sDepth = (depth - 1) / 2;
 
             ss->excluded    = m;
-            const int score = search<NodeType::NONPV>(board, sDepth, ply, sBeta - 1, sBeta, ss, thisThread, sl);
+            const i32 score = search<NodeType::NONPV>(board, sDepth, ply, sBeta - 1, sBeta, ss, thisThread, sl);
             ss->excluded    = Move::null();
 
             if (score < sBeta) {
@@ -346,6 +346,10 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
                 else
                     extension = 1;
             }
+            // Multicut
+            else if (sBeta >= beta)
+                return sBeta;
+            // Negative extentions
             else if (ttEntry->score >= beta)
                 extension = -2;
         }
