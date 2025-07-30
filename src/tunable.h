@@ -62,6 +62,9 @@ constexpr i32 MIN_ASP_WINDOW_DEPTH = 5;
 Tunable(INITIAL_ASP_WINDOW, 30, 10, 40, 2);
 Tunable(ASP_WIDENING_FACTOR, 2560, 1536, 4096, 128);  // Quantized by 1024
 
+// Move ordering
+Tunable(PROMO_ORDERING_CONST, 10000, 2000, 20000, 1000);
+
 // Main search heuristics
 Tunable(RFP_DEPTH_SCALAR, 70, 35, 120, 4);
 

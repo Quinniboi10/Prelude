@@ -15,10 +15,11 @@ int evaluate(Board& board, Search::ThreadInfo& thisThread, Search::SearchStack* 
 
         return (victim * 100) - attacker;
     };
+    int res = (m.typeOf() == PROMOTION) * PROMO_ORDERING_CONST;
     if (board.isCapture(m))
-        return evaluateMVVLVA() + 600'000 - 800'000 * !board.see(m, -50) + thisThread.getCapthist(board, m);
+        return res + evaluateMVVLVA() + 600'000 - 800'000 * !board.see(m, -50) + thisThread.getCapthist(board, m);
 
-    int res = thisThread.getHist(board.stm, m);
+    res += thisThread.getHist(board.stm, m);
     if (ss != nullptr && (ss - 1)->conthist != nullptr)
         res += thisThread.getConthist((ss - 1)->conthist, board, m);
     if (ss != nullptr && (ss - 2)->conthist != nullptr)
