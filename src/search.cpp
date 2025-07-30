@@ -25,9 +25,9 @@ void                                 fillLmrTable() {
                     continue;
                 }
                 if (isQuiet)
-                    depthReduction = 1024 * (1.35 + std::log(depth) * std::log(movesSeen) / 2.75);
+                    depthReduction = 1024 * (static_cast<double>(LMR_QUIET_CONST) / 1024 + std::log(depth) * std::log(movesSeen) / (static_cast<double>(LMR_QUIET_DIVISOR)));
                 else
-                    depthReduction = 1024 * (0.20 + std::log(depth) * std::log(movesSeen) / 3.35);
+                    depthReduction = 1024 * (static_cast<double>(LMR_NOISY_CONST) / 1024 + std::log(depth) * std::log(movesSeen) / (static_cast<double>(LMR_NOISY_DIVISOR) / 1024));
             }
 }
 
@@ -363,7 +363,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         i16 score;
         if (depth >= 2 && movesSearched >= 5 + 2 * (ply == 0) && !testBoard.inCheck()) {
             // LMR
-            i32 depthReduction = lmrTable[board.isQuiet(m)][depth][movesSearched] + !isPV * 1024;
+            i32 depthReduction = lmrTable[board.isQuiet(m)][depth][movesSearched] + !isPV * LMR_NONPV;
 
             ss->reduction = depthReduction / 1024;
 
