@@ -78,6 +78,12 @@ Tunable(FUTILITY_PRUNING_SCALAR, 80, 50, 120, 5);
 constexpr int SE_MIN_DEPTH = 8;
 Tunable(SE_DOUBLE_MARGIN, 30, 20, 40, 2);
 
+Tunable(LMR_QUIET_CONST, 1382, 512, 2048, 64);     // Quantized by 1024
+Tunable(LMR_NOISY_CONST, 205, 0, 512, 64);         // Quantized by 1024
+Tunable(LMR_QUIET_DIVISOR, 2816, 1024, 4096, 32);  // Quantized by 1024
+Tunable(LMR_NOISY_DIVISOR, 3430, 2048, 4096, 32);  // Quantized by 1024
+Tunable(LMR_NONPV, 1024, 128, 2048, 32);
+
 constexpr int MIN_HIST_PRUNING_DEPTH = 5;
 Tunable(HIST_PRUNING_MARGIN, -400, -600, -200, 5);
 Tunable(HIST_PRUNING_SCALAR, -2500, -3500, -1750, 75);
