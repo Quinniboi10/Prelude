@@ -5,14 +5,15 @@
 #include <string>
 
 #include "tb.h"
-#include "board.h"
 #include "move.h"
 #include "nnue.h"
 #include "types.h"
-#include "movegen.h"
+#include "board.h"
 #include "search.h"
 #include "ttable.h"
+#include "movegen.h"
 #include "datagen.h"
+#include "tunable.h"
 #include "searcher.h"
 
 #ifndef EVALFILE
@@ -36,8 +37,6 @@
 INCBIN(EVAL, EVALFILE);
 #endif
 
-
-usize MOVE_OVERHEAD = 20;
 NNUE  nnue;
 bool  chess960         = false;
 bool  tbEnabled        = false;
@@ -84,6 +83,11 @@ int main(int argc, char* argv[]) {
                 threads = std::stoi(argv[2]);
             Datagen::run(threads);
         }
+        else if (arg1 == "tune-config") {  
+            #ifdef TUNE
+            printTuneOB();
+            #endif
+        }
         return 0;
     }
 
@@ -116,6 +120,9 @@ int main(int argc, char* argv[]) {
             cout << "option name SyzygyProbeDepth type spin default 1 min 1 max " << MAX_PLY << endl;
             cout << "option name SyzygyProbeLimit type spin default 32 min 3 max 32 " << endl;
             cout << "option name UCI_Chess960 type check default false" << endl;
+            #ifdef TUNE
+            printTuneUCI();
+            #endif
             cout << "uciok" << endl;
         }
         else if (command == "ucinewgame")
@@ -183,6 +190,10 @@ int main(int argc, char* argv[]) {
             }
             else if (tokens[2] == "UCI_Chess960")
                 chess960 = tokens[findIndexOf(tokens, "value") + 1] == "true";
+            #ifdef TUNE
+            else
+                setTunable(tokens[2], std::stoi(tokens[findIndexOf(tokens, "value") + 1]));
+            #endif
         }
         else if (command == "stop")
             searcher.stop();
