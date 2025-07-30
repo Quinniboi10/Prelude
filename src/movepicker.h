@@ -13,16 +13,16 @@ int evaluate(Board& board, Search::ThreadInfo& thisThread, Search::SearchStack* 
         int victim   = PIECE_VALUES[board.getPiece(m.to())];
         int attacker = PIECE_VALUES[board.getPiece(m.from())];
 
-        return (victim * 100) - attacker;
+        return (victim * MO_VICTIM_WEIGHT) - attacker;
     };
     if (board.isCapture(m))
-        return evaluateMVVLVA() + 600'000 - 800'000 * !board.see(m, -50) + thisThread.getCapthist(board, m);
+        return evaluateMVVLVA() + 600'000 - 800'000 * !board.see(m, MO_CAPTURE_SEE_THRESHOLD) + thisThread.getCapthist(board, m) * (static_cast<double>(MO_CAPTHIST_WEIGHT) / 1024);
 
-    int res = thisThread.getHist(board.stm, m);
+    int res = thisThread.getHist(board.stm, m) * (static_cast<double>(MO_HIST_WEIGHT) / 1024);
     if (ss != nullptr && (ss - 1)->conthist != nullptr)
-        res += thisThread.getConthist((ss - 1)->conthist, board, m);
+        res += thisThread.getConthist((ss - 1)->conthist, board, m) * (static_cast<double>(MO_CONTHIST_1PLY_WEIGHT) / 1024);
     if (ss != nullptr && (ss - 2)->conthist != nullptr)
-        res += thisThread.getConthist((ss - 2)->conthist, board, m);
+        res += thisThread.getConthist((ss - 2)->conthist, board, m) * (static_cast<double>(MO_CONTHIST_2PLY_WEIGHT) / 1024);
     return res;
 }
 
