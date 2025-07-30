@@ -1,5 +1,7 @@
 #include "thread.h"
 
+#include "tunable.h"
+
 namespace Search {
 ThreadInfo::ThreadInfo(ThreadType type, TranspositionTable& TT, std::atomic<bool>& breakFlag) :
     type(type),
@@ -48,7 +50,7 @@ void ThreadInfo::updateConthist(SearchStack* ss, Board& b, Move m, int bonus) {
     assert(ss != nullptr);
 
     auto updateEntry = [&](int& entry) {
-        int clampedBonus = std::clamp(bonus, -MAX_HISTORY, MAX_HISTORY);
+        int clampedBonus = std::clamp<i32>(bonus, -MAX_HISTORY, MAX_HISTORY);
         entry += clampedBonus - entry * abs(clampedBonus) / MAX_HISTORY;
     };
 

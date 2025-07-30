@@ -390,7 +390,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         }
         if (score >= beta) {
             ttFlag = BETA_CUTOFF;
-            int bonus = 20 * depth * depth;
+            int bonus = HIST_BONUS_A * depth * depth + HIST_BONUS_B * depth;
             if (board.isQuiet(m)) {
                 thisThread.updateHist(board.stm, m, bonus);
                 thisThread.updateConthist(ss, board, m, bonus);
@@ -459,7 +459,7 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
     if (sp.mtime)
         searchTime = sp.mtime;
     else
-        searchTime = (board.stm == WHITE ? sp.wtime : sp.btime) / DEFAULT_MOVES_TO_GO + (board.stm == WHITE ? sp.winc : sp.binc) / INC_DIVISOR;
+        searchTime = (board.stm == WHITE ? sp.wtime : sp.btime) / (static_cast<double>(DEFAULT_MOVES_TO_GO) / 1024) + (board.stm == WHITE ? sp.winc : sp.binc) / (static_cast<double>(INC_DIVISOR) / 1024);
 
     if (searchTime != 0)
         searchTime -= MOVE_OVERHEAD;
@@ -540,7 +540,7 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
                 beta  = std::min(lastScore + delta, INF_I16);
                 score = search<PV>(board, currDepth, 0, alpha, beta, ss, thisThread, sl);
                 if (score <= alpha || score >= beta)
-                    delta *= ASP_WIDENING_FACTOR;
+                    delta *= static_cast<double>(ASP_WIDENING_FACTOR) / 1024;
                 else
                     break;
             }
