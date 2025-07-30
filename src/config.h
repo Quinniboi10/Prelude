@@ -3,7 +3,7 @@
 #include "types.h"
 
 // ************ TUNING ************
-// #define TUNE
+#define TUNE
 
 // ************ SEARCH ************
 constexpr usize MAX_PLY     = 255;
