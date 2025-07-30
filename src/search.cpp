@@ -347,8 +347,8 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
                     extension = 1;
             }
             // Multicut
-            else if (sBeta >= beta)
-                return sBeta;
+            else if (score >= beta)
+                return score;
             // Negative extentions
             else if (ttEntry->score >= beta)
                 extension = -2;
