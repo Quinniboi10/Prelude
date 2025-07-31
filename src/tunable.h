@@ -48,62 +48,62 @@ static void printTuneOB() {
         cout << tunable->name << ", int, " << tunable->value << ", " << tunable->min << ", " << tunable->max << ", " << tunable->step << ", 0.002" << endl;
 }
 
-#define Tunable(name, value, min, max, step) inline IndividualOption name{#name, value, min, max, step}
+#define Tunable(name, value, min, max) inline IndividualOption name{#name, value, min, max, (max - min) / 20}
 #else
-#define Tunable(name, value, min, max, step) constexpr i32 name = value
+#define Tunable(name, value, min, max) constexpr i32 name = value
 #endif
 
 // Histories
-Tunable(DEFAULT_HISTORY_VALUE, 0, -200, 200, 5);
+Tunable(DEFAULT_HISTORY_VALUE, 0, -200, 200);
 constexpr i32 MAX_HISTORY = 16384;
 
 // Aspr windows
 constexpr i32 MIN_ASP_WINDOW_DEPTH = 5;
-Tunable(INITIAL_ASP_WINDOW, 30, 10, 40, 2);
-Tunable(ASP_WIDENING_FACTOR, 2560, 1536, 4096, 128);  // Quantized by 1024
+Tunable(INITIAL_ASP_WINDOW, 30, 10, 40);
+Tunable(ASP_WIDENING_FACTOR, 2560, 1536, 4096);  // Quantized by 1024
 
 // Move ordering
-Tunable(MO_VICTIM_WEIGHT, 100, 10, 200, 10);
-Tunable(MO_CAPTURE_SEE_THRESHOLD, -50, -200, 0, 10);
-Tunable(MO_CAPTHIST_WEIGHT, 1024, 128, 4096, 128);
-Tunable(MO_HIST_WEIGHT, 1024, 128, 4096, 128);
-Tunable(MO_CONTHIST_1PLY_WEIGHT, 1024, 128, 4096, 128);
-Tunable(MO_CONTHIST_2PLY_WEIGHT, 1024, 128, 4096, 128);
+Tunable(MO_VICTIM_WEIGHT, 100, 10, 200);
+Tunable(MO_CAPTURE_SEE_THRESHOLD, -50, -200, 0);
+Tunable(MO_CAPTHIST_WEIGHT, 1024, 128, 4096);
+Tunable(MO_HIST_WEIGHT, 1024, 128, 4096);
+Tunable(MO_CONTHIST_1PLY_WEIGHT, 1024, 128, 4096);
+Tunable(MO_CONTHIST_2PLY_WEIGHT, 1024, 128, 4096);
 
 // Main search heuristics
-Tunable(RFP_DEPTH_SCALAR, 70, 35, 120, 4);
+Tunable(RFP_DEPTH_SCALAR, 70, 35, 120);
 
 constexpr i32 RAZORING_DEPTH = 4;
-Tunable(RAZORING_DEPTH_SCALAR, 500, 300, 700, 20);
+Tunable(RAZORING_DEPTH_SCALAR, 500, 300, 700);
 
 constexpr int NMP_REDUCTION = 3;
 constexpr int NMP_DEPTH_DIVISOR = 3;
-Tunable(NMP_EVAL_DIVISOR, 160, 120, 200, 5);
+Tunable(NMP_EVAL_DIVISOR, 160, 120, 200);
 
-Tunable(FUTILITY_PRUNING_MARGIN, 100, 75, 130, 5);
-Tunable(FUTILITY_PRUNING_SCALAR, 80, 50, 120, 5);
+Tunable(FUTILITY_PRUNING_MARGIN, 100, 75, 130);
+Tunable(FUTILITY_PRUNING_SCALAR, 80, 50, 120);
 
 constexpr int SE_MIN_DEPTH = 8;
-Tunable(SE_DOUBLE_MARGIN, 30, 20, 40, 2);
+Tunable(SE_DOUBLE_MARGIN, 30, 20, 40);
 
-Tunable(LMR_QUIET_CONST, 1382, 512, 2048, 64);     // Quantized by 1024
-Tunable(LMR_NOISY_CONST, 205, 0, 512, 64);         // Quantized by 1024
-Tunable(LMR_QUIET_DIVISOR, 2816, 1024, 4096, 32);  // Quantized by 1024
-Tunable(LMR_NOISY_DIVISOR, 3430, 2048, 4096, 32);  // Quantized by 1024
-Tunable(LMR_NONPV, 1024, 128, 2048, 32);
+Tunable(LMR_QUIET_CONST, 1382, 512, 2048);     // Quantized by 1024
+Tunable(LMR_NOISY_CONST, 205, 0, 512);         // Quantized by 1024
+Tunable(LMR_QUIET_DIVISOR, 2816, 1024, 4096);  // Quantized by 1024
+Tunable(LMR_NOISY_DIVISOR, 3430, 2048, 4096);  // Quantized by 1024
+Tunable(LMR_NONPV, 1024, 128, 2048);
 
 constexpr int MIN_HIST_PRUNING_DEPTH = 5;
-Tunable(HIST_PRUNING_MARGIN, -400, -600, -200, 5);
-Tunable(HIST_PRUNING_SCALAR, -2500, -3500, -1750, 75);
+Tunable(HIST_PRUNING_MARGIN, -400, -600, -200);
+Tunable(HIST_PRUNING_SCALAR, -2500, -3500, -1750);
 
-Tunable(HIST_BONUS_A, 20, 0, 40, 1);
-Tunable(HIST_BONUS_B, 0, 0, 40, 1);
+Tunable(HIST_BONUS_A, 20, 0, 40);
+Tunable(HIST_BONUS_B, 0, 0, 40);
 
-Tunable(SEE_PRUNING_DEPTH_SCALAR, -90, -150, -40, 5);
+Tunable(SEE_PRUNING_DEPTH_SCALAR, -90, -150, -40);
 
 // Qsearch heuristics
-Tunable(QS_FUTILITY_MARGIN, 100, 30, 150, 5);
+Tunable(QS_FUTILITY_MARGIN, 100, 30, 150);
 
 // Time management
-Tunable(DEFAULT_MOVES_TO_GO, 20480, 15360, 40960, 512);  // Quantized by 1024
-Tunable(INC_DIVISOR, 2048, 512, 5120, 256);              // Quantized by 1024
+Tunable(DEFAULT_MOVES_TO_GO, 20480, 15360, 40960);  // Quantized by 1024
+Tunable(INC_DIVISOR, 2048, 512, 5120);              // Quantized by 1024
