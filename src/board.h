@@ -77,6 +77,7 @@ struct Board {
     void reset();
 
     void loadFromFEN(string fen);
+    string fen() const;
 
     void display() const;
 

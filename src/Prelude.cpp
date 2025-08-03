@@ -72,6 +72,23 @@ int main(int argc, char* argv[]) {
     
     TBManager tbManager;
 
+    const auto exists            = [&](const string& str, const string& sub) { return str.find(" " + sub + " ") != string::npos; };
+    const auto getValueFollowing = [&](const string& str, const string& value, const auto& defaultValue) {
+        std::istringstream ss(str);
+        string token;
+        while (ss >> token) {
+            if (token == value) {
+                ss >> token;
+                return token;
+            }
+        }
+
+        std::ostringstream defaultSS;
+        defaultSS << defaultValue;
+        return defaultSS.str();
+    };
+
+
     // *********** ./Prelude <ARGS> ************
     if (argc > 1) {
         string arg1 = argv[1];
@@ -88,12 +105,16 @@ int main(int argc, char* argv[]) {
             printTuneOB();
             #endif
         }
+        else if (arg1.substr(0, 7) == "genfens") {
+            u64 numFens = std::stoull(getValueFollowing(arg1, "genfens", 1));
+            u64 seed = std::stoull(getValueFollowing(arg1, "seed", std::time(nullptr)));
+
+            cout << "info string Generating " << numFens << " starting positions" << endl;
+
+            Datagen::genFens(numFens, seed);
+        }
         return 0;
     }
-
-    auto exists            = [&](const string& sub) { return command.find(" " + sub + " ") != string::npos; };
-    auto index             = [&](const string& sub, int offset = 0) { return findIndexOf(tokens, sub) + offset; };
-    auto getValueFollowing = [&](const string& value, int defaultValue) { return exists(value) ? std::stoi(tokens[index(value, 1)]) : defaultValue; };
 
     // ************ UCI ************
 
@@ -149,19 +170,19 @@ int main(int argc, char* argv[]) {
             searcher.stop();
             searcher.TT.updateAge();
 
-            usize depth = getValueFollowing("depth", MAX_PLY);
+            usize depth = std::stoi(getValueFollowing(command, "depth", MAX_PLY));
 
-            usize maxNodes  = getValueFollowing("nodes", 0);
-            usize softNodes = getValueFollowing("softnodes", 0);
+            usize maxNodes  = std::stoi(getValueFollowing(command, "nodes", 0));
+            usize softNodes = std::stoi(getValueFollowing(command, "softnodes", 0));
 
-            usize mtime = getValueFollowing("movetime", 0);
-            usize wtime = getValueFollowing("wtime", 0);
-            usize btime = getValueFollowing("btime", 0);
+            usize mtime = std::stoi(getValueFollowing(command, "movetime", 0));
+            usize wtime = std::stoi(getValueFollowing(command, "wtime", 0));
+            usize btime = std::stoi(getValueFollowing(command, "btime", 0));
 
-            usize winc = getValueFollowing("winc", 0);
-            usize binc = getValueFollowing("binc", 0);
+            usize winc = std::stoi(getValueFollowing(command, "winc", 0));
+            usize binc = std::stoi(getValueFollowing(command, "binc", 0));
 
-            usize mate = getValueFollowing("mate", 0);
+            usize mate = std::stoi(getValueFollowing(command, "mate", 0));
 
             searcher.start(board, Search::SearchParams(commandTime, depth, maxNodes, softNodes, mtime, wtime, btime, winc, binc, mate));
         }

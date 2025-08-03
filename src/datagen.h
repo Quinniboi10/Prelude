@@ -9,4 +9,5 @@ constexpr u64   SOFT_NODES          = 5000;
 constexpr u64   HARD_NODES          = 100'000;
 
 void run(usize threads);
+void genFens(u64 numFens, u64 seed);
 }

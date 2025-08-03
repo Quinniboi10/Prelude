@@ -230,3 +230,30 @@ void Datagen::run(usize threadCount) {
 
     runThread(threadCount - 1);
 }
+
+void Datagen::genFens(u64 numFens, u64 seed) {
+    std::mt19937                       boolEng(seed);
+    std::uniform_int_distribution<int> dist(0, 1);
+    auto                               randBool = [&]() { return dist(boolEng); };
+
+    std::mt19937 moveEng(seed);
+
+    u64 fens = 0;
+    while (fens < numFens) {
+        Board board;
+        board.reset();
+        usize randomMoves = Datagen::RAND_MOVES + randBool();
+        for (usize i = 0; i < randomMoves; i++) {
+            if (board.isGameOver())
+                break;
+            MoveList moves = Movegen::generateLegalMoves(board);
+            std::uniform_int_distribution<int> dist(0, moves.length - 1);
+            board.move(moves.moves[dist(moveEng)]);
+        }
+        if (board.isGameOver())
+            continue;
+
+        cout << "info string genfens " << board.fen() << endl;
+        fens++;
+    }
+}

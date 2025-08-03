@@ -42,7 +42,7 @@ void Board::fillZobristTable() {
 
 // Returns the piece on a square as a character
 char Board::getPieceAt(int sq) const {
-    if (((1ULL << sq) & pieces()) == 0)
+    if (getPiece(sq) == NO_PIECE_TYPE)
         return ' ';
     constexpr char whiteSymbols[] = {'P', 'N', 'B', 'R', 'Q', 'K'};
     constexpr char blackSymbols[] = {'p', 'n', 'b', 'r', 'q', 'k'};
@@ -387,6 +387,57 @@ void Board::loadFromFEN(string fen) {
     updateCheckPin();
 }
 
+string Board::fen() const {
+    std::ostringstream ss;
+
+    // Pieces
+    for (i32 rank = 7; rank >= 0; rank--) {
+        usize empty = 0;
+        for (usize file = 0; file < 8; file++) {
+            i32 sq = rank * 8 + file;
+            char pc = getPieceAt(sq);
+            if (pc == ' ')
+                empty++;
+            else {
+                if (empty) {
+                    ss << empty;
+                    empty = 0;
+                }
+                ss << pc;
+            }
+        }
+        if (empty)
+            ss << empty;
+        if (rank != 0)
+            ss << '/';
+    }
+
+    // Stm
+    ss << ' ' << (stm == WHITE ? 'w' : 'b');
+
+    // Castling
+    string castle;
+    if (castling[castleIndex(WHITE, true)] != NO_SQUARE)  castle += 'K';
+    if (castling[castleIndex(WHITE, false)] != NO_SQUARE) castle += 'Q';
+    if (castling[castleIndex(BLACK, true)] != NO_SQUARE)  castle += 'k';
+    if (castling[castleIndex(BLACK, false)] != NO_SQUARE) castle += 'q';
+    ss << ' ' << (castle.empty() ? "-" : castle);
+
+    // En passant
+    if (epSquare != NO_SQUARE)
+        ss << ' ' << squareToAlgebraic(epSquare);
+    else
+        ss << " -";
+
+    // Halfmove
+    ss << ' ' << halfMoveClock;
+
+    // Fullmove
+    ss << ' ' << fullMoveClock;
+
+    return ss.str();
+}
+
 // Print the board
 void Board::display() const {
     cout << (stm ? "White's turn" : "Black's turn") << endl;
@@ -402,6 +453,8 @@ void Board::display() const {
     }
     cout << "+---+---+---+---+---+---+---+---+" << endl;
     cout << "  a   b   c   d   e   f   g   h" << endl << endl;
+    cout << endl;
+    cout << fen() << endl;
     cout << endl;
     cout << "Board hash: 0x" << std::hex << std::uppercase << zobrist << std::dec << endl;
 }
