@@ -54,56 +54,56 @@ static void printTuneOB() {
 #endif
 
 // Histories
-Tunable(DEFAULT_HISTORY_VALUE, 0, -200, 200);
+Tunable(DEFAULT_HISTORY_VALUE, 5, -200, 200);
 constexpr i32 MAX_HISTORY = 16384;
 
 // Aspr windows
 constexpr i32 MIN_ASP_WINDOW_DEPTH = 5;
 Tunable(INITIAL_ASP_WINDOW, 30, 10, 40);
-Tunable(ASP_WIDENING_FACTOR, 2560, 1536, 4096);  // Quantized by 1024
+Tunable(ASP_WIDENING_FACTOR, 2591, 1536, 4096);  // Quantized by 1024
 
 // Move ordering
-Tunable(MO_VICTIM_WEIGHT, 100, 10, 200);
-Tunable(MO_CAPTURE_SEE_THRESHOLD, -50, -200, 0);
-Tunable(MO_CAPTHIST_WEIGHT, 1024, 128, 4096);
-Tunable(MO_HIST_WEIGHT, 1024, 128, 4096);
-Tunable(MO_CONTHIST_1PLY_WEIGHT, 1024, 128, 4096);
-Tunable(MO_CONTHIST_2PLY_WEIGHT, 1024, 128, 4096);
+Tunable(MO_VICTIM_WEIGHT, 97, 10, 200);
+Tunable(MO_CAPTURE_SEE_THRESHOLD, -56, -200, 0);
+Tunable(MO_CAPTHIST_WEIGHT, 891, 128, 4096);
+Tunable(MO_HIST_WEIGHT, 996, 128, 4096);
+Tunable(MO_CONTHIST_1PLY_WEIGHT, 1075, 128, 4096);
+Tunable(MO_CONTHIST_2PLY_WEIGHT, 1067, 128, 4096);
 
 // Main search heuristics
-Tunable(RFP_DEPTH_SCALAR, 70, 35, 120);
+Tunable(RFP_DEPTH_SCALAR, 66, 35, 120);
 
 constexpr i32 RAZORING_DEPTH = 4;
-Tunable(RAZORING_DEPTH_SCALAR, 500, 300, 700);
+Tunable(RAZORING_DEPTH_SCALAR, 550, 300, 700);
 
 constexpr int NMP_REDUCTION = 3;
 constexpr int NMP_DEPTH_DIVISOR = 3;
-Tunable(NMP_EVAL_DIVISOR, 160, 120, 200);
+Tunable(NMP_EVAL_DIVISOR, 159, 120, 200);
 
 Tunable(FUTILITY_PRUNING_MARGIN, 100, 75, 130);
-Tunable(FUTILITY_PRUNING_SCALAR, 80, 50, 120);
+Tunable(FUTILITY_PRUNING_SCALAR, 78, 50, 120);
 
 constexpr int SE_MIN_DEPTH = 8;
 Tunable(SE_DOUBLE_MARGIN, 30, 20, 40);
 
-Tunable(LMR_QUIET_CONST, 1382, 512, 2048);     // Quantized by 1024
-Tunable(LMR_NOISY_CONST, 205, 0, 512);         // Quantized by 1024
-Tunable(LMR_QUIET_DIVISOR, 2816, 1024, 4096);  // Quantized by 1024
-Tunable(LMR_NOISY_DIVISOR, 3430, 2048, 4096);  // Quantized by 1024
-Tunable(LMR_NONPV, 1024, 128, 2048);
+Tunable(LMR_QUIET_CONST, 1456, 512, 2048);     // Quantized by 1024
+Tunable(LMR_NOISY_CONST, 202, 0, 512);         // Quantized by 1024
+Tunable(LMR_QUIET_DIVISOR, 2835, 1024, 4096);  // Quantized by 1024
+Tunable(LMR_NOISY_DIVISOR, 3319, 2048, 4096);  // Quantized by 1024
+Tunable(LMR_NONPV, 1046, 128, 2048);
 
 constexpr int MIN_HIST_PRUNING_DEPTH = 5;
-Tunable(HIST_PRUNING_MARGIN, -400, -600, -200);
-Tunable(HIST_PRUNING_SCALAR, -2500, -3500, -1750);
+Tunable(HIST_PRUNING_MARGIN, -499, -600, -200);
+Tunable(HIST_PRUNING_SCALAR, -2582, -3500, -1750);
 
-Tunable(HIST_BONUS_A, 20, 0, 40);
-Tunable(HIST_BONUS_B, 0, 0, 40);
+Tunable(HIST_BONUS_A, 21, 0, 40);
+Tunable(HIST_BONUS_B, 1, 0, 40);
 
-Tunable(SEE_PRUNING_DEPTH_SCALAR, -90, -150, -40);
+Tunable(SEE_PRUNING_DEPTH_SCALAR, -77, -150, -40);
 
 // Qsearch heuristics
-Tunable(QS_FUTILITY_MARGIN, 100, 30, 150);
+Tunable(QS_FUTILITY_MARGIN, 104, 30, 150);
 
 // Time management
-Tunable(DEFAULT_MOVES_TO_GO, 20480, 15360, 40960);  // Quantized by 1024
-Tunable(INC_DIVISOR, 2048, 512, 5120);              // Quantized by 1024
+Tunable(DEFAULT_MOVES_TO_GO, 19018, 15360, 40960);  // Quantized by 1024
+Tunable(INC_DIVISOR, 2156, 512, 5120);              // Quantized by 1024
