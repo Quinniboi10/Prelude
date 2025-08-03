@@ -91,6 +91,7 @@ Tunable(LMR_NOISY_CONST, 202, 0, 512);         // Quantized by 1024
 Tunable(LMR_QUIET_DIVISOR, 2835, 1024, 4096);  // Quantized by 1024
 Tunable(LMR_NOISY_DIVISOR, 3319, 2048, 4096);  // Quantized by 1024
 Tunable(LMR_NONPV, 1046, 128, 2048);
+Tunable(LMR_TT_NOISY, 1024, 128, 2048);
 
 constexpr int MIN_HIST_PRUNING_DEPTH = 5;
 Tunable(HIST_PRUNING_MARGIN, -499, -600, -200);

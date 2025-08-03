@@ -362,8 +362,10 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
         i16 score;
         if (depth >= 2 && movesSearched >= 5 + 2 * (ply == 0) && !testBoard.inCheck()) {
-            // LMR
-            i32 depthReduction = lmrTable[board.isQuiet(m)][depth][movesSearched] + !isPV * LMR_NONPV;
+            // Late move reduction
+            i32 depthReduction = lmrTable[board.isQuiet(m)][depth][movesSearched]
+                + !isPV * LMR_NONPV
+                + (ttHit && !board.isQuiet(ttEntry->move)) * LMR_TT_NOISY;
 
             ss->reduction = depthReduction / 1024;
 
