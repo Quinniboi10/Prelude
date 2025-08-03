@@ -523,7 +523,7 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
 
         auto searchCancelled = [&]() {
             if (thisThread.type == MAIN)
-                return sl.outOfNodes(countNodes()) || sl.outOfTime() || thisThread.breakFlag.load(std::memory_order_relaxed) || (sp.softNodes > 0 && countNodes() > sp.softNodes);
+                return sl.outOfNodes(countNodes()) || sl.outOfTime() || thisThread.breakFlag.load(std::memory_order_relaxed);
             else
                 return thisThread.breakFlag.load(std::memory_order_relaxed) || (sp.softNodes > 0 && countNodes() > sp.softNodes);
         };
@@ -556,6 +556,9 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
 
         if (isMain)
             cout << (*searcher).searchReport(board, currDepth, score, ss->pv) << endl;
+
+        if (sp.softNodes > 0 && countNodes() > sp.softNodes)
+            break;
 
         lastScore = score;
         lastPV    = ss->pv;

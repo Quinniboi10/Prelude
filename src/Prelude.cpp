@@ -37,11 +37,12 @@
 INCBIN(EVAL, EVALFILE);
 #endif
 
-NNUE  nnue;
-bool  chess960         = false;
-bool  tbEnabled        = false;
-i32   syzygyDepth      = 1;
-i32   syzygyProbeLimit = 32;
+NNUE nnue;
+bool chess960         = false;
+bool tbEnabled        = false;
+i32  syzygyDepth      = 1;
+i32  syzygyProbeLimit = 32;
+bool nodesAreSoftNodes = false;
 
 // ****** MAIN ENTRY POINT, HANDLES UCI ******
 int main(int argc, char* argv[]) {
@@ -141,6 +142,7 @@ int main(int argc, char* argv[]) {
             cout << "option name SyzygyProbeDepth type spin default 1 min 1 max " << MAX_PLY << endl;
             cout << "option name SyzygyProbeLimit type spin default 32 min 3 max 32 " << endl;
             cout << "option name UCI_Chess960 type check default false" << endl;
+            cout << "option name Softnodes type check default false" << endl;
             #ifdef TUNE
             printTuneUCI();
             #endif
@@ -184,6 +186,11 @@ int main(int argc, char* argv[]) {
 
             usize mate = std::stoi(getValueFollowing(command, "mate", 0));
 
+            if (nodesAreSoftNodes && maxNodes) {
+                softNodes = maxNodes;
+                maxNodes = 0;
+            }
+
             searcher.start(board, Search::SearchParams(commandTime, depth, maxNodes, softNodes, mtime, wtime, btime, winc, binc, mate));
         }
         else if (tokens[0] == "setoption") {
@@ -211,6 +218,8 @@ int main(int argc, char* argv[]) {
             }
             else if (tokens[2] == "UCI_Chess960")
                 chess960 = tokens[findIndexOf(tokens, "value") + 1] == "true";
+            else if (tokens[2] == "Softnodes")
+                nodesAreSoftNodes = tokens[findIndexOf(tokens, "value") + 1] == "true";
             #ifdef TUNE
             else
                 setTunable(tokens[2], std::stoi(tokens[findIndexOf(tokens, "value") + 1]));
