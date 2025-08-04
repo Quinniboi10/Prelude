@@ -534,17 +534,20 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
             score = search<PV>(board, currDepth, 0, -INF_I16, INF_I16, ss, thisThread, sl);
         else {
             int delta = INITIAL_ASP_WINDOW;
-            i32 alpha;
-            i32 beta;
+            i32 alpha = lastScore - delta;
+            i32 beta = lastScore + delta;
 
             while (!searchCancelled()) {
-                alpha = std::max(lastScore - delta, -INF_I16);
-                beta  = std::min(lastScore + delta, INF_I16);
+                alpha = std::max(alpha, -MATE_SCORE);
+                beta  = std::min(beta, MATE_SCORE);
                 score = search<PV>(board, currDepth, 0, alpha, beta, ss, thisThread, sl);
-                if (score <= alpha || score >= beta)
-                    delta *= static_cast<double>(ASP_WIDENING_FACTOR) / 1024;
-                else
+                if (score > alpha || score < beta)
                     break;
+		if (score <= alpha)
+                    alpha -= delta;
+                else
+                    beta += delta;
+                delta *= static_cast<double>(ASP_WIDENING_FACTOR) / 1024;
             }
         }
 
