@@ -2,6 +2,8 @@
 
 #include "board.h"
 
+#include <cmath>
+
 struct WinRateParams {
     double a;
     double b;
