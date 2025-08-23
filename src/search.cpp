@@ -82,7 +82,7 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, Threa
         if (!board.isLegal(m))
             continue;
 
-        if (!board.see(m, 0))
+        if (!board.see(m, -108))
             continue;
 
         if (!board.inCheck() && board.isCapture(m) && futilityScore <= alpha && !board.see(m, 1)) {
