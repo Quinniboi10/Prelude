@@ -82,11 +82,11 @@ struct SearchLimit {
 
 constexpr i32 MATE_SCORE       = 32767;
 constexpr i32 MATE_IN_MAX_PLY  = MATE_SCORE - MAX_PLY;
-constexpr i32 MATED_IN_MAX_PLY = -MATE_SCORE + MAX_PLY;
+constexpr i32 MATED_IN_MAX_PLY = -MATE_SCORE + static_cast<i32>(MAX_PLY);
 
 constexpr i32 TB_MATE_SCORE       = std::min(30000, MATE_IN_MAX_PLY - 1);
 constexpr i32 TB_MATE_IN_MAX_PLY  = TB_MATE_SCORE - MAX_PLY;
-constexpr i32 TB_MATED_IN_MAX_PLY = -TB_MATE_SCORE + MAX_PLY;
+constexpr i32 TB_MATED_IN_MAX_PLY = -TB_MATE_SCORE + static_cast<i32>(MAX_PLY);
 
 inline bool isWin(i32 score) { return score >= TB_MATE_IN_MAX_PLY; }
 inline bool isLoss(i32 score) { return score <= TB_MATED_IN_MAX_PLY; }

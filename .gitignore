@@ -6,4 +6,5 @@
 
 # Engine build
 *.o
+*.d
 Prelude*
