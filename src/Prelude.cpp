@@ -16,10 +16,6 @@
 #include "tunable.h"
 #include "searcher.h"
 
-#ifndef EVALFILE
-    #define EVALFILE "./nnue.bin"
-#endif
-
 #ifdef _MSC_VER
     #define MSVC
     #pragma push_macro("_MSC_VER")
