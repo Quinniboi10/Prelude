@@ -17,6 +17,8 @@ array<u64, 65> EP_ZTABLE;
 u64 STM_ZHASH;
 // Zobrist for castling rights
 array<u64, 16> CASTLING_ZTABLE;
+// Zobrist for 50mr
+array<u64, 100> FIFTY_MOVE_ZTABLE;
 
 void Board::fillZobristTable() {
     std::random_device rd;
@@ -32,12 +34,15 @@ void Board::fillZobristTable() {
     for (auto& ep : EP_ZTABLE)
         ep = dist(engine);
 
+    EP_ZTABLE[NO_SQUARE] = 0;
+
     STM_ZHASH = dist(engine);
 
     for (auto& right : CASTLING_ZTABLE)
         right = dist(engine);
 
-    EP_ZTABLE[NO_SQUARE] = 0;
+    for (auto& mr : FIFTY_MOVE_ZTABLE)
+        mr = dist(engine);
 }
 
 // Returns the piece on a square as a character
@@ -194,6 +199,8 @@ void Board::updateCheckPin() {
         pinners &= pinners - 1;
     }
 }
+
+u64 Board::fiftyMRHash() const { return zobrist ^ FIFTY_MOVE_ZTABLE[halfMoveClock]; }
 
 void Board::setCastlingRights(Color c, Square sq, bool value) { castling[castleIndex(c, ctzll(pieces(c, KING)) < sq)] = (value == false ? NO_SQUARE : sq); }
 

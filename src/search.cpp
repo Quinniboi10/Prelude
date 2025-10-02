@@ -37,9 +37,12 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, Threa
     if (ply > thisThread.seldepth)
         thisThread.seldepth = ply;
 
-    Transposition* ttEntry = thisThread.TT.getEntry(board.zobrist);
 
-    if (!isPV && ttEntry->zobrist == board.zobrist
+    const u64 zobrist = board.fiftyMRHash();
+
+    Transposition* ttEntry = thisThread.TT.getEntry(zobrist);
+
+    if (!isPV && ttEntry->zobrist == zobrist
         && (ttEntry->flag == EXACT                                       // Exact score
             || (ttEntry->flag == BETA_CUTOFF && ttEntry->score >= beta)  // Lower bound, fail high
             || (ttEntry->flag == FAIL_LOW && ttEntry->score <= alpha)    // Upper bound, fail low
@@ -112,10 +115,10 @@ i16 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, Threa
         }
     }
 
-    Transposition newEntry = Transposition(board.zobrist, ttFlag == FAIL_LOW ? ttEntry->move : bestMove, ttFlag, bestScore, 0);
+    Transposition newEntry = Transposition(zobrist, ttFlag == FAIL_LOW ? ttEntry->move : bestMove, ttFlag, bestScore, 0);
 
     if (thisThread.TT.shouldReplace(*ttEntry, newEntry))
-        thisThread.TT.setEntry(board.zobrist, newEntry);
+        thisThread.TT.setEntry(zobrist, newEntry);
 
     return bestScore;
 }
@@ -143,8 +146,10 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
             return alpha;
     }
 
-    Transposition* ttEntry = thisThread.TT.getEntry(board.zobrist);
-    bool           ttHit   = ss->excluded.isNull() && ttEntry->zobrist == board.zobrist;
+    const u64 zobrist = board.fiftyMRHash();
+
+    Transposition* ttEntry = thisThread.TT.getEntry(zobrist);
+    bool           ttHit   = ss->excluded.isNull() && ttEntry->zobrist == zobrist;
 
     // TT cutoffs
     if (!isPV && ttHit && ttEntry->depth >= depth
@@ -186,7 +191,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
             if (flag == EXACT || flag == FAIL_LOW && score <= alpha || flag == BETA_CUTOFF && score >= beta) {
                 // Save updated TT entry and return
-                *ttEntry = Transposition(board.zobrist, Move::null(), flag, score, depth);
+                *ttEntry = Transposition(zobrist, Move::null(), flag, score, depth);
                 return score;
             }
 
@@ -203,7 +208,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
     }
 
     // Internal iterative reductions
-    if (ss->excluded.isNull() && (ttEntry->zobrist != board.zobrist || ttEntry->move.isNull()) && depth > 5)
+    if (ss->excluded.isNull() && (ttEntry->zobrist != zobrist || ttEntry->move.isNull()) && depth > 5)
         depth--;
 
     ss->conthist   = nullptr;
@@ -436,10 +441,10 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         else if (isWin(bestScore))
             ttScore = bestScore + ply;
 
-        Transposition newEntry = Transposition(board.zobrist, ttFlag == FAIL_LOW ? ttEntry->move : bestMove, ttFlag, ttScore, depth);
+        Transposition newEntry = Transposition(zobrist, ttFlag == FAIL_LOW ? ttEntry->move : bestMove, ttFlag, ttScore, depth);
 
         if (thisThread.TT.shouldReplace(*ttEntry, newEntry))
-            thisThread.TT.setEntry(board.zobrist, newEntry);
+            thisThread.TT.setEntry(zobrist, newEntry);
     }
 
     return bestScore;

@@ -59,6 +59,8 @@ struct Board {
    public:
     static void fillZobristTable();
 
+    u64 fiftyMRHash() const;
+
     constexpr Square castleSq(Color c, bool kingside) const { return castling[castleIndex(c, kingside)]; }
 
     u8 count(PieceType pt) const;
