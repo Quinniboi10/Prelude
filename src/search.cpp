@@ -143,15 +143,12 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
             return alpha;
     }
 
-    Transposition* ttEntry = thisThread.TT.getEntry(board.zobrist);
-    bool           ttHit   = ss->excluded.isNull() && ttEntry->zobrist == board.zobrist;
+    Transposition* ttEntry       = thisThread.TT.getEntry(board.zobrist);
+    const bool     ttHit         = ss->excluded.isNull() && ttEntry->zobrist == board.zobrist;
+    const bool     canUseTTScore = ttEntry->canUseScore(alpha, beta);
 
     // TT cutoffs
-    if (!isPV && ttHit && ttEntry->depth >= depth
-        && (ttEntry->flag == EXACT                                       // Exact score
-            || (ttEntry->flag == BETA_CUTOFF && ttEntry->score >= beta)  // Lower bound, fail high
-            || (ttEntry->flag == FAIL_LOW && ttEntry->score <= alpha)    // Upper bound, fail low
-            )) {
+    if (!isPV && ttHit && ttEntry->depth >= depth && canUseTTScore) {
         const i32& ttScore = ttEntry->score;
         if (isLoss(ttScore))
             return ttScore + ply;
@@ -332,7 +329,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
         usize extension = 0;
         // Singular extensions
-        if (ply > 0 && depth >= SE_MIN_DEPTH && ttHit && m == ttEntry->move && ttEntry->depth >= depth - 3 && ttEntry->flag != FAIL_LOW) {
+        if (ply > 0 && depth >= SE_MIN_DEPTH && ttHit && canUseTTScore && m == ttEntry->move && ttEntry->depth >= depth - 3 && ttEntry->flag != FAIL_LOW) {
             const i32 sBeta  = std::max(-INF_INT + 1, ttEntry->score - depth * 2);
             const i32 sDepth = (depth - 1) / 2;
 
@@ -365,7 +362,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
             // Late move reduction
             i32 depthReduction = lmrTable[board.isQuiet(m)][depth][movesSearched]
                 + !isPV * LMR_NONPV
-                + (ttHit && !board.isQuiet(ttEntry->move)) * LMR_TT_NOISY;
+                + (ttHit && !ttEntry->move.isNull() && !board.isQuiet(ttEntry->move)) * LMR_TT_NOISY;
 
             ss->reduction = depthReduction / 1024;
 

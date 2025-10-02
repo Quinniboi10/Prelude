@@ -31,6 +31,12 @@ struct Transposition {
         this->depth   = depth;
         age           = 0;
     }
+
+    bool canUseScore(const i32 alpha, const i32 beta) const {
+        return flag == EXACT                       // Exact score
+        || (flag == BETA_CUTOFF && score >= beta)  // Lower bound, fail high
+        || (flag == FAIL_LOW && score <= alpha);   // Upper bound, fail low
+    }
 };
 
 class TranspositionTable {
