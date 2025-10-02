@@ -41,8 +41,12 @@ void Board::fillZobristTable() {
     for (auto& right : CASTLING_ZTABLE)
         right = dist(engine);
 
-    for (auto& mr : FIFTY_MOVE_ZTABLE)
-        mr = dist(engine);
+    for (usize i = 0; i < FIFTY_MOVE_ZTABLE.size(); i ++) {
+        if (i % 10 == 0)
+            FIFTY_MOVE_ZTABLE[i] = dist(engine);
+        else
+            FIFTY_MOVE_ZTABLE[i] = FIFTY_MOVE_ZTABLE[i - 1];
+    }
 }
 
 // Returns the piece on a square as a character
