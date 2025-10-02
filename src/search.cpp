@@ -144,14 +144,10 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
     }
 
     Transposition* ttEntry = thisThread.TT.getEntry(board.zobrist);
-    bool           ttHit   = ss->excluded.isNull() && ttEntry->zobrist == board.zobrist;
+    bool           ttHit   = ss->excluded.isNull() && ttEntry->zobrist == board.zobrist && ttEntry->canUseScore(alpha, beta);
 
     // TT cutoffs
-    if (!isPV && ttHit && ttEntry->depth >= depth
-        && (ttEntry->flag == EXACT                                       // Exact score
-            || (ttEntry->flag == BETA_CUTOFF && ttEntry->score >= beta)  // Lower bound, fail high
-            || (ttEntry->flag == FAIL_LOW && ttEntry->score <= alpha)    // Upper bound, fail low
-            )) {
+    if (!isPV && ttHit && ttEntry->depth >= depth) {
         const i32& ttScore = ttEntry->score;
         if (isLoss(ttScore))
             return ttScore + ply;
