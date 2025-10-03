@@ -4,7 +4,21 @@
 #include "move.h"
 #include "board.h"
 #include "movegen.h"
-#include "search.h"
+#include "tunable.h"
+
+int evaluateMove(const Board& board, Move m) {
+    const auto evaluateMVVLVA = [&]() {
+        const int victim   = PIECE_VALUES[board.getPiece(m.to())];
+        const int attacker = PIECE_VALUES[board.getPiece(m.from())];
+
+        return (victim * MO_VICTIM_WEIGHT) - attacker;
+    };
+
+    if (board.isCapture(m))
+        return evaluateMVVLVA() + 600'000;
+
+    return 0;
+}
 
 template<MovegenMode mode>
 struct Movepicker {
@@ -16,14 +30,35 @@ struct Movepicker {
     Movepicker(const Board& board) {
         moves = Movegen::generateMoves<mode>(board);
         seen  = 0;
+
+        for (usize i = 0; i < moves.length; i++) {
+            const Move m = moves.moves[i];
+
+            moveScores[i] = evaluateMove(board, m);
+        }
     }
 
     u16 findNext() {
+        u16 best      = seen;
+        int bestScore = moveScores[seen];
+
+        for (usize i = seen; i < moves.length; i++) {
+            if (moveScores[i] > bestScore) {
+                best      = i;
+                bestScore = moveScores[i];
+            }
+        }
+
+        if (best != seen) {
+            std::swap(moves.moves[seen], moves.moves[best]);
+            std::swap(moveScores[seen], moveScores[best]);
+        }
+
         return seen++;
     }
 
 
-    bool hasNext() { return seen < moves.length; }
+    bool hasNext() const { return seen < moves.length; }
     Move getNext() {
         assert(hasNext());
         return moves.moves[findNext()];
