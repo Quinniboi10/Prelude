@@ -3,10 +3,8 @@
 #include "types.h"
 #include "board.h"
 #include "config.h"
-#include "ttable.h"
 #include "stopwatch.h"
 
-#include <atomic>
 #include <cstring>
 #include <thread>
 #include <algorithm>
@@ -19,12 +17,7 @@ struct ThreadStackManager;
 using ConthistSegment = MultiArray<i32, 2, 6, 64>;
 
 struct SearchStack {
-    PvList           pv;
-    i64              historyScore;
-    i32              reduction;
-    ConthistSegment* conthist;
-    Move             excluded;
-    i16              staticEval;
+    PvList pv;
 };
 enum ThreadType {
     MAIN      = 1,
@@ -71,9 +64,9 @@ struct SearchLimit {
         maxNodes(maxNodes),
         searchTime(searchTime) {}
 
-    bool outOfNodes(u64 nodes) { return nodes >= maxNodes && maxNodes > 0; }
+    bool outOfNodes(u64 nodes) const { return nodes >= maxNodes && maxNodes > 0; }
 
-    bool outOfTime() {
+    bool outOfTime() const {
         if (searchTime == 0)
             return false;
         return static_cast<i64>(time.elapsed()) >= searchTime;
@@ -95,7 +88,6 @@ inline bool isTBScore(i32 score) { return isDecisive(score) && std::abs(score) <
 
 MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchParams sp, Searcher* searcher = nullptr);
 
-void bench();
+void bench(usize depth);
 
-void fillLmrTable();
 }

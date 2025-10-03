@@ -53,58 +53,6 @@ static void printTuneOB() {
 #define Tunable(name, value, min, max) constexpr i32 name = value
 #endif
 
-// Histories
-Tunable(DEFAULT_HISTORY_VALUE, 5, -200, 200);
-constexpr i32 MAX_HISTORY = 16384;
-
-// Aspr windows
-constexpr i32 MIN_ASP_WINDOW_DEPTH = 5;
-Tunable(INITIAL_ASP_WINDOW, 30, 10, 40);
-Tunable(ASP_WIDENING_FACTOR, 2591, 1536, 4096);  // Quantized by 1024
-
-// Move ordering
-Tunable(MO_VICTIM_WEIGHT, 97, 10, 200);
-Tunable(MO_CAPTURE_SEE_THRESHOLD, -56, -200, 0);
-Tunable(MO_CAPTHIST_WEIGHT, 891, 128, 4096);
-Tunable(MO_HIST_WEIGHT, 996, 128, 4096);
-Tunable(MO_CONTHIST_1PLY_WEIGHT, 1075, 128, 4096);
-Tunable(MO_CONTHIST_2PLY_WEIGHT, 1067, 128, 4096);
-
-// Main search heuristics
-Tunable(RFP_DEPTH_SCALAR, 66, 35, 120);
-
-constexpr i32 RAZORING_DEPTH = 4;
-Tunable(RAZORING_DEPTH_SCALAR, 550, 300, 700);
-
-constexpr int NMP_REDUCTION = 3;
-constexpr int NMP_DEPTH_DIVISOR = 3;
-Tunable(NMP_EVAL_DIVISOR, 159, 120, 200);
-
-Tunable(FUTILITY_PRUNING_MARGIN, 100, 75, 130);
-Tunable(FUTILITY_PRUNING_SCALAR, 78, 50, 120);
-
-constexpr int SE_MIN_DEPTH = 8;
-Tunable(SE_DOUBLE_MARGIN, 30, 20, 40);
-
-Tunable(LMR_QUIET_CONST, 1456, 512, 2048);     // Quantized by 1024
-Tunable(LMR_NOISY_CONST, 202, 0, 512);         // Quantized by 1024
-Tunable(LMR_QUIET_DIVISOR, 2835, 1024, 4096);  // Quantized by 1024
-Tunable(LMR_NOISY_DIVISOR, 3319, 2048, 4096);  // Quantized by 1024
-Tunable(LMR_NONPV, 1046, 128, 2048);
-Tunable(LMR_TT_NOISY, 1024, 128, 2048);
-
-constexpr int MIN_HIST_PRUNING_DEPTH = 5;
-Tunable(HIST_PRUNING_MARGIN, -499, -600, -200);
-Tunable(HIST_PRUNING_SCALAR, -2582, -3500, -1750);
-
-Tunable(HIST_BONUS_A, 21, 0, 40);
-Tunable(HIST_BONUS_B, 1, 0, 40);
-
-Tunable(SEE_PRUNING_DEPTH_SCALAR, -77, -150, -40);
-
-// Qsearch heuristics
-Tunable(QS_FUTILITY_MARGIN, 104, 30, 150);
-
 // Time management
 Tunable(DEFAULT_MOVES_TO_GO, 19018, 15360, 40960);  // Quantized by 1024
 Tunable(INC_DIVISOR, 2156, 512, 5120);              // Quantized by 1024

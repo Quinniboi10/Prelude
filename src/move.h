@@ -87,6 +87,8 @@ struct PvList {
 
     auto begin() { return moves.begin(); }
     auto end() { return moves.begin() + length; }
+    auto begin() const { return moves.begin(); }
+    auto end() const { return moves.begin() + length; }
 
     auto& operator=(const PvList& other) {
         std::copy(other.moves.begin(), other.moves.begin() + other.length, moves.begin());
