@@ -53,6 +53,9 @@ static void printTuneOB() {
 #define Tunable(name, value, min, max) constexpr i32 name = value
 #endif
 
+// Move ordering
+Tunable(MO_VICTIM_WEIGHT, 100, 50, 150);
+
 // Time management
 Tunable(DEFAULT_MOVES_TO_GO, 19018, 15360, 40960);  // Quantized by 1024
 Tunable(INC_DIVISOR, 2156, 512, 5120);              // Quantized by 1024
