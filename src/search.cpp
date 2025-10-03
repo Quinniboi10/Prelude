@@ -74,7 +74,9 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         Board              testBoard     = board;
         ThreadStackManager threadManager = thisThread.makeMove(board, testBoard, m);
 
-        const i32 score = -search<NodeType::PV>(testBoard, newDepth, ply + 1, -beta, -alpha, ss + 1, thisThread, sl);
+        i32 score = -search<NodeType::NONPV>(testBoard, newDepth, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
+        if (isPV && (movesSearched == 1 || score > alpha))
+            score = -search<NodeType::PV>(testBoard, newDepth, ply + 1, -beta, -alpha, ss + 1, thisThread, sl);
 
         if (score > bestScore) {
             bestScore = score;
