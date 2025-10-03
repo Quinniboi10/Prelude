@@ -88,13 +88,11 @@ $(DEFAULT_NETWORK):
 
 # Debug build
 .PHONY: debug
-debug: clean
 debug: CXXFLAGS = -march=native -std=c++20 -O3 -fsanitize=address,undefined -fno-finite-math-only -fno-omit-frame-pointer -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -Wall -Wextra
 debug: all
 
 # Debug build
 .PHONY: profile
-profile: clean
 profile: CXXFLAGS = -O3 -ggdb -fno-finite-math-only -funroll-loops -flto -std=c++20 -fno-omit-frame-pointer -DNDEBUG
 profile: all
 

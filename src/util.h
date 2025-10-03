@@ -30,9 +30,14 @@ inline void printBitboard(u64 bitboard);
 
 inline Square popLSB(auto& bb) {
     assert(bb > 0);
-    Square sq = static_cast<Square>(ctzll(bb));
+    const auto sq = static_cast<Square>(ctzll(bb));
     bb &= bb - 1;
     return sq;
+}
+
+inline Square getLSB(auto bb) {
+    assert(bb > 0);
+    return static_cast<Square>(ctzll(bb));
 }
 
 template<int dir>
@@ -190,7 +195,7 @@ inline string formatTime(u64 timeInMS) {
         result += std::to_string(minutes) + "m ";
     if (seconds > 0 || minutes > 0 || hours > 0)
         result += std::to_string(seconds) + "s";
-    if (result == "")
+    if (result.empty())
         return std::to_string(timeInMS) + "ms";
     return result;
 }

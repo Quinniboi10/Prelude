@@ -10,10 +10,8 @@
 #include "types.h"
 #include "board.h"
 #include "search.h"
-#include "ttable.h"
 #include "movegen.h"
 #include "datagen.h"
-#include "tunable.h"
 #include "searcher.h"
 
 #ifdef _MSC_VER
@@ -63,7 +61,6 @@ int main(int argc, char* argv[]) {
 
     Movegen::initializeAllDatabases();
     Board::fillZobristTable();
-    Search::fillLmrTable();
 
     board.reset();
 
@@ -71,7 +68,6 @@ int main(int argc, char* argv[]) {
     
     TBManager tbManager;
 
-    const auto exists            = [&](const string& str, const string& sub) { return str.find(" " + sub + " ") != string::npos; };
     const auto getValueFollowing = [&](const string& str, const string& value, const auto& defaultValue) {
         std::istringstream ss(str);
         string token;
@@ -90,23 +86,28 @@ int main(int argc, char* argv[]) {
 
     // *********** ./Prelude <ARGS> ************
     if (argc > 1) {
-        string arg1 = argv[1];
-        if (arg1 == "bench")
-            Search::bench();
-        else if (arg1 == "datagen") {
+        // Convert args into strings
+        std::vector<string> args;
+        args.resize(argc);
+        for (int i = 0; i < argc; i++)
+            args[i] = argv[i];
+
+        if (args[1] == "bench")
+            Search::bench(argc > 2 ? std::stoi(args[2]) : BENCH_DEPTH);
+        else if (args[1] == "datagen") {
             usize threads = 1;
             if (argc >= 2)
                 threads = std::stoi(argv[2]);
             Datagen::run(threads);
         }
-        else if (arg1 == "tune-config") {  
+        else if (args[1] == "tune-config") {
             #ifdef TUNE
             printTuneOB();
             #endif
         }
-        else if (arg1.substr(0, 7) == "genfens") {
-            u64 numFens = std::stoull(getValueFollowing(arg1, "genfens", 1));
-            u64 seed = std::stoull(getValueFollowing(arg1, "seed", std::time(nullptr)));
+        else if (args[1].substr(0, 7) == "genfens") {
+            u64 numFens = std::stoull(getValueFollowing(args[1], "genfens", 1));
+            u64 seed = std::stoull(getValueFollowing(args[1], "seed", std::time(nullptr)));
 
             cout << "info string Generating " << numFens << " starting positions" << endl;
 
@@ -121,7 +122,7 @@ int main(int argc, char* argv[]) {
     while (true) {
         std::getline(std::cin, command);
         Stopwatch<std::chrono::milliseconds> commandTime;
-        if (command == "")
+        if (command.empty())
             continue;
         tokens = split(command, ' ');
 
@@ -173,7 +174,6 @@ int main(int argc, char* argv[]) {
         }
         else if (tokens[0] == "go") {
             searcher.stop();
-            searcher.TT.updateAge();
 
             usize depth = std::stoi(getValueFollowing(command, "depth", MAX_PLY));
 
@@ -262,8 +262,8 @@ int main(int argc, char* argv[]) {
         else if (tokens[0] == "move") {
             board.move(Move(tokens[1], board));
         }
-        else if (command == "bench")
-            Search::bench();
+        else if (tokens[0] == "bench")
+            Search::bench(tokens.size() > 1 ? std::stoi(tokens[1]) : BENCH_DEPTH);
         else if (tokens[0] == "datagen")
             Datagen::run(tokens.size() > 1 ? std::stoi(tokens[1]) : 1);
         else if (command == "debug.eval") {
@@ -282,8 +282,8 @@ int main(int argc, char* argv[]) {
             }
         }
         else if (command == "debug.gamestate") {
-            Square whiteKing = Square(ctzll(board.pieces(WHITE, KING)));
-            Square blackKing = Square(ctzll(board.pieces(BLACK, KING)));
+            const Square whiteKing = getLSB(board.pieces(WHITE, KING));
+            const Square blackKing = getLSB(board.pieces(BLACK, KING));
             cout << "Is in check (white): " << board.isUnderAttack(WHITE, whiteKing) << endl;
             cout << "Is in check (black): " << board.isUnderAttack(BLACK, blackKing) << endl;
             cout << "En passant square: " << (board.epSquare != NO_SQUARE ? squareToAlgebraic(board.epSquare) : "-") << endl;
