@@ -70,6 +70,8 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
     u8 movesSearched = 0;  // Moves searched
     u8 movesSeen     = 0;  // Moves movepicker has given
 
+    MoveList seenQuiets;
+
     TTFlag ttFlag = FAIL_LOW;
 
     Movepicker<ALL_MOVES> picker(board, thisThread, ttHit ? ttEntry.move : Move::null());
@@ -126,11 +128,17 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
             // History updates
             const i32 bonus = HIST_BONUS_A * depth * depth + HIST_BONUS_B * depth + HIST_BONUS_C;
-            if (board.isQuiet(m))
+            if (board.isQuiet(m)) {
                 thisThread.updateQuietHistory(board.stm, m, bonus);
+                for (const Move q : seenQuiets)
+                    thisThread.updateQuietHistory(board.stm, q, -bonus);
+            }
 
             break;
         }
+
+        if (m != bestMove)
+            seenQuiets.add(m);
     }
 
     if (!movesSeen) {
