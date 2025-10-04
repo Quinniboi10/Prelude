@@ -160,7 +160,8 @@ void runThread(int id) {
 
     std::vector<Game>                    outputBuffer;
     std::atomic<bool>                    exitFlag(false);
-    std::unique_ptr<Search::ThreadInfo>  thisThread = std::make_unique<Search::ThreadInfo>(Search::ThreadType::SECONDARY, exitFlag);
+    TranspositionTable                   TT(16);
+    std::unique_ptr<Search::ThreadInfo>  thisThread = std::make_unique<Search::ThreadInfo>(Search::ThreadType::SECONDARY, TT, exitFlag);
     Stopwatch<std::chrono::milliseconds> time;
     Stopwatch<std::chrono::milliseconds> totalTime;
     Search::SearchParams                 sp(time, MAX_PLY, Datagen::HARD_NODES, Datagen::SOFT_NODES, 0, 0, 0, 0, 0, 0);
@@ -178,6 +179,7 @@ mainLoop:
         thisThread->reset();
         board.reset();
         gameBuffer.clear();
+        TT.clear();
 
         usize randomMoves = Datagen::RAND_MOVES + randBool();
 

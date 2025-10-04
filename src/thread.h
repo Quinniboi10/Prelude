@@ -2,10 +2,13 @@
 
 #include "types.h"
 #include "search.h"
+#include "ttable.h"
 
 namespace Search {
 struct ThreadInfo {
     Stack<AccumulatorPair, MAX_PLY + 1> accumulatorStack;
+
+    TranspositionTable& TT;
 
     ThreadType type;
 
@@ -19,7 +22,7 @@ struct ThreadInfo {
 
     MoveList rootMoves;
 
-    ThreadInfo(ThreadType type, std::atomic<bool>& breakFlag);
+    ThreadInfo(ThreadType type, TranspositionTable& TT, std::atomic<bool>& breakFlag);
 
     // Copy constructor
     ThreadInfo(const ThreadInfo& other);

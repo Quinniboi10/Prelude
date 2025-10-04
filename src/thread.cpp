@@ -3,10 +3,11 @@
 #include "tunable.h"
 
 namespace Search {
-ThreadInfo::ThreadInfo(ThreadType type, std::atomic<bool>& breakFlag) :
+ThreadInfo::ThreadInfo(ThreadType type, TranspositionTable& TT, std::atomic<bool>& breakFlag) :
+    TT(TT),
     type(type),
     breakFlag(breakFlag) {
-    breakFlag.store(false, std::memory_order_relaxed);
+    accumulatorStack.clear();
 
     nodes            = 0;
     seldepth         = 0;
@@ -15,8 +16,10 @@ ThreadInfo::ThreadInfo(ThreadType type, std::atomic<bool>& breakFlag) :
     minRootScore = 0;
     maxRootScore = 0;
 }
+
 ThreadInfo::ThreadInfo(const ThreadInfo& other) :
     accumulatorStack(other.accumulatorStack),
+    TT(other.TT),
     type(other.type),
     breakFlag(other.breakFlag),
     seldepth(other.seldepth),
