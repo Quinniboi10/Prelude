@@ -132,6 +132,8 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
     TTFlag ttFlag = FAIL_LOW;
 
+    bool skipQuiets = false;
+
     Movepicker<ALL_MOVES> picker(board, thisThread, ttHit ? ttEntry.move : Move::null());
     while (picker.hasNext()) {
         if (thisThread.breakFlag.load(std::memory_order_relaxed))
@@ -147,7 +149,12 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
         const Move m = picker.getNext();
 
+        ss->isQuiet = board.isQuiet(m);
+
         if (!board.isLegal(m))
+            continue;
+
+        if (skipQuiets && ss->isQuiet)
             continue;
 
         if (ply == 0 && !thisThread.rootMoves.has(m))
@@ -156,6 +163,13 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         movesSeen++;
 
         // Moveloop pruning
+        if (ply > 0 && !isLoss(bestScore)) {
+            // Late move pruning (LMP)
+            if (!isPV && ss->isQuiet && movesSearched * 1024 >= LMP_A * depth * depth + LMP_B * depth + LMP_C) {
+                skipQuiets = true;
+                continue;
+            }
+        }
 
         thisThread.nodes.fetch_add(1, std::memory_order_relaxed);
         movesSearched++;

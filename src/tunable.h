@@ -68,6 +68,11 @@ Tunable(RFP_DEPTH_A, 1024, -4096, 4096);  // Quantized by 1024
 Tunable(RFP_DEPTH_B, 128, -256, 256);
 Tunable(RFP_DEPTH_C, 50, -256, 256);
 
+// Moveloop pruning
+Tunable(LMP_A, 1024, 0, 20480);  // Quantized by 1024
+Tunable(LMP_B, 0, 0, 20480);     // Quantized by 1024
+Tunable(LMP_C, 6144, 0, 20480);  // Quantized by 1024
+
 constexpr i32 NMP_DEPTH_REDUCTION = 3;
 
 // Time management

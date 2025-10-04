@@ -19,6 +19,7 @@ using ConthistSegment = MultiArray<i32, 2, 6, 64>;
 struct SearchStack {
     PvList pv;
     i16    staticEval;
+    bool   isQuiet;
 };
 enum ThreadType {
     MAIN      = 1,
