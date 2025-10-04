@@ -31,7 +31,7 @@ void Searcher::stop() {
     workers.clear();
 }
 
-void Searcher::waitUntilFinished() { stopFlag.wait(false); }
+void Searcher::waitUntilFinished() const { stopFlag.wait(false); }
 
 void Searcher::makeThreads(int threads) {
     threads -= 1;
@@ -40,7 +40,7 @@ void Searcher::makeThreads(int threads) {
     workerData.clear();
 
     for (int i = 0; i < threads; i++)
-        workerData.emplace_back(Search::ThreadType::SECONDARY, stopFlag);
+        workerData.emplace_back(Search::ThreadType::SECONDARY, TT, stopFlag);
 }
 
 string Searcher::searchReport(const Board& board, const usize depth, i32 score, const PvList& pv) {
@@ -61,7 +61,7 @@ string Searcher::searchReport(const Board& board, const usize depth, i32 score, 
     }
     #endif
 
-    ans << "info depth " << depth << " seldepth " << mainData->seldepth << " time " << time.elapsed() << " nodes " << nodes;
+    ans << "info depth " << depth << " seldepth " << mainData->seldepth << " time " << time.elapsed() << "hashfull" << TT.hashfull() << " nodes " << nodes;
     if (time.elapsed() > 0)
         ans << " nps " << nodes * 1000 / time.elapsed();
 

@@ -26,7 +26,7 @@ struct Movepicker {
     array<int, 256> moveScores;
     u16             seen;
 
-    Movepicker(const Board& board) {
+    Movepicker(const Board& board, const Move ttMove) {
         moves = Movegen::generateMoves<mode>(board);
         seen  = 0;
 
@@ -34,6 +34,8 @@ struct Movepicker {
             const Move m = moves.moves[i];
 
             moveScores[i] = evaluateMove(board, m);
+            if (m == ttMove)
+                moveScores[i] += 1'000'000;
         }
     }
 
