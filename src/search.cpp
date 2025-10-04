@@ -17,8 +17,6 @@ namespace Search {
 
 template<NodeType isPV>
 i32 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, ThreadInfo& thisThread, SearchLimit& sl) {
-    if constexpr (isPV)
-        ss->pv.length = 0;
     if (ply > thisThread.seldepth)
         thisThread.seldepth = ply;
 
@@ -64,11 +62,8 @@ i32 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, Threa
         if (score > bestScore) {
             bestScore = score;
 
-            if (score > alpha) {
+            if (score > alpha)
                 alpha = score;
-                if constexpr (isPV)
-                    ss->pv.update(m, (ss + 1)->pv);
-            }
         }
         if (score >= beta)
             break;
