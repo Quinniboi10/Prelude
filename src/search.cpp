@@ -15,6 +15,69 @@
 
 namespace Search {
 
+template<NodeType isPV>
+i32 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, ThreadInfo& thisThread, SearchLimit& sl) {
+    if constexpr (isPV)
+        ss->pv.length = 0;
+    if (ply > thisThread.seldepth)
+        thisThread.seldepth = ply;
+
+    ss->staticEval = nnue.evaluate(board, thisThread);
+
+    i16 bestScore = ss->staticEval;
+
+    if (ply >= MAX_PLY)
+        return ss->staticEval;
+
+    // Stand pat
+    if (bestScore >= beta)
+        return bestScore;
+    if (bestScore > alpha)
+        alpha = bestScore;
+
+    Movepicker<NOISY_ONLY> picker(board, thisThread, Move::null());
+    while (picker.hasNext()) {
+        if (thisThread.breakFlag.load(std::memory_order_relaxed))
+            return bestScore;
+        if (sl.outOfNodes(thisThread.nodes)) {
+            thisThread.breakFlag.store(true, std::memory_order_relaxed);
+            return bestScore;
+        }
+        if (thisThread.nodes % 2048 == 0 && sl.outOfTime()) {
+            thisThread.breakFlag.store(true, std::memory_order_relaxed);
+            return bestScore;
+        }
+
+        const Move m = picker.getNext();
+
+        if (!board.isLegal(m))
+            continue;
+
+        thisThread.nodes.fetch_add(1, std::memory_order_relaxed);
+
+        // Make the move on the new board. This will also update stacks
+        Board              testBoard     = board;
+        ThreadStackManager threadManager = thisThread.makeMove(board, testBoard, m);
+
+        const i32 score = -qsearch<isPV>(testBoard, ply + 1, -beta, -alpha, ss, thisThread, sl);
+
+        if (score > bestScore) {
+            bestScore = score;
+
+            if (score > alpha) {
+                alpha = score;
+                if constexpr (isPV)
+                    ss->pv.update(m, (ss + 1)->pv);
+            }
+        }
+        if (score >= beta)
+            break;
+    }
+
+    return bestScore;
+}
+
+
 // Main search
 template<NodeType isPV>
 i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack* ss, ThreadInfo& thisThread, SearchLimit& sl) {
@@ -27,7 +90,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
     if (board.isDraw() && ply > 0)
         return 0;
     if (depth <= 0)
-        return nnue.evaluate(board, thisThread);
+        return qsearch<isPV>(board, ply, alpha, beta, ss, thisThread, sl);
 
     // Mate distance pruning
     if (ply > 0) {
