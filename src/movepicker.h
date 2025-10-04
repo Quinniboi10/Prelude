@@ -25,7 +25,6 @@ struct Movepicker {
     MoveList        moves;
     array<int, 256> moveScores;
     u16             seen;
-    Move            TTMove;
 
     Movepicker(const Board& board) {
         moves = Movegen::generateMoves<mode>(board);

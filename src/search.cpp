@@ -37,6 +37,15 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
             return alpha;
     }
 
+    ss->staticEval = nnue.evaluate(board, thisThread);
+
+    // Pre-moveloop pruning
+    if (!isPV && !board.inCheck()) {
+        const int rfpMargin = RFP_DEPTH_SQ_SCALAR * depth * depth / 1024 + RFP_DEPTH_SCALAR * depth + RFP_DEPTH_CONSTANT;
+        if (ss->staticEval >= beta + rfpMargin)
+            return ss->staticEval;
+    }
+
     int  bestScore = -INF_INT;
 
     int movesSearched = 0;  // Moves searched
