@@ -47,7 +47,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
     // Pre-moveloop pruning
     if (!isPV && !board.inCheck()) {
         // Reverse futility pruning (RFP)
-        const int rfpMargin = RFP_DEPTH_SQ_SCALAR * depth * depth / 1024 + RFP_DEPTH_SCALAR * depth + RFP_DEPTH_CONSTANT;
+        const int rfpMargin = RFP_DEPTH_A * depth * depth / 1024 + RFP_DEPTH_B * depth + RFP_DEPTH_C;
         if (ss->staticEval >= beta + rfpMargin)
             return ss->staticEval;
 
@@ -72,7 +72,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
     TTFlag ttFlag = FAIL_LOW;
 
-    Movepicker<ALL_MOVES> picker(board, ttHit ? ttEntry.move : Move::null());
+    Movepicker<ALL_MOVES> picker(board, thisThread, ttHit ? ttEntry.move : Move::null());
     while (picker.hasNext()) {
         if (thisThread.breakFlag.load(std::memory_order_relaxed))
             return bestScore;
@@ -123,6 +123,12 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         }
         if (score >= beta) {
             ttFlag = BETA_CUTOFF;
+
+            // History updates
+            const i32 bonus = HIST_BONUS_A * depth * depth + HIST_BONUS_B * depth + HIST_BONUS_C;
+            if (board.isQuiet(m))
+                thisThread.updateQuietHistory(board.stm, m, bonus);
+
             break;
         }
     }
