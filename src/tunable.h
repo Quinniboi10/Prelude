@@ -53,13 +53,20 @@ static void printTuneOB() {
 #define Tunable(name, value, min, max) constexpr i32 name = value
 #endif
 
+// Histories
+constexpr i32 MAX_HISTORY = 16384;
+
+Tunable(HIST_BONUS_A, 21, -40, 40);
+Tunable(HIST_BONUS_B, 1, -80, 80);
+Tunable(HIST_BONUS_C, 0, -128, 128);
+
 // Move ordering
 Tunable(MO_VICTIM_WEIGHT, 100, 50, 150);
 
 // Pre-moveloop pruning
-Tunable(RFP_DEPTH_SQ_SCALAR, 1024, 0, 4096);  // Quantized by 1024
-Tunable(RFP_DEPTH_SCALAR, 128, 0, 256);
-Tunable(RFP_DEPTH_CONSTANT, 50, 0, 256);
+Tunable(RFP_DEPTH_A, 1024, -4096, 4096);  // Quantized by 1024
+Tunable(RFP_DEPTH_B, 128, -256, 256);
+Tunable(RFP_DEPTH_C, 50, -256, 256);
 
 constexpr i32 NMP_DEPTH_REDUCTION = 3;
 
