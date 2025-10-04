@@ -4,9 +4,10 @@
 #include "move.h"
 #include "board.h"
 #include "movegen.h"
+#include "thread.h"
 #include "tunable.h"
 
-int evaluateMove(const Board& board, Move m) {
+int evaluateMove(const Board& board, const Search::ThreadInfo& thisThread, Move m) {
     const auto evaluateMVVLVA = [&]() {
         const int victim   = PIECE_VALUES[board.getPiece(m.to())];
         const int attacker = PIECE_VALUES[board.getPiece(m.from())];
@@ -17,7 +18,7 @@ int evaluateMove(const Board& board, Move m) {
     if (board.isCapture(m))
         return evaluateMVVLVA() + 600'000;
 
-    return 0;
+    return thisThread.getQuietHistory(board.stm, m);
 }
 
 template<MovegenMode mode>
@@ -26,14 +27,14 @@ struct Movepicker {
     array<int, 256> moveScores;
     u16             seen;
 
-    Movepicker(const Board& board, const Move ttMove) {
+    Movepicker(const Board& board, const Search::ThreadInfo& thisThread, const Move ttMove) {
         moves = Movegen::generateMoves<mode>(board);
         seen  = 0;
 
         for (usize i = 0; i < moves.length; i++) {
             const Move m = moves.moves[i];
 
-            moveScores[i] = evaluateMove(board, m);
+            moveScores[i] = evaluateMove(board, thisThread, m);
             if (m == ttMove)
                 moveScores[i] += 1'000'000;
         }
