@@ -7,7 +7,7 @@
 
 // ************ SEARCH ************
 constexpr usize MAX_PLY     = 255;
-constexpr i16   BENCH_DEPTH = 5;
+constexpr i16   BENCH_DEPTH = 7;
 
 inline usize MOVE_OVERHEAD = 20;
 

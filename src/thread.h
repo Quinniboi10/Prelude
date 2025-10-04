@@ -27,8 +27,8 @@ struct ThreadInfo {
     // Copy constructor
     ThreadInfo(const ThreadInfo& other);
 
-    ThreadStackManager makeMove(const Board& board, Board& newBoard, Move m);
-    ThreadStackManager makeNullMove(Board& newBoard);
+    [[nodiscard]] ThreadStackManager makeMove(const Board& board, Board& newBoard, Move m);
+    [[nodiscard]] ThreadStackManager makeNullMove(Board& newBoard);
 
     void refresh(const Board& b);
 

@@ -61,6 +61,8 @@ Tunable(RFP_DEPTH_SQ_SCALAR, 1024, 0, 4096);  // Quantized by 1024
 Tunable(RFP_DEPTH_SCALAR, 128, 0, 256);
 Tunable(RFP_DEPTH_CONSTANT, 50, 0, 256);
 
+constexpr i32 NMP_DEPTH_REDUCTION = 3;
+
 // Time management
 Tunable(DEFAULT_MOVES_TO_GO, 19018, 15360, 40960);  // Quantized by 1024
 Tunable(INC_DIVISOR, 2156, 512, 5120);              // Quantized by 1024
