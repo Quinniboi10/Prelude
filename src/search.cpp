@@ -39,6 +39,10 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
     ss->staticEval = nnue.evaluate(board, thisThread);
 
+    // Fetch the current TT entry
+    Transposition& ttEntry = thisThread.TT.getEntry(board.zobrist);
+    bool ttHit = ttEntry.zobrist == board.zobrist;
+
     // Pre-moveloop pruning
     if (!isPV && !board.inCheck()) {
         const int rfpMargin = RFP_DEPTH_SQ_SCALAR * depth * depth / 1024 + RFP_DEPTH_SCALAR * depth + RFP_DEPTH_CONSTANT;
@@ -46,12 +50,15 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
             return ss->staticEval;
     }
 
-    int  bestScore = -INF_INT;
+    i16  bestScore = -MATE_SCORE;
+    Move bestMove = Move::null();
 
-    int movesSearched = 0;  // Moves searched
-    int movesSeen     = 0;  // Moves movepicker has given
+    u8 movesSearched = 0;  // Moves searched
+    u8 movesSeen     = 0;  // Moves movepicker has given
 
-    Movepicker<ALL_MOVES> picker(board);
+    TTFlag ttFlag = FAIL_LOW;
+
+    Movepicker<ALL_MOVES> picker(board, ttHit ? ttEntry.move : Move::null());
     while (picker.hasNext()) {
         if (thisThread.breakFlag.load(std::memory_order_relaxed))
             return bestScore;
@@ -74,6 +81,8 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
         movesSeen++;
 
+        // Moveloop pruning
+
         thisThread.nodes.fetch_add(1, std::memory_order_relaxed);
         movesSearched++;
 
@@ -90,13 +99,17 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         if (score > bestScore) {
             bestScore = score;
             if (score > alpha) {
+                bestMove = m;
                 alpha    = score;
+                ttFlag   = EXACT;
                 if constexpr (isPV)
                     ss->pv.update(m, (ss + 1)->pv);
             }
         }
-        if (score >= beta)
+        if (score >= beta) {
+            ttFlag = BETA_CUTOFF;
             break;
+        }
     }
 
     if (!movesSeen) {
@@ -105,6 +118,11 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         }
         return 0;
     }
+
+    const Transposition newEntry = Transposition(board.zobrist, bestMove, ttFlag, bestScore, 0);
+
+    if (thisThread.TT.shouldReplace(ttEntry, newEntry))
+        ttEntry = newEntry;
 
     return bestScore;
 }
@@ -132,7 +150,7 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
     SearchLimit mainSl(sp.time, searchTime, sp.nodes);
 
     auto         stack = std::make_unique<array<SearchStack, MAX_PLY + 3>>();
-    SearchStack* ss    = reinterpret_cast<SearchStack*>(stack->data() + 2);
+    SearchStack* ss    = stack->data() + 2;
 
     std::memset(stack.get(), 0, sizeof(SearchStack) * (MAX_PLY + 3));
 
@@ -303,7 +321,8 @@ void bench(usize depth) {
 
         // Set up for iterative deepening
         std::atomic<bool>                    benchBreakFlag(false);
-        std::unique_ptr<Search::ThreadInfo>  thisThread = std::make_unique<ThreadInfo>(Search::ThreadType::SECONDARY, benchBreakFlag);
+        TranspositionTable                   TT(16);
+        std::unique_ptr<Search::ThreadInfo>  thisThread = std::make_unique<ThreadInfo>(Search::ThreadType::SECONDARY, TT, benchBreakFlag);
         Stopwatch<std::chrono::milliseconds> time;
 
         // Start the iterative deepening search
