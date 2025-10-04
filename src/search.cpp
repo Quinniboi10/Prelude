@@ -11,6 +11,7 @@
 #include "wdl.h"
 
 #include <cmath>
+#include <numeric>
 
 namespace Search {
 
@@ -45,9 +46,22 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
     // Pre-moveloop pruning
     if (!isPV && !board.inCheck()) {
+        // Reverse futility pruning (RFP)
         const int rfpMargin = RFP_DEPTH_SQ_SCALAR * depth * depth / 1024 + RFP_DEPTH_SCALAR * depth + RFP_DEPTH_CONSTANT;
         if (ss->staticEval >= beta + rfpMargin)
             return ss->staticEval;
+
+        // Null move pruning (NMP)
+        if (board.canNullMove() && ss->staticEval >= beta) {
+            Board testBoard = board;
+
+            ThreadStackManager tManager = thisThread.makeNullMove(testBoard);
+
+            const i32 score = -search<NodeType::NONPV>(testBoard, depth - NMP_DEPTH_REDUCTION, ply + 1, -beta, -beta + 1, ss + 1, thisThread, sl);
+
+            if (score >= beta)
+                return score;
+        }
     }
 
     i16  bestScore = -MATE_SCORE;
@@ -92,6 +106,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         Board              testBoard     = board;
         ThreadStackManager threadManager = thisThread.makeMove(board, testBoard, m);
 
+        // Principal variation search (PVS)
         i32 score = -search<NodeType::NONPV>(testBoard, newDepth, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
         if (isPV && (movesSearched == 1 || score > alpha))
             score = -search<NodeType::PV>(testBoard, newDepth, ply + 1, -beta, -alpha, ss + 1, thisThread, sl);
@@ -119,6 +134,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         return 0;
     }
 
+    // Store to TT before returning
     const Transposition newEntry = Transposition(board.zobrist, bestMove, ttFlag, bestScore, 0);
 
     if (thisThread.TT.shouldReplace(ttEntry, newEntry))
