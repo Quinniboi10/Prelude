@@ -59,21 +59,29 @@ struct SearchParams {
 };
 
 struct SearchLimit {
-    Stopwatch<std::chrono::milliseconds>& time;
-    u64                                   maxNodes;
+    Stopwatch<std::chrono::milliseconds>* time;
     i64                                   searchTime;
+    u64                                   maxNodes;
 
-    SearchLimit(auto& time, auto searchTime, auto maxNodes) :
-        time(time),
-        maxNodes(maxNodes),
-        searchTime(searchTime) {}
+    SearchLimit() {
+        time = nullptr;
+        searchTime = 0;
+        maxNodes = 0;
+    }
+
+    SearchLimit(Stopwatch<std::chrono::milliseconds>& time, i64 searchTime, u64 maxNodes) :
+        time(&time),
+        searchTime(searchTime),
+        maxNodes(maxNodes) {}
+
+    SearchLimit(const SearchLimit& other) = default;
 
     bool outOfNodes(u64 nodes) const { return nodes >= maxNodes && maxNodes > 0; }
 
     bool outOfTime() const {
         if (searchTime == 0)
             return false;
-        return static_cast<i64>(time.elapsed()) >= searchTime;
+        return static_cast<i64>(time->elapsed()) >= searchTime;
     }
 };
 
