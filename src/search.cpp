@@ -54,8 +54,7 @@ i32 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, Threa
         thisThread.nodes.fetch_add(1, std::memory_order_relaxed);
 
         // Make the move on the new board. This will also update stacks
-        Board              testBoard     = board;
-        ThreadStackManager threadManager = thisThread.makeMove(board, testBoard, m);
+        auto [testBoard, _] = thisThread.makeMove(board, m);
 
         const i32 score = -qsearch<isPV>(testBoard, ply + 1, -beta, -alpha, ss, thisThread);
 
@@ -111,9 +110,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
         // Null move pruning (NMP)
         if (board.canNullMove() && ss->staticEval >= beta) {
-            Board testBoard = board;
-
-            ThreadStackManager tManager = thisThread.makeNullMove(testBoard);
+            auto [testBoard, _] = thisThread.makeNullMove(board);
 
             const i32 score = -search<NodeType::NONPV>(testBoard, depth - NMP_DEPTH_REDUCTION, ply + 1, -beta, -beta + 1, ss + 1, thisThread);
 
@@ -163,8 +160,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         const i32 newDepth = depth - 1;
 
         // Make the move on the new board. This will also update stacks
-        Board              testBoard     = board;
-        ThreadStackManager threadManager = thisThread.makeMove(board, testBoard, m);
+        auto [testBoard, _] = thisThread.makeMove(board, m);
 
         // Principal variation search (PVS)
         i32 score = -search<NodeType::NONPV>(testBoard, newDepth, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread);

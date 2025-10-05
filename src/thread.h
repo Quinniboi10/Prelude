@@ -36,8 +36,8 @@ struct ThreadInfo {
     i32 getQuietHistory(Color stm, Move m) const;
     void updateQuietHistory(Color stm, Move m, i32 bonus);
 
-    [[nodiscard]] ThreadStackManager makeMove(const Board& board, Board& newBoard, Move m);
-    [[nodiscard]] ThreadStackManager makeNullMove(Board& newBoard);
+    [[nodiscard]] std::pair<Board, ThreadStackManager> makeMove(const Board& board, Move m);
+    [[nodiscard]] std::pair<Board, ThreadStackManager> makeNullMove(Board board);
 
     void refresh(const Board& b);
 
@@ -50,7 +50,8 @@ struct ThreadStackManager {
     explicit ThreadStackManager(ThreadInfo& thisThread) :
         thisThread(thisThread) {}
 
-    ThreadStackManager(const ThreadStackManager& other) = delete;
+    ThreadStackManager(const ThreadStackManager& other) = default;
+    ThreadStackManager(ThreadStackManager&&) = default;
 
     ~ThreadStackManager() { thisThread.accumulatorStack.pop(); }
 };
