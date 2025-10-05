@@ -79,8 +79,6 @@ Tunable(LMR_NOISY_CONST, 202, 0, 512);         // Quantized by 1024
 Tunable(LMR_QUIET_DIVISOR, 2835, 1024, 4096);  // Quantized by 1024
 Tunable(LMR_NOISY_DIVISOR, 3319, 2048, 4096);  // Quantized by 1024
 
-constexpr i32 NMP_DEPTH_REDUCTION = 3;
-
 // Time management
 Tunable(DEFAULT_MOVES_TO_GO, 19018, 15360, 40960);  // Quantized by 1024
 Tunable(INC_DIVISOR, 2156, 512, 5120);              // Quantized by 1024
