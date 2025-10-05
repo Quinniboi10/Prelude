@@ -499,6 +499,9 @@ void bench(usize depth) {
         std::atomic<bool>                    benchBreakFlag(false);
         TranspositionTable                   TT(16);
         std::unique_ptr<Search::ThreadInfo>  thisThread = std::make_unique<ThreadInfo>(Search::ThreadType::SECONDARY, TT, benchBreakFlag);
+
+        TT.clear();
+        
         Stopwatch<std::chrono::milliseconds> time;
 
         // Start the iterative deepening search
