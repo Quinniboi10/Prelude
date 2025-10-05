@@ -14,6 +14,25 @@
 #include <numeric>
 
 namespace Search {
+MultiArray<i32, 2, MAX_PLY + 1, 219> lmrTable;
+
+void fillLmrTable() {
+    for (int isQuiet = 0; isQuiet <= 1; isQuiet++)
+        for (usize depth = 0; depth <= MAX_PLY; depth++)
+            for (int movesSeen = 0; movesSeen <= 218; movesSeen++) {
+                // Calculate reduction factor for late move reduction
+                // Based on Weiss's formulas
+                i32& depthReduction = lmrTable[isQuiet][depth][movesSeen];
+                if (depth == 0 || movesSeen == 0) {
+                    depthReduction = 0;
+                    continue;
+                }
+                if (isQuiet)
+                    depthReduction = 1024 * (static_cast<double>(LMR_QUIET_CONST) / 1024 + std::log(depth) * std::log(movesSeen) / (static_cast<double>(LMR_QUIET_DIVISOR)));
+                else
+                    depthReduction = 1024 * (static_cast<double>(LMR_NOISY_CONST) / 1024 + std::log(depth) * std::log(movesSeen) / (static_cast<double>(LMR_NOISY_DIVISOR) / 1024));
+            }
+}
 
 template<NodeType isPV>
 i32 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, ThreadInfo& thisThread) {
@@ -157,13 +176,32 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         thisThread.nodes.fetch_add(1, std::memory_order_relaxed);
         movesSearched++;
 
+        ss->isQuiet = board.isQuiet(m);
+
         const i32 newDepth = depth - 1;
 
         // Make the move on the new board. This will also update stacks
         auto [testBoard, _] = thisThread.makeMove(board, m);
 
         // Principal variation search (PVS)
-        i32 score = -search<NodeType::NONPV>(testBoard, newDepth, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread);
+        i32 score;
+        if (depth >= 2 && movesSearched >= 5 + 2 * (ply == 0) && !testBoard.inCheck()) {
+            // Late move reductions (LMR)
+            i32 depthReduction = lmrTable[ss->isQuiet][depth][movesSearched];
+
+            ss->reduction = depthReduction;
+
+            // Run a reduced depth zero window search
+            score = -search<NodeType::NONPV>(testBoard, newDepth - depthReduction / 1024, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread);
+
+            ss->reduction = 0;
+
+            // If the low depth search manages to raise alpha, run another zero window search at the full depth
+            if (score > alpha)
+                score = -search<NodeType::NONPV>(testBoard, newDepth, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread);
+        }
+        else if (!isPV || movesSearched > 1)
+            score = -search<NodeType::NONPV>(testBoard, newDepth, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread);
         if (isPV && (movesSearched == 1 || score > alpha))
             score = -search<NodeType::PV>(testBoard, newDepth, ply + 1, -beta, -alpha, ss + 1, thisThread);
 

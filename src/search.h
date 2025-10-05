@@ -18,7 +18,9 @@ using ConthistSegment = MultiArray<i32, 2, 6, 64>;
 
 struct SearchStack {
     PvList pv;
+    i32    reduction;
     i16    staticEval;
+    bool   isQuiet;
 };
 enum ThreadType {
     MAIN      = 1,
@@ -98,5 +100,7 @@ inline bool isTBScore(i32 score) { return isDecisive(score) && std::abs(score) <
 MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchParams sp, Searcher* searcher = nullptr);
 
 void bench(usize depth);
+
+void fillLmrTable();
 
 }

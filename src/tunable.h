@@ -68,6 +68,12 @@ Tunable(RFP_DEPTH_A, 1024, -4096, 4096);  // Quantized by 1024
 Tunable(RFP_DEPTH_B, 128, -256, 256);
 Tunable(RFP_DEPTH_C, 50, -256, 256);
 
+
+Tunable(LMR_QUIET_CONST, 1456, 512, 2048);     // Quantized by 1024
+Tunable(LMR_NOISY_CONST, 202, 0, 512);         // Quantized by 1024
+Tunable(LMR_QUIET_DIVISOR, 2835, 1024, 4096);  // Quantized by 1024
+Tunable(LMR_NOISY_DIVISOR, 3319, 2048, 4096);  // Quantized by 1024
+
 constexpr i32 NMP_DEPTH_REDUCTION = 3;
 
 // Time management
