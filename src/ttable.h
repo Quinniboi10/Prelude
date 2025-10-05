@@ -21,12 +21,27 @@ struct Transposition {
         score   = 0;
         depth   = 0;
     }
+
     Transposition(u64 zobristKey, Move bestMove, u8 flag, i16 score, u8 depth) {
         this->zobrist = zobristKey;
         this->move    = bestMove;
         this->flag    = flag;
         this->score   = score;
         this->depth   = depth;
+    }
+
+    bool canUseScore(i32 alpha, i32 beta) const {
+        return flag == EXACT                              // Exact score
+               || (flag == BETA_CUTOFF && score >= beta)  // Lower bound, fail high
+               || (flag == FAIL_LOW && score <= alpha);   // Upper bound, fail low
+    }
+
+    i32 adjustScore(usize ply) const {
+        if (Search::isLoss(score))
+            return score + static_cast<i32>(ply);
+        else if (Search::isWin(score))
+            return score - static_cast<i32>(ply);
+        return score;
     }
 };
 

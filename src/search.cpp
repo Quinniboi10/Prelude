@@ -114,11 +114,15 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
             return alpha;
     }
 
-    ss->staticEval = nnue.evaluate(board, thisThread);
-
     // Fetch the current TT entry
     Transposition& ttEntry = thisThread.TT.getEntry(board.zobrist);
     bool ttHit = ttEntry.zobrist == board.zobrist;
+
+    // TT cutoffs
+    if (!isPV && ttHit && ttEntry.depth >= depth && ttEntry.canUseScore(alpha, beta))
+        return ttEntry.adjustScore(ply);
+
+    ss->staticEval = nnue.evaluate(board, thisThread);
 
     // Pre-moveloop pruning
     if (!isPV && !board.inCheck()) {
@@ -241,7 +245,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
     }
 
     // Store to TT before returning
-    const Transposition newEntry = Transposition(board.zobrist, bestMove, ttFlag, bestScore, 0);
+    const Transposition newEntry = Transposition(board.zobrist, bestMove, ttFlag, bestScore, depth);
 
     if (thisThread.TT.shouldReplace(ttEntry, newEntry))
         ttEntry = newEntry;
