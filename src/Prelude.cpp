@@ -61,6 +61,7 @@ int main(int argc, char* argv[]) {
 
     Movegen::initializeAllDatabases();
     Board::fillZobristTable();
+    Search::fillLmrTable();
 
     board.reset();
 
