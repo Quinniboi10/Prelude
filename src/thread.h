@@ -17,6 +17,8 @@ struct ThreadInfo {
 
     std::atomic<bool>&  breakFlag;
 
+    SearchLimit sl;
+
     std::atomic<u64> nodes;
     usize            seldepth;
 

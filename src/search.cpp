@@ -16,7 +16,7 @@
 namespace Search {
 
 template<NodeType isPV>
-i32 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, ThreadInfo& thisThread, SearchLimit& sl) {
+i32 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, ThreadInfo& thisThread) {
     if (ply > thisThread.seldepth)
         thisThread.seldepth = ply;
 
@@ -37,11 +37,11 @@ i32 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, Threa
     while (picker.hasNext()) {
         if (thisThread.breakFlag.load(std::memory_order_relaxed))
             return bestScore;
-        if (sl.outOfNodes(thisThread.nodes)) {
+        if (thisThread.sl.outOfNodes(thisThread.nodes)) {
             thisThread.breakFlag.store(true, std::memory_order_relaxed);
             return bestScore;
         }
-        if (thisThread.nodes % 2048 == 0 && sl.outOfTime()) {
+        if (thisThread.nodes % 2048 == 0 && thisThread.sl.outOfTime()) {
             thisThread.breakFlag.store(true, std::memory_order_relaxed);
             return bestScore;
         }
@@ -57,7 +57,7 @@ i32 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, Threa
         Board              testBoard     = board;
         ThreadStackManager threadManager = thisThread.makeMove(board, testBoard, m);
 
-        const i32 score = -qsearch<isPV>(testBoard, ply + 1, -beta, -alpha, ss, thisThread, sl);
+        const i32 score = -qsearch<isPV>(testBoard, ply + 1, -beta, -alpha, ss, thisThread);
 
         if (score > bestScore) {
             bestScore = score;
@@ -75,7 +75,7 @@ i32 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, Threa
 
 // Main search
 template<NodeType isPV>
-i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack* ss, ThreadInfo& thisThread, SearchLimit& sl) {
+i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack* ss, ThreadInfo& thisThread) {
     if (depth + ply > MAX_PLY)
         depth = MAX_PLY - ply;
     if constexpr (isPV)
@@ -85,7 +85,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
     if (board.isDraw() && ply > 0)
         return 0;
     if (depth <= 0)
-        return qsearch<isPV>(board, ply, alpha, beta, ss, thisThread, sl);
+        return qsearch<isPV>(board, ply, alpha, beta, ss, thisThread);
 
     // Mate distance pruning
     if (ply > 0) {
@@ -115,7 +115,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
             ThreadStackManager tManager = thisThread.makeNullMove(testBoard);
 
-            const i32 score = -search<NodeType::NONPV>(testBoard, depth - NMP_DEPTH_REDUCTION, ply + 1, -beta, -beta + 1, ss + 1, thisThread, sl);
+            const i32 score = -search<NodeType::NONPV>(testBoard, depth - NMP_DEPTH_REDUCTION, ply + 1, -beta, -beta + 1, ss + 1, thisThread);
 
             if (score >= beta)
                 return score;
@@ -136,11 +136,11 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
     while (picker.hasNext()) {
         if (thisThread.breakFlag.load(std::memory_order_relaxed))
             return bestScore;
-        if (sl.outOfNodes(thisThread.nodes)) {
+        if (thisThread.sl.outOfNodes(thisThread.nodes)) {
             thisThread.breakFlag.store(true, std::memory_order_relaxed);
             return bestScore;
         }
-        if (thisThread.nodes % 2048 == 0 && sl.outOfTime()) {
+        if (thisThread.nodes % 2048 == 0 && thisThread.sl.outOfTime()) {
             thisThread.breakFlag.store(true, std::memory_order_relaxed);
             return bestScore;
         }
@@ -167,9 +167,9 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         ThreadStackManager threadManager = thisThread.makeMove(board, testBoard, m);
 
         // Principal variation search (PVS)
-        i32 score = -search<NodeType::NONPV>(testBoard, newDepth, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread, sl);
+        i32 score = -search<NodeType::NONPV>(testBoard, newDepth, ply + 1, -alpha - 1, -alpha, ss + 1, thisThread);
         if (isPV && (movesSearched == 1 || score > alpha))
-            score = -search<NodeType::PV>(testBoard, newDepth, ply + 1, -beta, -alpha, ss + 1, thisThread, sl);
+            score = -search<NodeType::PV>(testBoard, newDepth, ply + 1, -beta, -alpha, ss + 1, thisThread);
 
         if (score > bestScore) {
             bestScore = score;
@@ -289,16 +289,16 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
 
 
     for (i32 currDepth = 1; currDepth <= depth; currDepth++) {
-        SearchLimit& sl = currDepth == 1 ? depthOneSl : mainSl;
+        thisThread.sl = currDepth == 1 ? depthOneSl : mainSl;
 
         auto searchCancelled = [&]() {
             if (thisThread.type == MAIN)
-                return sl.outOfNodes(countNodes()) || sl.outOfTime() || thisThread.breakFlag.load(std::memory_order_relaxed);
+                return thisThread.sl.outOfNodes(countNodes()) || thisThread.sl.outOfTime() || thisThread.breakFlag.load(std::memory_order_relaxed);
             else
                 return thisThread.breakFlag.load(std::memory_order_relaxed) || (sp.softNodes > 0 && countNodes() > sp.softNodes);
         };
 
-        const i32 score = search<PV>(board, currDepth, 0, -MATE_SCORE, MATE_SCORE, ss, thisThread, sl);
+        const i32 score = search<PV>(board, currDepth, 0, -MATE_SCORE, MATE_SCORE, ss, thisThread);
 
         if (currDepth == 1) {
             lastScore = score;
