@@ -61,7 +61,7 @@ string Searcher::searchReport(const Board& board, const usize depth, i32 score, 
     }
     #endif
 
-    ans << "info depth " << depth << " seldepth " << mainData->seldepth << " time " << time.elapsed() << "hashfull" << TT.hashfull() << " nodes " << nodes;
+    ans << "info depth " << depth << " seldepth " << mainData->seldepth << " time " << time.elapsed() << " hashfull " << TT.hashfull() << " nodes " << nodes;
     if (time.elapsed() > 0)
         ans << " nps " << nodes * 1000 / time.elapsed();
 

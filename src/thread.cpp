@@ -41,22 +41,32 @@ void ThreadInfo::updateQuietHistory(Color stm, Move m, i32 bonus) {
     entry += clampedBonus - entry * abs(clampedBonus) / MAX_HISTORY;
 }
 
-
-ThreadStackManager ThreadInfo::makeMove(const Board& board, Board& newBoard, Move m) {
+std::pair<Board, ThreadStackManager>
+ThreadInfo::makeMove(const Board& board, Move m) {
+    Board newBoard = board;
     newBoard.move(m);
 
     accumulatorStack.push(accumulatorStack.top());
     accumulatorStack.topAsReference().update(newBoard, m, board.getPiece(m.to()));
 
-    return ThreadStackManager(*this);
+    return std::pair<Board, ThreadStackManager>(
+        std::piecewise_construct,
+        std::forward_as_tuple(std::move(newBoard)),
+        std::forward_as_tuple(*this)
+    );
 }
 
-ThreadStackManager ThreadInfo::makeNullMove(Board& newBoard) {
-    newBoard.nullMove();
+std::pair<Board, ThreadStackManager>
+ThreadInfo::makeNullMove(Board board) {
+    board.nullMove();
 
     accumulatorStack.push(accumulatorStack.top());
 
-    return ThreadStackManager(*this);
+    return std::pair<Board, ThreadStackManager>(
+        std::piecewise_construct,
+        std::forward_as_tuple(std::move(board)),
+        std::forward_as_tuple(*this)
+    );
 }
 
 void ThreadInfo::refresh(const Board& b) {
