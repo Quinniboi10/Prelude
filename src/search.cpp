@@ -133,9 +133,10 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
         // Null move pruning (NMP)
         if (board.canNullMove() && ss->staticEval >= beta) {
+            const i32 reduction = 3 + depth / 3;
             auto [testBoard, _] = thisThread.makeNullMove(board);
 
-            const i32 score = -search<NodeType::NONPV>(testBoard, depth - NMP_DEPTH_REDUCTION, ply + 1, -beta, -beta + 1, ss + 1, thisThread);
+            const i32 score = -search<NodeType::NONPV>(testBoard, depth - reduction, ply + 1, -beta, -beta + 1, ss + 1, thisThread);
 
             if (score >= beta)
                 return score;
