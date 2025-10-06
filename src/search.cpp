@@ -114,6 +114,10 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
             return alpha;
     }
 
+    // Check extensions
+    if (board.inCheck())
+        depth++;
+
     // Fetch the current TT entry
     Transposition& ttEntry = thisThread.TT.getEntry(board.zobrist);
     bool ttHit = ttEntry.zobrist == board.zobrist;
