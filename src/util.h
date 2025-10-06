@@ -1,5 +1,8 @@
 #pragma once
 
+#include "move.h"
+
+
 #include <bit>
 #include <vector>
 #include <sstream>
@@ -201,6 +204,7 @@ inline string formatTime(u64 timeInMS) {
 }
 
 // Score color
+template <usize len>
 inline void printColoredScore(i32 score) {
     double colorWdl = std::clamp(score / 500.0, -1.0, 1.0);
     int    r, g, b;
@@ -220,14 +224,36 @@ inline void printColoredScore(i32 score) {
         b        = static_cast<int>(lerp(200, 0, t));    // blue drops
     }
 
-    fmt::print(fmt::fg(fmt::rgb(r, g, b)), "{:+.2f}", score / 100.0f);
+    if (len == 0)
+        fmt::print(fmt::fg(fmt::rgb(r, g, b)), "{:+.2f}", score / 100.0f);
+    else
+        fmt::print(fmt::fg(fmt::rgb(r, g, b)), fmt::runtime("{:>+{}.2f}"), score / 100.0f, len);
 }
 
-inline string padStr(string str, i64 target, u64 minPadding = 2) {
-    i64 padding = std::max<i64>(target - static_cast<i64>(str.length()), minPadding);
-    for (i64 i = 0; i < padding; i++)
-        str += " ";
-    return str;
+inline void printColoredScore(i32 score) { printColoredScore<0>(score); }
+
+inline void printPV(const PvList& pv, const usize numToShow = 12, const u8 colorDecay = 10, const u8 minColor = 96) {
+    fmt::rgb color(255, 255, 255);
+
+    const usize endIdx = std::min<usize>(numToShow, pv.length);
+
+    for (usize idx = 0; idx < endIdx; ++idx) {
+        fmt::print(fg(color), "{}", pv.moves[idx].toString());
+        if (idx != endIdx - 1)
+            fmt::print(" ");
+
+        color.r -= colorDecay;
+        color.g -= colorDecay;
+        color.b -= colorDecay;
+
+        color.r = std::max(color.r, minColor);
+        color.g = std::max(color.g, minColor);
+        color.b = std::max(color.b, minColor);
+    }
+
+    const usize remaining = pv.length - endIdx;
+    if (remaining > 0)
+        fmt::print(fg(color), " ({} remaining)", remaining);
 }
 
 inline int findIndexOf(const auto arr, string entry) {

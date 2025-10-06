@@ -446,8 +446,8 @@ void Board::display() const {
         cout << "+---+---+---+---+---+---+---+---+" << endl;
         for (int file = 0; file < 8; file++) {
             int  i     = rank * 8 + file;
-            auto color = ((1ULL << i) & pieces(WHITE)) ? Colors::YELLOW : Colors::BLUE;
-            cout << "| " << color << getPieceAt(i) << Colors::RESET << " ";
+            auto color = ((1ULL << i) & pieces(WHITE)) ? ANSI::colors::YELLOW : ANSI::colors::BLUE;
+            cout << "| " << color << getPieceAt(i) << ANSI::RESET << " ";
         }
         cout << "| " << rank + 1 << endl;
     }

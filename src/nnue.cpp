@@ -281,7 +281,7 @@ void NNUE::showBuckets(const Board* board, const AccumulatorPair& accumulators) 
         // Apply output bias and scale the result
         staticEval = (eval * EVAL_SCALE) / (QA * QB);
 
-        cout << "| " << padStr(std::to_string(outputBucket), 11, 0) << "|  " << (staticEval > 0 ? "+" : "-") << " " << padStr(fmt::format("{:.2f}", std::abs(staticEval / 100.0)), 8, 0) << "|";
+        cout << "| " << fmt::format("{:>11}", outputBucket) << "|  " << (staticEval > 0 ? "+" : "-") << " " << fmt::format("{:>8.2f}", std::abs(staticEval / 100.0)) << "|";
         if (outputBucket == usingBucket)
             cout << " <- Current bucket";
         cout << endl;

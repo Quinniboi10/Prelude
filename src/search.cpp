@@ -252,7 +252,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
     if (!movesSeen) {
         if (board.inCheck()) {
-            return -MATE_SCORE + ply;
+            return -MATE_SCORE + static_cast<i32>(ply);
         }
         return 0;
     }
@@ -357,6 +357,9 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
             const auto nps = suffixNum(nodes * 1000 / (sp.time.elapsed() + 1), false);
             const string mateScoreStr = fmt::format("{}M{}", score < 0 ? '-' : '+', (MATE_SCORE - std::abs(score)) / 2 + 1);
 
+            const auto [wdlWin, wdlLoss] = wdlModel(score, board);
+            const i32 wdlDraw = 1000 - wdlWin - wdlLoss;
+
             // Depths
             fmt::print(fmt::emphasis::bold, "{:>3}/{:<3}", currDepth, thisThread.seldepth);
 
@@ -368,14 +371,28 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
             const string npsStr  = fmt::format("{} {}nps", nps.first, nps.second);
             fmt::print(fmt::fg(fmt::color::gray), "    {:>18}   {:>14}", nodeStr, npsStr);
 
+            // WDL
+            fmt::print(fmt::fg(fmt::color::green),      "    W: {:>6.1f}", wdlWin / 10.0);
+            fmt::print(fmt::fg(fmt::color::light_gray), "    D: {:>6.1f}", wdlDraw / 10.0);
+            fmt::print(fmt::fg(fmt::color::red),        "    L: {:>6.1f}", wdlLoss / 10.0);
+
+            // Hashfull
+            fmt::print(fmt::fg(fmt::color::deep_sky_blue), "    TT");
+            fmt::print(fmt::fg(fmt::color::gray), ": {:>5.1f}%", thisThread.TT.hashfull() / 10.0);
+
             // Score
             cout << "    ";
             if (isWin(score))
-                cout << Colors::GREEN << mateScoreStr << Colors::RESET;
+                fmt::print(fmt::fg(fmt::rgb(0, 200, 0)), "{:>7}", mateScoreStr);
             else if (isLoss(score))
-                cout << Colors::RED << mateScoreStr << Colors::RESET;
+                fmt::print(fmt::fg(fmt::rgb(200, 0, 0)), "{:>7}", mateScoreStr);
             else
-                printColoredScore(score);
+                printColoredScore<7>(score);
+
+            cout << "    ";
+
+            // PV line
+            printPV(lastPV);
 
             cout << endl;
         };
@@ -412,8 +429,11 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
     if (isMain) {
         if (sp.isUci)
             cout << "bestmove " << lastPV.moves[0] << endl;
-        else
-            cout << "\n\nBest move: " << Colors::BRIGHT_BLUE << lastPV.moves[0] << Colors::RESET << endl;
+        else {
+            cout << "\n\nBest move: ";
+            fmt::print(fmt::fg(fmt::color::light_blue), "{}", lastPV.moves[0].toString());
+            cout << endl;
+        }
     }
 
     thisThread.breakFlag.store(true, std::memory_order_relaxed);
