@@ -34,11 +34,13 @@ INCBIN(EVAL, EVALFILE);
 #endif
 
 NNUE nnue;
-bool chess960         = false;
-bool tbEnabled        = false;
-i32  syzygyDepth      = 1;
-i32  syzygyProbeLimit = 32;
+bool chess960          = false;
+bool tbEnabled         = false;
+i32  syzygyDepth       = 1;
+i32  syzygyProbeLimit  = 32;
 bool nodesAreSoftNodes = false;
+
+bool isUci = false;
 
 // ****** MAIN ENTRY POINT, HANDLES UCI ******
 int main(int argc, char* argv[]) {
@@ -142,7 +144,12 @@ int main(int argc, char* argv[]) {
             #ifdef TUNE
             printTuneUCI();
             #endif
+            isUci = true;
             cout << "uciok" << endl;
+        }
+        else if (command == "icu") {
+            isUci = false;
+            cout << "koicu" << endl;
         }
         else if (command == "ucinewgame")
             searcher.reset();
@@ -187,7 +194,7 @@ int main(int argc, char* argv[]) {
                 maxNodes = 0;
             }
 
-            searcher.start(board, Search::SearchParams(commandTime, depth, maxNodes, softNodes, mtime, wtime, btime, winc, binc, mate));
+            searcher.start(board, Search::SearchParams(commandTime, depth, maxNodes, softNodes, mtime, wtime, btime, winc, binc, mate, isUci));
         }
         else if (tokens[0] == "setoption") {
             if (tokens[2] == "Threads")

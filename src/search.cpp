@@ -481,7 +481,7 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
     i32    lastScore{};
     PvList lastPV{};
 
-    auto countNodes = [&]() {
+    const auto countNodes = [&]() {
         u64 nodes = thisThread.nodes;
         if (searcher == nullptr)
             return nodes;
@@ -518,16 +518,50 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
     else
         thisThread.rootMoves = Movegen::generateLegalMoves(board);
 
+    // Main ID loop
     for (usize currDepth = 1; currDepth <= depth; currDepth++) {
         SearchLimit& sl = currDepth == 1 ? depthOneSl : mainSl;
 
         i32 score = 0;
 
-        auto searchCancelled = [&]() {
+        const auto searchCancelled = [&]() {
             if (thisThread.type == MAIN)
                 return sl.outOfNodes(countNodes()) || sl.outOfTime() || thisThread.breakFlag.load(std::memory_order_relaxed);
             else
                 return thisThread.breakFlag.load(std::memory_order_relaxed) || (sp.softNodes > 0 && countNodes() > sp.softNodes);
+        };
+
+        const auto prettyPrint = [&]() {
+            const u64 nodes = countNodes();
+            const auto nodesSuffixed = suffixNum(nodes, false);
+            const auto nps = suffixNum(nodes * 1000 / (sp.time.elapsed() + 1), false);
+            const string mateScoreStr = fmt::format("{}M{}", score < 0 ? '-' : '+', (MATE_SCORE - std::abs(score)) / 2 + 1);
+
+            // Depths
+            fmt::print(fmt::emphasis::bold, "{:>3}/{:<3}", currDepth, thisThread.seldepth);
+
+            // Time
+            fmt::print(fmt::fg(fmt::color::gray), "{:>10}", formatTime(sp.time.elapsed()));
+
+            // Nodes + nps
+            const string nodeStr = fmt::format("{} {}nodes", nodesSuffixed.first, nodesSuffixed.second);
+            const string npsStr  = fmt::format("{} {}nps", nps.first, nps.second);
+            fmt::print(fmt::fg(fmt::color::gray), "    {:>18}   {:>14}", nodeStr, npsStr);
+
+            // Hashfull
+            fmt::print(fmt::fg(fmt::color::deep_sky_blue), "    TT");
+            fmt::print(fmt::fg(fmt::color::gray), ": {:>5.1f}%", thisThread.TT.hashfull() / 10.0);
+
+            // Score
+            cout << "    ";
+            if (isWin(score))
+                cout << Colors::GREEN << mateScoreStr << Colors::RESET;
+            else if (isLoss(score))
+                cout << Colors::RED << mateScoreStr << Colors::RESET;
+            else
+                printColoredScore(score);
+
+            cout << endl;
         };
 
         if (currDepth < MIN_ASP_WINDOW_DEPTH)
@@ -556,8 +590,13 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
         if (searchCancelled())
             break;
 
-        if (isMain)
-            cout << (*searcher).searchReport(board, currDepth, score, ss->pv) << endl;
+        // UCI and pretty printing
+        if (isMain) {
+            if (sp.isUci)
+                cout << searcher->searchReport(board, currDepth, score, ss->pv) << endl;
+            else
+                prettyPrint();
+        }
 
         if (sp.softNodes > 0 && countNodes() > sp.softNodes)
             break;
@@ -576,8 +615,12 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
         }
     }
 
-    if (isMain)
-        cout << "bestmove " << lastPV.moves[0] << endl;
+    if (isMain) {
+        if (sp.isUci)
+            cout << "bestmove " << lastPV.moves[0] << endl;
+        else
+            cout << "\n\nBest move: " << Colors::BRIGHT_BLUE << lastPV.moves[0] << Colors::RESET << endl;
+    }
 
     thisThread.breakFlag.store(true, std::memory_order_relaxed);
 
@@ -670,7 +713,7 @@ void bench() {
         TT.clear();
 
         // Start the iterative deepening search
-        Search::iterativeDeepening(board, *thisThread, Search::SearchParams(time, BENCH_DEPTH, 0, 0, 0, 0, 0, 0, 0, 0));
+        Search::iterativeDeepening(board, *thisThread, Search::SearchParams(time, BENCH_DEPTH, 0, 0, 0, 0, 0, 0, 0, 0, true));
 
         u64 durationMs = time.elapsed();
 

@@ -8,7 +8,10 @@
 #include <string_view>
 
 #include "types.h"
+#include "../external/fmt/fmt/color.h"
 #include "../external/fmt/fmt/format.h"
+
+#include <algorithm>
 
 #define ctzll(x) std::countr_zero(x)
 
@@ -128,6 +131,34 @@ inline void printBitboard(u64 bitboard) {
     cout << "+---+---+---+---+---+---+---+---+" << endl;
 }
 
+// Suffix a number
+inline std::pair<string, char> suffixNum(double num, bool uppercase = true) {
+    char suffix = ' ';
+    if (num >= static_cast<double>(1'000'000'000) * 10) {
+        num /= 1'000'000'000;
+        if (uppercase)
+            suffix = 'G';
+        else
+            suffix = 'g';
+    }
+    else if (num >= 1'000'000 * 10) {
+        num /= 1'000'000;
+        if (uppercase)
+            suffix = 'M';
+        else
+            suffix = 'm';
+    }
+    else if (num >= 1'000 * 10) {
+        num /= 1'000;
+        if (uppercase)
+            suffix = 'K';
+        else
+            suffix = 'k';
+    }
+
+    return { fmt::format("{:.2f}", num), suffix };
+}
+
 // Formats a number with commas
 inline string formatNum(i64 v) {
     auto s = std::to_string(v);
@@ -162,6 +193,29 @@ inline string formatTime(u64 timeInMS) {
     if (result == "")
         return std::to_string(timeInMS) + "ms";
     return result;
+}
+
+// Score color
+inline void printColoredScore(i32 score) {
+    double colorWdl = std::clamp(score / 500.0, -1.0, 1.0);
+    int    r, g, b;
+
+    const auto lerp = [](const double a, const double b, const double t) { return a + t * (b - a); };
+
+    if (colorWdl < 0) {
+        double t = colorWdl + 1.0;
+        r        = static_cast<int>(lerp(200, 255, t));  // red stays max
+        g        = static_cast<int>(lerp(0, 200, t));    // green rises
+        b        = static_cast<int>(lerp(0, 200, t));    // blue rises
+    }
+    else {
+        double t = colorWdl;                             // maps 0 -> 1
+        r        = static_cast<int>(lerp(200, 0, t));    // red drops
+        g        = static_cast<int>(lerp(200, 255, t));  // green stays max
+        b        = static_cast<int>(lerp(200, 0, t));    // blue drops
+    }
+
+    fmt::print(fmt::fg(fmt::rgb(r, g, b)), "{:+.2f}", score / 100.0f);
 }
 
 inline string padStr(string str, i64 target, u64 minPadding = 2) {
