@@ -6,9 +6,10 @@
 #include <cassert>
 #include <vector>
 #include <string>
-#include <limits>
 #include <array>
 #include <bit>
+
+#include "../external/fmt/fmt/format.h"
 
 using u64 = uint64_t;
 using u32 = uint32_t;
@@ -116,10 +117,11 @@ enum TTFlag : u8 {
     UNDEFINED, FAIL_LOW, BETA_CUTOFF, EXACT
 };
 
-struct Colors {
+namespace ANSI {
     // ANSI codes for colors https://raw.githubusercontent.com/fidian/ansi/master/images/color-codes.png
     static constexpr std::string_view RESET = "\033[0m";
 
+    namespace colors {
     // Basic colors
     static constexpr std::string_view BLACK = "\033[30m";
     static constexpr std::string_view RED = "\033[31m";
@@ -141,6 +143,9 @@ struct Colors {
     static constexpr std::string_view BRIGHT_WHITE = "\033[97m";
 
     static constexpr std::string_view GREY = BRIGHT_BLACK;
+
+    [[maybe_unused]] static string rgb(u8 r, u8 g, u8 b) { return fmt::format("""\033[38;2;{};{};{}""", r, g ,b); }
+    }
 };
 
 template<usize size>

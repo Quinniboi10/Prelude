@@ -3,14 +3,10 @@
 #include <cmath>
 
 #include "board.h"
+#include "search.h"
 
-struct WinRateParams {
-    double a;
-    double b;
-};
-
-// From SF
-inline WinRateParams winRateParams(const Board& board) {
+// From SF and SP
+inline std::pair<double, double> winRateParams(const Board& board) {
     int material = board.count(PAWN) + 3 * board.count(KNIGHT) + 3 * board.count(BISHOP) + 5 * board.count(ROOK) + 9 * board.count(QUEEN);
 
     // The fitted model only uses data for material counts in [17, 78], and is anchored at count 58.
@@ -28,11 +24,18 @@ inline WinRateParams winRateParams(const Board& board) {
 
 // The win rate model is 1 / (1 + exp((a - eval) / b)), where a = p_a(material) and b = p_b(material).
 // It fits the LTC fishtest statistics rather accurately.
-inline int winRateModel(int v, const Board& board) {
-    auto [a, b] = winRateParams(board);
+inline std::pair<i32, i32> wdlModel(double score, const Board& board) {
+    if (Search::isWin(score))
+        return { 1000, 0 };
+    else if (Search::isLoss(score))
+        return { 0, 1000 };
 
-    // Return the win rate in per mille units, rounded to the nearest integer.
-    return int(0.5 + 1000 / (1 + std::exp((a - static_cast<double>(v)) / b)));
+    const auto [a, b] = winRateParams(board);
+
+    return {
+        static_cast<i32>(std::round(1000.0 / (1.0 + std::exp((a - score) / b)))),
+        static_cast<i32>(std::round(1000.0 / (1.0 + std::exp((a + score) / b))))
+    };
 }
 
 inline int scaleEval(int eval, const Board& board) {

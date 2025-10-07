@@ -164,7 +164,7 @@ void runThread(int id) {
     std::unique_ptr<Search::ThreadInfo>  thisThread = std::make_unique<Search::ThreadInfo>(Search::ThreadType::SECONDARY, TT, exitFlag);
     Stopwatch<std::chrono::milliseconds> time;
     Stopwatch<std::chrono::milliseconds> totalTime;
-    Search::SearchParams                 sp(time, MAX_PLY, Datagen::HARD_NODES, Datagen::SOFT_NODES, 0, 0, 0, 0, 0, 0);
+    Search::SearchParams                 sp(time, MAX_PLY, Datagen::HARD_NODES, Datagen::SOFT_NODES, 0, 0, 0, 0, 0, 0, true);
 
     gameBuffer.reserve(256);
     outputBuffer.reserve(Datagen::OUTPUT_BUFFER_GAMES);
