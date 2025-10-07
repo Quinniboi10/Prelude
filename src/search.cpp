@@ -102,6 +102,10 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         thisThread.seldepth = ply;
     if (board.isDraw() && ply > 0)
         return 0;
+
+    if (board.inCheck())
+        depth++;
+
     if (depth <= 0)
         return qsearch<isPV>(board, ply, alpha, beta, ss, thisThread);
 
@@ -522,7 +526,7 @@ void bench(usize depth) {
         std::unique_ptr<Search::ThreadInfo>  thisThread = std::make_unique<ThreadInfo>(Search::ThreadType::SECONDARY, TT, benchBreakFlag);
 
         TT.clear();
-        
+
         Stopwatch<std::chrono::milliseconds> time;
 
         // Start the iterative deepening search
