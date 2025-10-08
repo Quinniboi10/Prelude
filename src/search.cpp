@@ -181,6 +181,9 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         if (ply == 0 && !thisThread.rootMoves.has(m))
             continue;
 
+        // TT prefetching
+        thisThread.TT.prefetch(board.roughKeyAfter(m));
+
         movesSeen++;
 
         // Moveloop pruning
