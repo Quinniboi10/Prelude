@@ -353,7 +353,26 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
                 return thisThread.breakFlag.load(std::memory_order_relaxed) || (sp.softNodes > 0 && countNodes() > sp.softNodes);
         };
 
-        const i32 score = search<PV>(board, currDepth, 0, -MATE_SCORE, MATE_SCORE, ss, thisThread);
+        i32 score;
+        i32 alpha = -MATE_SCORE;
+        i32 beta  = MATE_SCORE;
+        if (depth > MIN_ASPR_DEPTH) {
+            const i32 delta = INITIAL_ASP_WINDOW;
+
+            alpha = std::max(lastScore - delta, -MATE_SCORE);
+            beta  = std::min(lastScore + delta, MATE_SCORE);
+        }
+
+        while (!searchCancelled()) {
+            score = search<PV>(board, currDepth, 0, alpha, beta, ss, thisThread);
+
+            if (score <= alpha || score >= beta) {
+                alpha = -MATE_SCORE;
+                beta  = MATE_SCORE;
+            }
+            else
+                break;
+        }
 
         const auto prettyPrint = [&]() {
             const u64 nodes = countNodes();
