@@ -183,11 +183,20 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
         movesSeen++;
 
+        ss->historyScore = board.isQuiet(m) ? thisThread.getQuietHistory(board.stm, m) : 0;
+
         // Moveloop pruning
         if (ply > 0 && !isLoss(bestScore)) {
             // Futility pruning
             if (ss->isQuiet && !board.inCheck() && depth < 6 && ss->staticEval + FP_A * depth * depth + FP_B * depth + FP_C <= alpha) {
                 skipQuiets = true;
+                continue;
+            }
+
+            // History pruning
+            if (depth <= MIN_HIST_PRUNING_DEPTH && ss->historyScore < HIST_PRUNING_A * depth * depth + HIST_PRUNING_B * depth + HIST_PRUNING_C) {
+                if (board.isQuiet(m))
+                    skipQuiets = true;
                 continue;
             }
         }

@@ -73,6 +73,11 @@ Tunable(FP_A, 1, -50, 200);
 Tunable(FP_B, 60, -100, 300);
 Tunable(FP_C, 90, -150, 500);
 
+constexpr int MIN_HIST_PRUNING_DEPTH = 5;
+Tunable(HIST_PRUNING_A, -250, -2500, -50);
+Tunable(HIST_PRUNING_B, -2582, -3500, -1750);
+Tunable(HIST_PRUNING_C, -499, -800, -100);
+
 
 Tunable(LMR_QUIET_CONST, 1456, 512, 2048);     // Quantized by 1024
 Tunable(LMR_NOISY_CONST, 202, 0, 512);         // Quantized by 1024

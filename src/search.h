@@ -18,6 +18,7 @@ using ConthistSegment = MultiArray<i32, 2, 6, 64>;
 
 struct SearchStack {
     PvList pv;
+    i32    historyScore;
     i32    reduction;
     i16    staticEval;
     bool   isQuiet;
