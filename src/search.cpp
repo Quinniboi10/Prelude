@@ -204,7 +204,8 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         i32 score;
         if (depth >= 2 && movesSearched >= 5 + 2 * (ply == 0) && !testBoard.inCheck()) {
             // Late move reductions (LMR)
-            i32 depthReduction = lmrTable[ss->isQuiet][depth][movesSearched];
+            i32 depthReduction = lmrTable[ss->isQuiet][depth][movesSearched]  // Base value
+                               + !isPV;                                       // Reduce more in nonpv nodes
 
             ss->reduction = depthReduction;
 
