@@ -124,10 +124,14 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
     ss->staticEval = nnue.evaluate(board, thisThread);
 
+    // Is the current position improving since last time we played?
+    bool improving = ss->staticEval > (ss - 2)->staticEval;
+
     // Pre-moveloop pruning
     if (!isPV && !board.inCheck() && !isDecisive(beta)) {
         // Reverse futility pruning (RFP)
-        const int rfpMargin = RFP_DEPTH_A * depth * depth + RFP_DEPTH_B * depth + RFP_DEPTH_C;
+        const i32 rfpDepth = depth - improving;
+        const int rfpMargin = RFP_DEPTH_A * rfpDepth * rfpDepth + RFP_DEPTH_B * rfpDepth + RFP_DEPTH_C;
         if (ss->staticEval >= beta + rfpMargin)
             return ss->staticEval;
 
