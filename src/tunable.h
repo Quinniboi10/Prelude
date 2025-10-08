@@ -70,6 +70,8 @@ Tunable(RFP_DEPTH_B, 128, -256, 256);
 Tunable(RFP_DEPTH_C, 50, -256, 256);
 
 // Moveloop pruning
+constexpr i32 LMP_CONST = 6;
+
 Tunable(FP_A, 1, -50, 200);
 Tunable(FP_B, 60, -100, 300);
 Tunable(FP_C, 90, -150, 500);
