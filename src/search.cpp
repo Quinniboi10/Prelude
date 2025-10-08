@@ -125,9 +125,9 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
     ss->staticEval = nnue.evaluate(board, thisThread);
 
     // Pre-moveloop pruning
-    if (!isPV && !board.inCheck()) {
+    if (!isPV && !board.inCheck() && !isDecisive(beta)) {
         // Reverse futility pruning (RFP)
-        const int rfpMargin = RFP_DEPTH_A * depth * depth / 1024 + RFP_DEPTH_B * depth + RFP_DEPTH_C;
+        const int rfpMargin = RFP_DEPTH_A * depth * depth + RFP_DEPTH_B * depth + RFP_DEPTH_C;
         if (ss->staticEval >= beta + rfpMargin)
             return ss->staticEval;
 
@@ -186,7 +186,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         // Moveloop pruning
         if (ply > 0 && !isLoss(bestScore)) {
             // Futility pruning
-            if (ss->isQuiet && !board.inCheck() && depth < 6 && ss->staticEval + FP_A * depth * depth + FP_B * depth + FP_C < alpha) {
+            if (ss->isQuiet && !board.inCheck() && depth < 6 && ss->staticEval + FP_A * depth * depth + FP_B * depth + FP_C <= alpha) {
                 skipQuiets = true;
                 continue;
             }
@@ -258,7 +258,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
     }
 
     // Store to TT before returning
-    const Transposition newEntry = Transposition(board.zobrist, bestMove, ttFlag, bestScore, depth);
+    const Transposition newEntry = Transposition(board.zobrist, bestMove, ttFlag, asTTScore(bestScore, ply), depth);
 
     if (thisThread.TT.shouldReplace(ttEntry, newEntry))
         ttEntry = newEntry;
@@ -355,7 +355,7 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
             const u64 nodes = countNodes();
             const auto nodesSuffixed = suffixNum(nodes, false);
             const auto nps = suffixNum(nodes * 1000 / (sp.time.elapsed() + 1), false);
-            const string mateScoreStr = fmt::format("{}M{}", score < 0 ? '-' : '+', (MATE_SCORE - std::abs(score)) / 2 + 1);
+            const string mateScoreStr = fmt::format("{}M{}", score < 0 ? '-' : '+', (MATE_SCORE - std::abs(score) + 1) / 2);
 
             const auto [wdlWin, wdlLoss] = wdlModel(score, board);
             const i32 wdlDraw = 1000 - wdlWin - wdlLoss;

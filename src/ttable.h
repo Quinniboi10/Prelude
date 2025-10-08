@@ -7,6 +7,14 @@
 #include <thread>
 #include <cstring>
 
+inline i16 asTTScore(i16 score, u8 ply) {
+    if (Search::isWin(score))
+        return score + ply;
+    else if (Search::isLoss(score))
+        return score - ply;
+    return score;
+}
+
 struct Transposition {
     u64  zobrist;
     Move move;
