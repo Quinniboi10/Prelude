@@ -69,6 +69,9 @@ Tunable(RFP_DEPTH_A, 1, -20, 20);
 Tunable(RFP_DEPTH_B, 128, -256, 256);
 Tunable(RFP_DEPTH_C, 50, -256, 256);
 
+constexpr i32 RAZORING_DEPTH = 4;
+Tunable(RAZORING_DEPTH_SCALAR, 250, 150, 400);
+
 // Moveloop pruning
 Tunable(FP_A, 1, -50, 200);
 Tunable(FP_B, 60, -100, 300);

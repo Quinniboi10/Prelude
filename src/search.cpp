@@ -135,6 +135,14 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         if (ss->staticEval >= beta + rfpMargin)
             return ss->staticEval;
 
+        // Razoring
+        if (depth <= RAZORING_DEPTH && std::abs(alpha) < 2000 && ss->staticEval + RAZORING_DEPTH_SCALAR * depth <= alpha) {
+            const i32 score = qsearch<isPV>(board, ply, alpha, alpha + 1, ss, thisThread);
+
+            if (score <= alpha)
+                return score;
+        }
+
         // Null move pruning (NMP)
         if (board.canNullMove() && ss->staticEval >= beta) {
             const i32 reduction = 3 + depth / 3;
