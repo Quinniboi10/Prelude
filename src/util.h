@@ -213,15 +213,15 @@ inline void printColoredScore(i32 score) {
 
     if (colorWdl < 0) {
         double t = colorWdl + 1.0;
-        r        = static_cast<int>(lerp(200, 255, t));  // red stays max
-        g        = static_cast<int>(lerp(0, 200, t));    // green rises
-        b        = static_cast<int>(lerp(0, 200, t));    // blue rises
+        r        = 200;                                // red stays max
+        g        = static_cast<int>(lerp(0, 200, t));  // green rises
+        b        = static_cast<int>(lerp(0, 200, t));  // blue rises
     }
     else {
-        double t = colorWdl;                             // maps 0 -> 1
-        r        = static_cast<int>(lerp(200, 0, t));    // red drops
-        g        = static_cast<int>(lerp(200, 255, t));  // green stays max
-        b        = static_cast<int>(lerp(200, 0, t));    // blue drops
+        double t = colorWdl;                           // maps 0 -> 1
+        r        = static_cast<int>(lerp(200, 0, t));  // red drops
+        g        = 200;                                // green stays max
+        b        = static_cast<int>(lerp(200, 0, t));  // blue drops
     }
 
     if (len == 0)

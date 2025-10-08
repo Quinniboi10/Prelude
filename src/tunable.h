@@ -64,7 +64,7 @@ Tunable(HIST_BONUS_C, 0, -128, 128);
 Tunable(MO_VICTIM_WEIGHT, 100, 50, 150);
 
 // Pre-moveloop pruning
-Tunable(RFP_DEPTH_A, 1024, -4096, 4096);  // Quantized by 1024
+Tunable(RFP_DEPTH_A, 1, -20, 20);
 Tunable(RFP_DEPTH_B, 128, -256, 256);
 Tunable(RFP_DEPTH_C, 50, -256, 256);
 
