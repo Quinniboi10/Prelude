@@ -16,7 +16,7 @@ int evaluateMove(const Board& board, const Search::ThreadInfo& thisThread, Move 
     };
 
     if (board.isCapture(m))
-        return evaluateMVVLVA() + 600'000;
+        return evaluateMVVLVA() + 600'000 - 800'000 * !board.see(m, MO_CAPTURE_SEE_THRESHOLD);
 
     return thisThread.getQuietHistory(board.stm, m);
 }

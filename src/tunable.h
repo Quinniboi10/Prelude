@@ -62,6 +62,7 @@ Tunable(HIST_BONUS_C, 0, -128, 128);
 
 // Move ordering
 Tunable(MO_VICTIM_WEIGHT, 100, 50, 150);
+Tunable(MO_CAPTURE_SEE_THRESHOLD, -56, -200, 0);
 
 // Pre-moveloop pruning
 Tunable(RFP_DEPTH_A, 1, -20, 20);
