@@ -299,6 +299,8 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
     if (searchTime != 0)
         searchTime -= MOVE_OVERHEAD;
 
+    i64 softTime = searchTime * 0.6;
+
     SearchLimit depthOneSl(sp.time, 0, sp.nodes);
     SearchLimit mainSl(sp.time, searchTime, sp.nodes);
 
@@ -427,15 +429,20 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
                 prettyPrint();
         }
 
-        if (sp.softNodes > 0 && countNodes() > sp.softNodes)
-            break;
-
         lastScore = score;
         lastPV    = ss->pv;
 
         if (isMain) {
             // Go mate
             if (sp.mate > 0 && static_cast<usize>((MATE_SCORE - std::abs(score) + 1) / 2) <= sp.mate)
+                break;
+
+            // Soft nodes
+            if (sp.softNodes > 0 && countNodes() > sp.softNodes)
+                break;
+
+            // Soft tm
+            if (softTime > 0 && sp.time.elapsed() > softTime)
                 break;
         }
     }
