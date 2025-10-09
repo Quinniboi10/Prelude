@@ -272,7 +272,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
     }
 
     // Store to TT before returning
-    const Transposition newEntry = Transposition(board.zobrist, bestMove, ttFlag, asTTScore(bestScore, ply), depth);
+    const Transposition newEntry = Transposition(board.zobrist, bestMove.isNull() ? ttEntry.move : bestMove, ttFlag, asTTScore(bestScore, ply), depth);
 
     if (thisThread.TT.shouldReplace(ttEntry, newEntry))
         ttEntry = newEntry;
