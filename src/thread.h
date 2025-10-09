@@ -9,6 +9,9 @@ struct ThreadInfo {
     // Quiet history is indexed [stm][from][to]
     MultiArray<i32, 2, 64, 64> quietHist;
 
+    // Capture history is indexed [stm][pt][captured pt][to]
+    array<array<array<array<i32, 64>, 6>, 6>, 2> capthist;
+
     Stack<AccumulatorPair, MAX_PLY + 1> accumulatorStack;
 
     TranspositionTable& TT;
@@ -35,6 +38,9 @@ struct ThreadInfo {
     // Histories
     i32 getQuietHistory(Color stm, Move m) const;
     void updateQuietHistory(Color stm, Move m, i32 bonus);
+
+    i32 getCaptureHistory(const Board& board, Move m) const;
+    void updateCaptureHistory(const Board& board, Move m, i32 bonus);
 
     [[nodiscard]] std::pair<Board, ThreadStackManager> makeMove(const Board& board, Move m);
     [[nodiscard]] std::pair<Board, ThreadStackManager> makeNullMove(Board board);

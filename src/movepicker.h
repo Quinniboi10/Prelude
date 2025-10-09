@@ -15,8 +15,8 @@ int evaluateMove(const Board& board, const Search::ThreadInfo& thisThread, Move 
         return (victim * MO_VICTIM_WEIGHT) - attacker;
     };
 
-    if (board.isCapture(m))
-        return evaluateMVVLVA() + 600'000 - 800'000 * !board.see(m, MO_CAPTURE_SEE_THRESHOLD);
+    if (!board.isQuiet(m))
+        return evaluateMVVLVA() + 600'000 - 800'000 * !board.see(m, MO_CAPTURE_SEE_THRESHOLD) + thisThread.getCaptureHistory(board, m) * MO_CAPTHIST_WEIGHT / 1024;
 
     return thisThread.getQuietHistory(board.stm, m);
 }

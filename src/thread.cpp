@@ -8,6 +8,7 @@ ThreadInfo::ThreadInfo(ThreadType type, TranspositionTable& TT, std::atomic<bool
     type(type),
     breakFlag(breakFlag) {
     std::memset(quietHist.data(), 0, sizeof(quietHist));
+    std::memset(capthist.data(), 0, sizeof(capthist));
 
     accumulatorStack.clear();
 
@@ -21,6 +22,7 @@ ThreadInfo::ThreadInfo(ThreadType type, TranspositionTable& TT, std::atomic<bool
 
 ThreadInfo::ThreadInfo(const ThreadInfo& other) :
     quietHist(other.quietHist),
+    capthist(other.capthist),
     accumulatorStack(other.accumulatorStack),
     TT(other.TT),
     type(other.type),
@@ -36,6 +38,14 @@ ThreadInfo::ThreadInfo(const ThreadInfo& other) :
 i32 ThreadInfo::getQuietHistory(Color stm, Move m) const { return quietHist[stm][m.from()][m.to()]; }
 void ThreadInfo::updateQuietHistory(Color stm, Move m, i32 bonus) {
     i32& entry = quietHist[stm][m.from()][m.to()];
+    const i32 clampedBonus = std::clamp<i32>(bonus, -MAX_HISTORY, MAX_HISTORY);
+
+    entry += clampedBonus - entry * abs(clampedBonus) / MAX_HISTORY;
+}
+
+i32 ThreadInfo::getCaptureHistory(const Board& board, Move m) const { return capthist[board.stm][board.getPiece(m.from())][board.getPiece(m.to())][m.to()]; }
+void ThreadInfo::updateCaptureHistory(const Board& board, Move m, i32 bonus) {
+    i32& entry = capthist[board.stm][board.getPiece(m.from())][board.getPiece(m.to())][m.to()];
     const i32 clampedBonus = std::clamp<i32>(bonus, -MAX_HISTORY, MAX_HISTORY);
 
     entry += clampedBonus - entry * abs(clampedBonus) / MAX_HISTORY;
