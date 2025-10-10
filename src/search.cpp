@@ -198,6 +198,11 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
                 skipQuiets = true;
                 continue;
             }
+
+            // SEE pruning
+            const i32 seeThreshold = ss->isQuiet ? SEE_QUIET_SCALAR * depth * depth : SEE_NOISY_SCALAR * depth;
+            if (!board.see(m, seeThreshold))
+                continue;
         }
 
         thisThread.nodes.fetch_add(1, std::memory_order_relaxed);

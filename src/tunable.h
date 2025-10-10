@@ -75,6 +75,9 @@ Tunable(FP_A, 1, -50, 200);
 Tunable(FP_B, 60, -100, 300);
 Tunable(FP_C, 90, -150, 500);
 
+Tunable(SEE_QUIET_SCALAR, -25, -50, -5);
+Tunable(SEE_NOISY_SCALAR, -90, -150, -55);
+
 
 Tunable(LMR_QUIET_CONST, 1456, 512, 2048);     // Quantized by 1024
 Tunable(LMR_NOISY_CONST, 202, 0, 512);         // Quantized by 1024

@@ -313,14 +313,14 @@ int main(int argc, char* argv[]) {
         }
         else if (command == "debug.popcnt") {
             cout << "White pawns: " << popcount(board.pieces(WHITE, PAWN)) << endl;
-            cout << "White knigts: " << popcount(board.pieces(WHITE, KNIGHT)) << endl;
+            cout << "White knights: " << popcount(board.pieces(WHITE, KNIGHT)) << endl;
             cout << "White bishops: " << popcount(board.pieces(WHITE, BISHOP)) << endl;
             cout << "White rooks: " << popcount(board.pieces(WHITE, ROOK)) << endl;
             cout << "White queens: " << popcount(board.pieces(WHITE, QUEEN)) << endl;
             cout << "White king: " << popcount(board.pieces(WHITE, KING)) << endl;
             cout << endl;
             cout << "Black pawns: " << popcount(board.pieces(BLACK, PAWN)) << endl;
-            cout << "Black knigts: " << popcount(board.pieces(BLACK, KNIGHT)) << endl;
+            cout << "Black knights: " << popcount(board.pieces(BLACK, KNIGHT)) << endl;
             cout << "Black bishops: " << popcount(board.pieces(BLACK, BISHOP)) << endl;
             cout << "Black rooks: " << popcount(board.pieces(BLACK, ROOK)) << endl;
             cout << "Black queens: " << popcount(board.pieces(BLACK, QUEEN)) << endl;
