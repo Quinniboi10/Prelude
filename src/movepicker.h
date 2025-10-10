@@ -9,10 +9,9 @@
 
 int evaluateMove(const Board& board, const Search::ThreadInfo& thisThread, Move m) {
     const auto evaluateMVVLVA = [&]() {
-        const int victim   = PIECE_VALUES[board.getPiece(m.to())];
-        const int attacker = PIECE_VALUES[board.getPiece(m.from())];
+        const int victim = PIECE_VALUES[board.getPiece(m.to())];
 
-        return (victim * MO_VICTIM_WEIGHT) - attacker;
+        return victim * MO_VICTIM_WEIGHT;
     };
 
     if (!board.isQuiet(m))
