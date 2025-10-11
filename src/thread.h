@@ -6,8 +6,8 @@
 
 namespace Search {
 struct ThreadInfo {
-    // Quiet history is indexed [stm][from][to]
-    MultiArray<i32, 2, 64, 64> quietHist;
+    // Quiet history is indexed [from][to][from attacked][to attacked]
+    MultiArray<i32, 64, 64, 2, 2> quietHist;
 
     // Capture history is indexed [stm][pt][captured pt][to]
     array<array<array<array<i32, 64>, 6>, 6>, 2> capthist;
@@ -36,8 +36,8 @@ struct ThreadInfo {
     ThreadInfo(const ThreadInfo& other);
 
     // Histories
-    i32 getQuietHistory(Color stm, Move m) const;
-    void updateQuietHistory(Color stm, Move m, i32 bonus);
+    i32 getQuietHistory(const Board& board, Move m) const;
+    void updateQuietHistory(const Board& board, Move m, i32 bonus);
 
     i32 getCaptureHistory(const Board& board, Move m) const;
     void updateCaptureHistory(const Board& board, Move m, i32 bonus);

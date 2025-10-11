@@ -35,9 +35,9 @@ ThreadInfo::ThreadInfo(const ThreadInfo& other) :
 }
 
 // Histories
-i32 ThreadInfo::getQuietHistory(Color stm, Move m) const { return quietHist[stm][m.from()][m.to()]; }
-void ThreadInfo::updateQuietHistory(Color stm, Move m, i32 bonus) {
-    i32& entry = quietHist[stm][m.from()][m.to()];
+i32 ThreadInfo::getQuietHistory(const Board& board, Move m) const { return quietHist[m.from()][m.to()][board.isUnderAttack(board.stm, m.from())][board.isUnderAttack(board.stm, m.to())]; }
+void ThreadInfo::updateQuietHistory(const Board& board, Move m, i32 bonus) {
+    i32& entry = quietHist[m.from()][m.to()][board.isUnderAttack(board.stm, m.from())][board.isUnderAttack(board.stm, m.to())];
     const i32 clampedBonus = std::clamp<i32>(bonus, -MAX_HISTORY, MAX_HISTORY);
 
     entry += clampedBonus - entry * abs(clampedBonus) / MAX_HISTORY;

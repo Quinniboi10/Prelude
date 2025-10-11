@@ -251,9 +251,9 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
             // History updates
             const i32 bonus = HIST_BONUS_A * depth * depth + HIST_BONUS_B * depth + HIST_BONUS_C;
             if (board.isQuiet(m)) {
-                thisThread.updateQuietHistory(board.stm, m, bonus);
+                thisThread.updateQuietHistory(board, m, bonus);
                 for (const Move q : seenQuiets)
-                    thisThread.updateQuietHistory(board.stm, q, -bonus);
+                    thisThread.updateQuietHistory(board, q, -bonus);
             }
             else {
                 thisThread.updateCaptureHistory(board, m, bonus);
