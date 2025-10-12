@@ -119,7 +119,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
     // Fetch the current TT entry
     Transposition& ttEntry = thisThread.TT.getEntry(board.zobrist);
-    bool ttHit = ttEntry.zobrist == board.zobrist;
+    bool ttHit = ss->excluded.isNull() && ttEntry.zobrist == board.zobrist;
 
     // TT cutoffs
     if (!isPV && ttHit && ttEntry.depth >= depth && ttEntry.canUseScore(alpha, beta))
@@ -131,7 +131,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
     bool improving = ss->staticEval > (ss - 2)->staticEval;
 
     // Pre-moveloop pruning
-    if (!isPV && !board.inCheck() && !isDecisive(beta)) {
+    if (!isPV && !board.inCheck() && !isLoss(beta) && ss->excluded.isNull()) {
         // Reverse futility pruning (RFP)
         const i32 rfpDepth = depth - improving;
         const int rfpMargin = RFP_DEPTH_A * rfpDepth * rfpDepth + RFP_DEPTH_B * rfpDepth + RFP_DEPTH_C;
@@ -178,6 +178,9 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
         const Move m = picker.getNext();
 
+        if (m == ss->excluded)
+            continue;
+
         if (!board.isLegal(m))
             continue;
 
@@ -208,7 +211,21 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         thisThread.nodes.fetch_add(1, std::memory_order_relaxed);
         movesSearched++;
 
-        const i32 newDepth = depth - 1;
+        i32 extension = 0;
+        // Singular extensions
+        if (ply > 0 && depth >= SE_MIN_DEPTH && ttHit && m == ttEntry.move && ttEntry.depth >= depth - 3 && ttEntry.flag != FAIL_LOW) {
+            const i32 sBeta  = std::max(-INF_INT + 1, ttEntry.score - depth * 2);
+            const i32 sDepth = (depth - 1) / 2;
+
+            ss->excluded    = m;
+            const i32 score = search<NodeType::NONPV>(board, sDepth, ply, sBeta - 1, sBeta, ss, thisThread);
+            ss->excluded    = Move::null();
+
+            if (score < sBeta)
+                extension = 1;
+        }
+
+        const i32 newDepth = depth + extension - 1;
 
         // Make the move on the new board. This will also update stacks
         auto [testBoard, _] = thisThread.makeMove(board, m);
@@ -279,11 +296,13 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         return 0;
     }
 
-    // Store to TT before returning
-    const Transposition newEntry = Transposition(board.zobrist, bestMove.isNull() ? ttEntry.move : bestMove, ttFlag, asTTScore(bestScore, ply), depth);
+    if (ss->excluded.isNull()) {
+        // Store to TT before returning
+        const Transposition newEntry = Transposition(board.zobrist, bestMove.isNull() ? ttEntry.move : bestMove, ttFlag, asTTScore(bestScore, ply), depth);
 
-    if (thisThread.TT.shouldReplace(ttEntry, newEntry))
-        ttEntry = newEntry;
+        if (thisThread.TT.shouldReplace(ttEntry, newEntry))
+            ttEntry = newEntry;
+    }
 
     return bestScore;
 }
@@ -555,7 +574,7 @@ void bench(usize depth) {
         Stopwatch<std::chrono::milliseconds> time;
 
         // Start the iterative deepening search
-        iterativeDeepening(board, *thisThread, Search::SearchParams(time, BENCH_DEPTH, 0, 0, 0, 0, 0, 0, 0, 0, true));
+        iterativeDeepening(board, *thisThread, Search::SearchParams(time, depth, 0, 0, 0, 0, 0, 0, 0, 0, true));
 
         const u64 durationMs = time.elapsed();
 
