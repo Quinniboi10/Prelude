@@ -221,8 +221,12 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
             const i32 score = search<NodeType::NONPV>(board, sDepth, ply, sBeta - 1, sBeta, ss, thisThread);
             ss->excluded    = Move::null();
 
-            if (score < sBeta)
-                extension = 1;
+            if (score < sBeta) {
+                if (!isPV && score < sBeta - SE_DOUBLE_MARGIN)
+                    extension = 2;
+                else
+                    extension = 1;
+            }
             // Negative extensions
             else if (ttEntry.score >= beta)
                 extension = -2;

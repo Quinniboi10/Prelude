@@ -79,6 +79,7 @@ Tunable(SEE_QUIET_SCALAR, -25, -50, -5);
 Tunable(SEE_NOISY_SCALAR, -90, -150, -55);
 
 constexpr i32 SE_MIN_DEPTH = 8;
+Tunable(SE_DOUBLE_MARGIN, 30, 20, 40);
 
 
 Tunable(LMR_QUIET_CONST, 1456, 512, 2048);     // Quantized by 1024
