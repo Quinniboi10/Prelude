@@ -197,7 +197,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
         // Moveloop pruning
         if (ply > 0 && !isLoss(bestScore)) {
             // Late move pruning (LMP)
-            if (ss->isQuiet && movesSearched >= 8 + depth * depth) {
+            if (ss->isQuiet && movesSearched >= (8 + depth * depth) / (2 - improving)) {
                 skipQuiets = true;
                 continue;
             }
