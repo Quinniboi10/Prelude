@@ -9,6 +9,7 @@ ThreadInfo::ThreadInfo(ThreadType type, TranspositionTable& TT, std::atomic<bool
     breakFlag(breakFlag) {
     std::memset(quietHist.data(), 0, sizeof(quietHist));
     std::memset(capthist.data(), 0, sizeof(capthist));
+    std::memset(conthist.data(), 0, sizeof(conthist));
 
     accumulatorStack.clear();
 
@@ -23,6 +24,7 @@ ThreadInfo::ThreadInfo(ThreadType type, TranspositionTable& TT, std::atomic<bool
 ThreadInfo::ThreadInfo(const ThreadInfo& other) :
     quietHist(other.quietHist),
     capthist(other.capthist),
+    conthist(other.conthist),
     accumulatorStack(other.accumulatorStack),
     TT(other.TT),
     type(other.type),
@@ -43,12 +45,36 @@ void ThreadInfo::updateQuietHistory(Color stm, Move m, i32 bonus) {
     entry += clampedBonus - entry * abs(clampedBonus) / MAX_HISTORY;
 }
 
-i32 ThreadInfo::getCaptureHistory(const Board& board, Move m) const { return capthist[board.stm][board.getPiece(m.from())][board.getPiece(m.to())][m.to()]; }
+i32 ThreadInfo::getCaptureHistory(const Board& board, Move m) const {
+    assert(board.getPiece(m.to()) != KING);
+    return capthist[board.stm][board.getPiece(m.from())][board.getPiece(m.to())][m.to()];
+}
 void ThreadInfo::updateCaptureHistory(const Board& board, Move m, i32 bonus) {
     i32& entry = capthist[board.stm][board.getPiece(m.from())][board.getPiece(m.to())][m.to()];
     const i32 clampedBonus = std::clamp<i32>(bonus, -MAX_HISTORY, MAX_HISTORY);
 
     entry += clampedBonus - entry * abs(clampedBonus) / MAX_HISTORY;
+}
+
+ConthistSegment* ThreadInfo::getConthistSegment(const Board& b, Move m) { return &conthist[b.stm][b.getPiece(m.from())][m.to()]; }
+
+void ThreadInfo::updateConthist(SearchStack* ss, const Board& b, Move m, i32 bonus) {
+    assert(b.getPiece(m.from()) != NO_PIECE_TYPE);
+
+    auto updateEntry = [&](i32& entry) {
+        i32 clampedBonus = std::clamp<i32>(bonus, -MAX_HISTORY, MAX_HISTORY);
+        entry += clampedBonus - entry * abs(clampedBonus) / MAX_HISTORY;
+    };
+
+    if ((ss - 1)->conthist)
+        updateEntry((*(ss - 1)->conthist)[b.stm][b.getPiece(m.from())][m.to()]);
+}
+
+i32 ThreadInfo::getConthist(const ConthistSegment* c, const Board& b, Move m) const {
+    assert(b.getPiece(m.from()) != NO_PIECE_TYPE);
+    assert(c);
+
+    return (*c)[b.stm][b.getPiece(m.from())][m.to()];
 }
 
 std::pair<Board, ThreadStackManager>

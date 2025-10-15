@@ -52,7 +52,7 @@ i32 qsearch(Board& board, usize ply, int alpha, int beta, SearchStack* ss, Threa
     if (bestScore > alpha)
         alpha = bestScore;
 
-    Movepicker<NOISY_ONLY> picker(board, thisThread, Move::null());
+    Movepicker<NOISY_ONLY> picker(board, thisThread, ss, Move::null());
     while (picker.hasNext()) {
         if (thisThread.breakFlag.load(std::memory_order_relaxed))
             return bestScore;
@@ -163,7 +163,7 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
 
     bool skipQuiets = false;
 
-    Movepicker<ALL_MOVES> picker(board, thisThread, ttHit ? ttEntry.move : Move::null());
+    Movepicker<ALL_MOVES> picker(board, thisThread, ss, ttHit ? ttEntry.move : Move::null());
     while (picker.hasNext()) {
         if (thisThread.breakFlag.load(std::memory_order_relaxed))
             return bestScore;
@@ -213,6 +213,8 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
             if (!board.see(m, seeThreshold))
                 continue;
         }
+
+        ss->conthist = thisThread.getConthistSegment(board, m);
 
         thisThread.nodes.fetch_add(1, std::memory_order_relaxed);
         movesSearched++;
@@ -278,8 +280,10 @@ i32 search(Board& board, i32 depth, usize ply, int alpha, int beta, SearchStack*
             const i32 bonus = HIST_BONUS_A * depth * depth + HIST_BONUS_B * depth + HIST_BONUS_C;
             if (board.isQuiet(m)) {
                 thisThread.updateQuietHistory(board.stm, m, bonus);
+                thisThread.updateConthist(ss, board, m, bonus);
                 for (const Move q : seenQuiets)
                     thisThread.updateQuietHistory(board.stm, q, -bonus);
+                    thisThread.updateConthist(ss, board, m, -bonus);
             }
             else {
                 thisThread.updateCaptureHistory(board, m, bonus);

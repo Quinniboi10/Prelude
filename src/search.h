@@ -17,11 +17,12 @@ struct ThreadStackManager;
 using ConthistSegment = MultiArray<i32, 2, 6, 64>;
 
 struct SearchStack {
-    PvList pv;
-    i32    reduction;
-    Move   excluded;
-    i16    staticEval;
-    bool   isQuiet;
+    PvList           pv;
+    ConthistSegment* conthist;
+    i32              reduction;
+    Move             excluded;
+    i16              staticEval;
+    bool             isQuiet;
 };
 enum ThreadType {
     MAIN      = 1,

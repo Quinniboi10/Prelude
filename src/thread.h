@@ -10,7 +10,10 @@ struct ThreadInfo {
     MultiArray<i32, 2, 64, 64> quietHist;
 
     // Capture history is indexed [stm][pt][captured pt][to]
-    array<array<array<array<i32, 64>, 6>, 6>, 2> capthist;
+    MultiArray<i32, 2, 6, 7, 64> capthist;
+
+    // Conthist is indexed [last stm][last pt][last to][stm][pt][to]
+    MultiArray<ConthistSegment, 2, 6, 64> conthist;
 
     Stack<AccumulatorPair, MAX_PLY + 1> accumulatorStack;
 
@@ -41,6 +44,10 @@ struct ThreadInfo {
 
     i32 getCaptureHistory(const Board& board, Move m) const;
     void updateCaptureHistory(const Board& board, Move m, i32 bonus);
+
+    ConthistSegment* getConthistSegment(const Board& b, Move m);
+    void updateConthist(SearchStack* ss, const Board& b, Move m, i32 bonus);
+    i32 getConthist(const ConthistSegment* c, const Board& b, Move m) const;
 
     [[nodiscard]] std::pair<Board, ThreadStackManager> makeMove(const Board& board, Move m);
     [[nodiscard]] std::pair<Board, ThreadStackManager> makeNullMove(Board board);

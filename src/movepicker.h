@@ -7,7 +7,7 @@
 #include "thread.h"
 #include "tunable.h"
 
-int evaluateMove(const Board& board, const Search::ThreadInfo& thisThread, Move m) {
+int evaluateMove(const Board& board, const Search::ThreadInfo& thisThread, const Search::SearchStack* ss, Move m) {
     const auto evaluateMVVLVA = [&]() {
         const int victim   = PIECE_VALUES[board.getPiece(m.to())];
         const int attacker = PIECE_VALUES[board.getPiece(m.from())];
@@ -18,7 +18,12 @@ int evaluateMove(const Board& board, const Search::ThreadInfo& thisThread, Move 
     if (!board.isQuiet(m))
         return evaluateMVVLVA() + 600'000 - 800'000 * !board.see(m, MO_CAPTURE_SEE_THRESHOLD) + thisThread.getCaptureHistory(board, m) * MO_CAPTHIST_WEIGHT / 1024;
 
-    return thisThread.getQuietHistory(board.stm, m);
+    int ret = thisThread.getQuietHistory(board.stm, m);
+
+    if ((ss - 1)->conthist)
+        ret += thisThread.getConthist((ss - 1)->conthist, board, m);
+
+    return ret;
 }
 
 template<MovegenMode mode>
@@ -27,14 +32,14 @@ struct Movepicker {
     array<int, 256> moveScores;
     u16             seen;
 
-    Movepicker(const Board& board, const Search::ThreadInfo& thisThread, const Move ttMove) {
+    Movepicker(const Board& board, const Search::ThreadInfo& thisThread, const Search::SearchStack* ss, const Move ttMove) {
         moves = Movegen::generateMoves<mode>(board);
         seen  = 0;
 
         for (usize i = 0; i < moves.length; i++) {
             const Move m = moves.moves[i];
 
-            moveScores[i] = evaluateMove(board, thisThread, m);
+            moveScores[i] = evaluateMove(board, thisThread, ss, m);
             if (m == ttMove)
                 moveScores[i] += 1'000'000;
         }
@@ -56,7 +61,9 @@ struct Movepicker {
             std::swap(moveScores[seen], moveScores[best]);
         }
 
-        return seen++;
+        seen++;
+
+        return seen - 1;
     }
 
 
