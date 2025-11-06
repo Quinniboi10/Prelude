@@ -215,6 +215,8 @@ mainLoop:
         gameBuffer.clear();
 
         if (outputBuffer.size() >= Datagen::OUTPUT_BUFFER_GAMES) {
+            cout << "Thread " << id << " is going to write in 500ms" << endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
             writeToFile(outFile, outputBuffer);
             outputBuffer.clear();
             cout << "Thread " << id << " wrote " << formatNum(cachedPositions) << " positions at " << fmt::format("{:.1f}", cachedPositions * 1000 / (double) time.elapsed()) << " pos/s" << endl;
