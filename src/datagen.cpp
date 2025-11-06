@@ -207,6 +207,9 @@ mainLoop:
         else
             startingPos.wdl = 2;
 
+        for (usize posIdx = 0; posIdx < gameBuffer.size(); posIdx++)
+            gameBuffer[posIdx].score = gameBuffer.size() - posIdx;
+
         outputBuffer.emplace_back(startingPos, gameBuffer);
 
         gameBuffer.clear();
