@@ -490,7 +490,7 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
         return nodes;
     };
 
-    // Setup the root moves to be searched
+    // Set up the root moves to be searched
     thisThread.rootMoves.length = 0;
 
     if (tbEnabled && !board.canCastle(WHITE) && !board.canCastle(BLACK) && popcount(board.pieces()) <= tb::PIECES) {
@@ -534,12 +534,10 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
             score = search<PV>(board, currDepth, 0, -INF_I16, INF_I16, ss, thisThread, sl);
         else {
             int delta = INITIAL_ASP_WINDOW;
-            i32 alpha;
-            i32 beta;
 
             while (!searchCancelled()) {
-                alpha = std::max(lastScore - delta, -INF_I16);
-                beta  = std::min(lastScore + delta, INF_I16);
+                const i32 alpha = std::max(lastScore - delta, -INF_I16);
+                const i32 beta  = std::min(lastScore + delta, INF_I16);
                 score = search<PV>(board, currDepth, 0, alpha, beta, ss, thisThread, sl);
                 if (score <= alpha || score >= beta)
                     delta *= static_cast<double>(ASP_WIDENING_FACTOR) / 1024;
@@ -557,7 +555,7 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
             break;
 
         if (isMain)
-            cout << (*searcher).searchReport(board, currDepth, score, ss->pv) << endl;
+            cout << searcher->searchReport(board, currDepth, score, ss->pv) << endl;
 
         if (sp.softNodes > 0 && countNodes() > sp.softNodes)
             break;
@@ -576,8 +574,10 @@ MoveEvaluation iterativeDeepening(Board board, ThreadInfo& thisThread, SearchPar
         }
     }
 
-    if (isMain)
+    if (isMain) {
+        cout << "info nodes " << countNodes() << endl;
         cout << "bestmove " << lastPV.moves[0] << endl;
+    }
 
     thisThread.breakFlag.store(true, std::memory_order_relaxed);
 
