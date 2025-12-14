@@ -12,10 +12,10 @@ void Searcher::start(Board& board, Search::SearchParams sp) {
     mainData->tbHits = 0;
     mainThread     = std::thread(Search::iterativeDeepening, board, std::ref(*mainData), sp, this);
 
-    for (usize i = 0; i < workerData.size(); i++) {
-        workerData[i].nodes = 0;
-        workerData[i].tbHits = 0;
-        workers.emplace_back(Search::iterativeDeepening, board, std::ref(workerData[i]), sp, nullptr);
+    for (auto& i : workerData) {
+        i.nodes = 0;
+        i.tbHits = 0;
+        workers.emplace_back(Search::iterativeDeepening, board, std::ref(i), sp, nullptr);
     }
 }
 
@@ -25,7 +25,7 @@ void Searcher::stop() {
     if (mainThread.joinable())
         mainThread.join();
 
-    if (workers.size() > 0)
+    if (!workers.empty())
         for (std::thread& t : workers)
             if (t.joinable())
                 t.join();
@@ -33,7 +33,11 @@ void Searcher::stop() {
     workers.clear();
 }
 
-void Searcher::waitUntilFinished() { stopFlag.wait(false); }
+void Searcher::waitUntilFinished() const {
+    while (!stopFlag.load(std::memory_order_acquire)) {
+        std::this_thread::yield();
+    }
+}
 
 void Searcher::makeThreads(int threads) {
     threads -= 1;

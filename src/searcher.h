@@ -25,11 +25,11 @@ struct Searcher {
 
     void start(Board& board, Search::SearchParams sp);
     void stop();
-    void waitUntilFinished();
+    void waitUntilFinished() const;
 
     void makeThreads(int threads);
 
-    void resizeTT(usize size) {
+    void resizeTT(const usize size) {
         TT.reserve(size);
         TT.clear(workerData.size() + 1);
     }
